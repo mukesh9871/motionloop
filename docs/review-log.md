@@ -104,3 +104,7 @@ Verdict: CLEAN (4 minor). All round-1 fixes verified, margin math checked for ev
 | 2 | minor | Rain streak angle did not match its motion on non-square photos | Fixed: streak axis uses `0.12 * aspect`. |
 | 3 | minor | Rain-sized margin made snow and embers sparse on wide photos | Fixed: separate smaller margin for them. |
 | 4 | minor | Stale comment on the offscreen frame | Fixed. |
+
+## Push 3, round 3 (delta a708519)
+
+Verdict: no blocker or major. 1 minor: streak slope ignored the wrap margin stretch of screen y. Fixed (slope / (1 + 2 * rainMargin)), as derived by the reviewer. GLSL validity, coverage, margins and periodicity confirmed.

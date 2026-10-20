@@ -60,9 +60,10 @@ void main() {
         // Start x spread over [-0.12, 1) so the slant still covers the lower left corner.
         pos = vec2(x0 * 1.12 - 0.12 + 0.12 * y, y * (1.0 + 2.0 * rainMargin) - rainMargin);
         size = mix(0.0015, 0.003, r);
-        // Streak drawn along the actual motion: x moves 0.12 per unit y in normalized
-        // coordinates, which is 0.12 * aspect in the width-scaled space the quad is built in.
-        along = normalize(vec2(0.12 * uAspect, 1.0));
+        // Streak drawn along the actual motion. Screen y spans (1 + 2 * rainMargin) per wrap
+        // while x moves 0.12, so the slope is 0.12 / (1 + 2 * rainMargin) in normalized
+        // coordinates, times aspect in the width-scaled space the quad is built in.
+        along = normalize(vec2(0.12 / (1.0 + 2.0 * rainMargin) * uAspect, 1.0));
         stretch = 14.0;
         alpha = 0.35 + 0.35 * r;
         color = vec3(0.85, 0.9, 1.0);
