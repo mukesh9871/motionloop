@@ -106,6 +106,10 @@ class LoopRenderGraph(assets: AssetManager) {
 
         if (adjustments.isIdentity && !overlay.isActive) {
             // Nothing to grade or overlay: warp straight into the target, no extra pass.
+            // Free the offscreen textures so they do not hold VRAM while unused.
+            frame?.release()
+            frame = null
+            overlayPass.releaseLayer()
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
             GLES30.glViewport(x, y, width, height)
             warpPass.draw(src.id, flow.id, mask.id, flowPass.encoded, phase, mode, amount, maskOverlay, flipY)
@@ -121,6 +125,8 @@ class LoopRenderGraph(assets: AssetManager) {
         if (overlay.isActive) {
             overlayPass.render(overlay, phase, aspect, width, height)
             overlayTex = overlayPass.layer?.id ?: 0
+        } else {
+            overlayPass.releaseLayer()
         }
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
         GLES30.glViewport(x, y, width, height)

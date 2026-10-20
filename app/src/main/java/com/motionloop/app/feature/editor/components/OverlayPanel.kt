@@ -83,7 +83,8 @@ fun OverlayPanel(
             LabeledSlider("Glow", settings.leakIntensity, 0f..1f, { v -> onChange { it.copy(leakIntensity = v) } })
         }
 
-        if (settings.isActive) {
+        // hasContent, not isActive: at opacity 0 the slider must stay reachable to bring it back.
+        if (settings.hasContent) {
             SectionLabel("Blend")
             ChipRow(BlendMode.entries, settings.blend, { it.label() }) { v -> onChange { it.copy(blend = v) } }
             LabeledSlider("Opacity", settings.opacity, 0f..1f, { v -> onChange { it.copy(opacity = v) } })

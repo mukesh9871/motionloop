@@ -36,6 +36,14 @@ class OverlayTest {
     }
 
     @Test
+    fun zeroOpacityKeepsControlsReachable() {
+        val hidden = OverlaySettings(particles = ParticleType.SNOW, opacity = 0f)
+        assertFalse(hidden.isActive)
+        assertTrue(hidden.hasContent)
+        assertFalse(OverlaySettings().hasContent)
+    }
+
+    @Test
     fun particleCountFollowsDensity() {
         assertEquals(0, OverlaySettings().particleCount)
         assertEquals(OverlaySettings.MAX_PARTICLES, OverlaySettings(particles = ParticleType.RAIN, density = 1f).particleCount)

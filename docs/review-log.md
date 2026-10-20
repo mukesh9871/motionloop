@@ -80,3 +80,16 @@ Verdict: CLEAN (2 minor). All round-1 fixes verified, all unit tests traced.
 ## Push 2, round 3 (delta a7fc7fc)
 
 Verdict: CLEAN. No findings.
+
+## Push 3 (Phase 3 overlays), round 1
+
+Verdict: NEEDS WORK (1 major, 5 minor). Periodicity of every overlay term, blend math, GLSL validity and GL state verified.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | major | Opacity 0 hid the Blend/Opacity controls, overlay lost for good | Fixed: panel gated on `hasContent`, test added. |
+| 2 | minor | 3D LUT unbind ran on the wrong texture unit | Fixed. |
+| 3 | minor | `smoothstep` with edge0 > edge1 is undefined in GLSL | Fixed. |
+| 4 | minor | Long rain streaks popped at the wrap on wide photos | Fixed: wrap margin scales with aspect. |
+| 5 | minor | Offscreen frame and overlay layer kept VRAM after being turned off | Fixed: released on the direct path. |
+| 6 | minor | Sub-pixel particles flicker in 480 px GIFs | Fixed: minimum width of about 1.5 px. |

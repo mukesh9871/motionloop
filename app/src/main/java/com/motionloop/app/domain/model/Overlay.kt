@@ -32,6 +32,11 @@ data class OverlaySettings(
     /** 0..1 strength of the whole overlay layer. */
     val opacity: Float = 1f,
 ) {
+    /** Something is chosen, even if it is currently invisible (opacity or glow at 0). Drives the UI. */
+    val hasContent: Boolean
+        get() = particles != ParticleType.NONE || lightLeak != LightLeak.NONE
+
+    /** Something will actually be drawn. Drives rendering. */
     val isActive: Boolean
         get() = opacity > 0f && (particles != ParticleType.NONE || (lightLeak != LightLeak.NONE && leakIntensity > 0f))
 

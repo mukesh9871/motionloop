@@ -72,6 +72,7 @@ class ColorPass(assets: AssetManager, private val quad: FullscreenQuad) : Render
         program.set1i("uBlendMode", if (overlayTex != 0) overlay.blend.ordinal else -1)
         program.set1f("uOverlayOpacity", overlay.opacity.coerceIn(0f, 1f))
         quad.draw()
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_3D, 0)
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         GlUtil.checkError("ColorPass")

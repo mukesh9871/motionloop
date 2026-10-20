@@ -19,7 +19,7 @@ void main() {
         a = clamp(core + 0.7 * rays, 0.0, 1.0);
     } else if (vType == 4) {
         // Bokeh disc with a slightly brighter rim.
-        a = smoothstep(1.0, 0.85, d) * (0.75 + 0.25 * smoothstep(0.5, 0.95, d));
+        a = (1.0 - smoothstep(0.85, 1.0, d)) * (0.75 + 0.25 * smoothstep(0.5, 0.95, d));
     } else if (vType == 3) {
         a = (1.0 - smoothstep(0.3, 1.0, abs(vLocal.x))) * (1.0 - smoothstep(0.6, 1.0, abs(vLocal.y)));
     } else {

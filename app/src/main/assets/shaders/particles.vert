@@ -11,6 +11,7 @@ uniform float uSpeed;     // whole wraps per cycle for the slowest particles
 uniform float uSize;      // 0..1
 uniform float uAspect;    // width / height
 uniform float uFlipY;
+uniform float uPixel;     // one output pixel as a fraction of width (1 / width)
 
 out vec2 vLocal;
 out float vAlpha;
@@ -27,6 +28,9 @@ void main() {
     float t = uPhase;
     // Integer speed tiers 1x, 2x, 3x give depth without breaking periodicity.
     float k = uSpeed * (1.0 + floor(r * 3.0));
+    // Wrap margin in normalized y, large enough that a particle (or rain streak, which is
+    // stretched and scaled by aspect) is fully off-screen when fract() wraps it around.
+    float margin = 0.02 + 0.08 * max(uAspect, 1.0);
     float m = 1.0 + floor(fract(r * 7.0) * 2.0);
 
     vec2 pos;
@@ -46,13 +50,13 @@ void main() {
     } else if (uType == 2) {
         // Snow: falls k screens per cycle and sways.
         float y = fract(y0 + k * t);
-        pos = vec2(x0 + 0.025 * sin(TAU * (m * t + ph)), y * 1.2 - 0.1);
+        pos = vec2(x0 + 0.025 * sin(TAU * (m * t + ph)), y * (1.0 + 2.0 * margin) - margin);
         size = mix(0.004, 0.014, r) * (0.6 + 0.4 * k / (uSpeed * 3.0));
         alpha = 0.55 + 0.45 * r;
     } else if (uType == 3) {
         // Rain: fast, slanted streaks.
         float y = fract(y0 + 2.0 * k * t);
-        pos = vec2(x0 + 0.12 * y, y * 1.3 - 0.15);
+        pos = vec2(x0 + 0.12 * y, y * (1.0 + 2.0 * margin) - margin);
         size = mix(0.0015, 0.003, r);
         along = normalize(vec2(0.12, 1.0));
         stretch = 14.0;
@@ -67,13 +71,14 @@ void main() {
     } else {
         // Embers: rise, wiggle and flicker.
         float y = fract(y0 + k * t);
-        pos = vec2(x0 + 0.03 * sin(TAU * (2.0 * m * t + ph)), 1.1 - y * 1.2);
+        pos = vec2(x0 + 0.03 * sin(TAU * (2.0 * m * t + ph)), 1.0 + margin - y * (1.0 + 2.0 * margin));
         size = mix(0.003, 0.009, r);
         alpha = 0.6 + 0.4 * sin(TAU * (3.0 * m * t + ph));
         color = mix(vec3(1.0, 0.45, 0.1), vec3(1.0, 0.8, 0.3), fract(r * 17.0));
     }
 
-    size *= mix(0.5, 1.8, uSize);
+    // At least about 1.5 px wide, so thin particles do not flicker out in small (GIF) exports.
+    size = max(size * mix(0.5, 1.8, uSize), 0.75 * uPixel);
     vec2 across = vec2(along.y, -along.x);
     vec2 local = aCorner.x * across + aCorner.y * along * stretch;
     // Sizes are fractions of width: scale y by aspect so particles stay round.

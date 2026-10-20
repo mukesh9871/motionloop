@@ -80,6 +80,7 @@ class OverlayPass(assets: AssetManager, private val quad: FullscreenQuad) : Rend
             )
             particles.set1f("uSize", settings.size.coerceIn(0f, 1f))
             particles.set1f("uAspect", aspect)
+            particles.set1f("uPixel", 1f / width)
             GLES30.glBindVertexArray(vao[0])
             GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, 4, settings.particleCount)
             GLES30.glBindVertexArray(0)
@@ -87,6 +88,12 @@ class OverlayPass(assets: AssetManager, private val quad: FullscreenQuad) : Rend
 
         GLES30.glDisable(GLES30.GL_BLEND)
         GlUtil.checkError("OverlayPass")
+    }
+
+    /** Frees the layer while overlays are off. */
+    fun releaseLayer() {
+        layer?.release()
+        layer = null
     }
 
     private fun ensureLayer(width: Int, height: Int): GlTexture {
