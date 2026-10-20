@@ -39,10 +39,15 @@ class HomeViewModel @Inject constructor(
     private val _events = Channel<HomeEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
+    // Ids being deleted, so a refresh that read the disk earlier cannot bring them back.
+    private val deleting = mutableSetOf<String>()
+
     fun refresh() {
         viewModelScope.launch {
-            val list = projects.recent().map { RecentProject(it.id, projects.loadThumbnail(it.id)) }
-            _state.update { it.copy(recent = list) }
+            val list = projects.recent()
+                .filterNot { it.id in deleting }
+                .map { RecentProject(it.id, projects.loadThumbnail(it.id)) }
+            _state.update { s -> s.copy(recent = list.filterNot { it.id in deleting }) }
         }
     }
 
@@ -67,6 +72,7 @@ class HomeViewModel @Inject constructor(
 
     fun delete(id: String) {
         // Optimistic: drop it from the grid now, then delete the files.
+        deleting += id
         _state.update { s -> s.copy(recent = s.recent.filterNot { it.id == id }) }
         viewModelScope.launch {
             try {
@@ -75,7 +81,8 @@ class HomeViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 _state.update { it.copy(error = "Could not delete the project") }
-                refresh()
+            } finally {
+                deleting -= id
             }
         }
     }

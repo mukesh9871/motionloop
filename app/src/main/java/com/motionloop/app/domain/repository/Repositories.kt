@@ -37,6 +37,9 @@ interface LutRepository {
 
     /** Validates and stores a .cube file as the project custom grade. Throws with a readable message if invalid. */
     suspend fun importCube(projectId: String, source: Uri)
+
+    /** True when the project has an imported grade.cube that can be selected again. */
+    suspend fun hasCustom(projectId: String): Boolean
 }
 
 interface MediaRepository {

@@ -34,7 +34,7 @@ data class Adjustments(
 /** A 3D color lookup table: [size]^3 RGB entries, red fastest, then green, then blue (the .cube order). */
 class LutData(val size: Int, val rgb: ByteArray) {
     init {
-        require(size in 2..65) { "LUT size $size out of range" }
+        require(size in 2..CubeLutParser.MAX_SOURCE_SIZE) { "LUT size $size out of range" }
         require(rgb.size == size * size * size * 3) { "LUT data has ${rgb.size} bytes, expected ${size * size * size * 3}" }
     }
 
@@ -53,7 +53,7 @@ class LutData(val size: Int, val rgb: ByteArray) {
         const val DEFAULT_SIZE = 33
 
         /** Bakes a color function into a LUT. */
-        fun bake(size: Int = DEFAULT_SIZE, f: (FloatArray) -> FloatArray): LutData {
+        fun bake(size: Int = DEFAULT_SIZE, transform: (FloatArray) -> FloatArray): LutData {
             val data = ByteArray(size * size * size * 3)
             val c = FloatArray(3)
             var o = 0
@@ -61,7 +61,7 @@ class LutData(val size: Int, val rgb: ByteArray) {
                 c[0] = r / (size - 1f)
                 c[1] = g / (size - 1f)
                 c[2] = b / (size - 1f)
-                val out = f(c.copyOf())
+                val out = transform(c.copyOf())
                 for (k in 0..2) data[o++] = (out[k].coerceIn(0f, 1f) * 255f + 0.5f).toInt().toByte()
             }
             return LutData(size, data)

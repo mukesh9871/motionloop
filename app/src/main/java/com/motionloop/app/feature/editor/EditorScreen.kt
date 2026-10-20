@@ -129,6 +129,7 @@ fun EditorScreen(onBack: () -> Unit, vm: EditorViewModel = hiltViewModel()) {
                 if (project != null) {
                     AdjustPanel(
                         adjustments = project.adjustments,
+                        hasCustom = state.hasCustomLut,
                         onChange = vm::setAdjustments,
                         onSelectGrade = vm::selectGrade,
                         onImportCube = { pickCube.launch(arrayOf("*/*")) },

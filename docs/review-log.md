@@ -51,3 +51,19 @@ Verdict: NEEDS WORK (1 probable blocker, 6 minor). All round-1 fixes verified co
 Verdict: CLEAN. No findings. LZW encoder and the independent test decoder traced by hand at the
 first codes, every width boundary and the table-full CLEAR. Save coalescing verified to never lose
 or reorder versions.
+
+## Push 2 (Phase 2 color), round 1
+
+Verdict: NEEDS WORK (1 blocker, 1 major, 7 minor). GL unit usage, LUT axis order, texel centers and orientation through the extra frame verified correct.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | blocker | `LutData.bake(transform = ...)` but parameter was named `f` | Fixed: parameter renamed to `transform`. |
+| 2 | major | `LUT_3D_SIZE 256` allocated about 200 MB before reading data (OOM crash) | Fixed: max source size 129. |
+| 3 | minor | Unknown keywords such as `LUT_3D_INPUT_RANGE` rejected valid files | Fixed: lines starting with a letter are skipped. |
+| 4 | minor | Imported grade could not be re-selected after picking another | Fixed: separate "Custom" chip when `grade.cube` exists, plus "Replace .cube". |
+| 5 | minor | Import completion can override a grade picked meanwhile | Accepted: rare, and the user can tap the grade again. |
+| 6 | minor | `lutJob` declared after `init` | Fixed: moved above. |
+| 7 | minor | Refresh could resurrect a project being deleted | Fixed: `deleting` set filters refresh results. |
+| 8 | minor | Long-press via `detectTapGestures` lost ripple and accessibility | Fixed: `combinedClickable` with labels. |
+| 9 | minor | Mask tint is graded when a grade is active | Accepted: cosmetic, editor only, never exported. |

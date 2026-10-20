@@ -41,6 +41,7 @@ class EditorViewModel @Inject constructor(
     private val _state = MutableStateFlow(EditorUiState())
     val state: StateFlow<EditorUiState> = _state.asStateFlow()
 
+    private var lutJob: Job? = null
     private val undoStack = ArrayDeque<Geometry>()
     private val redoStack = ArrayDeque<Geometry>()
 
@@ -69,12 +70,11 @@ class EditorViewModel @Inject constructor(
                 )
             }
             refreshLut()
+            _state.update { it.copy(hasCustomLut = luts.hasCustom(projectId)) }
         }
     }
 
     // region color
-
-    private var lutJob: Job? = null
 
     fun setPanel(panel: EditorPanel) = _state.update { it.copy(panel = panel, liveArrow = null, liveStroke = null) }
 
@@ -96,6 +96,7 @@ class EditorViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 luts.importCube(projectId, uri)
+                _state.update { it.copy(hasCustomLut = true) }
                 val p = _state.value.project ?: return@launch
                 if (p.adjustments.gradeId == Adjustments.CUSTOM_LUT_ID) {
                     refreshLut() // same id, new file contents

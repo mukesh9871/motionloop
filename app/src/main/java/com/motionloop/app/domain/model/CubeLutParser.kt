@@ -12,6 +12,9 @@ object CubeLutParser {
 
     class CubeFormatException(message: String) : Exception(message)
 
+    /** Real files go up to 65. Anything above is refused before allocating (129^3 floats is ~26 MB). */
+    const val MAX_SOURCE_SIZE = 129
+
     fun parse(reader: Reader): LutData {
         var size = 0
         var domainMin = floatArrayOf(0f, 0f, 0f)
@@ -29,12 +32,14 @@ object CubeLutParser {
                     "LUT_1D_SIZE" -> throw CubeFormatException("1D LUTs are not supported")
                     "LUT_3D_SIZE" -> {
                         size = parts.getOrNull(1)?.toIntOrNull() ?: throw CubeFormatException("Bad LUT_3D_SIZE")
-                        if (size !in 2..256) throw CubeFormatException("LUT_3D_SIZE $size out of range")
+                        if (size !in 2..MAX_SOURCE_SIZE) throw CubeFormatException("LUT_3D_SIZE $size out of range")
                         values = FloatArray(size * size * size * 3)
                     }
                     "DOMAIN_MIN" -> domainMin = triple(parts)
                     "DOMAIN_MAX" -> domainMax = triple(parts)
                     else -> {
+                        // Other keywords (LUT_3D_INPUT_RANGE, vendor tags) are skipped. Data lines start with a number.
+                        if (parts[0][0].isLetter()) continue
                         val v = values ?: throw CubeFormatException("Data before LUT_3D_SIZE")
                         if (parts.size < 3) throw CubeFormatException("Bad data line: $line")
                         if (count >= v.size) throw CubeFormatException("Too many data lines")

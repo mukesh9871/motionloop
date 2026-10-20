@@ -45,6 +45,7 @@ private fun FloatArray.toColor() = Color(this[0].coerceIn(0f, 1f), this[1].coerc
 @Composable
 fun AdjustPanel(
     adjustments: Adjustments,
+    hasCustom: Boolean,
     onChange: ((Adjustments) -> Adjustments) -> Unit,
     onSelectGrade: (String?) -> Unit,
     onImportCube: () -> Unit,
@@ -63,12 +64,20 @@ fun AdjustPanel(
                     swatchColors(grade)
                 }
             }
+            if (hasCustom) {
+                item {
+                    GradeChip(
+                        "Custom",
+                        selected = adjustments.gradeId == Adjustments.CUSTOM_LUT_ID,
+                        onClick = { onSelectGrade(Adjustments.CUSTOM_LUT_ID) },
+                    ) { listOf(MlColors.Violet, MlColors.Mint, MlColors.Mint, MlColors.Violet) }
+                }
+            }
             item {
-                GradeChip(
-                    if (adjustments.gradeId == Adjustments.CUSTOM_LUT_ID) "Custom" else "Import .cube",
-                    selected = adjustments.gradeId == Adjustments.CUSTOM_LUT_ID,
-                    onClick = onImportCube,
-                ) { listOf(MlColors.SurfaceHigh, MlColors.Violet, MlColors.Mint, MlColors.SurfaceHigh) }
+                // Importing again replaces the project's custom grade.
+                GradeChip(if (hasCustom) "Replace .cube" else "Import .cube", selected = false, onClick = onImportCube) {
+                    listOf(MlColors.SurfaceHigh, MlColors.Violet, MlColors.Mint, MlColors.SurfaceHigh)
+                }
             }
         }
         Spacer(Modifier.height(6.dp))

@@ -7,7 +7,9 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,7 +26,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -44,7 +45,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -55,6 +55,8 @@ import com.motionloop.app.data.media.MediaIntents
 import com.motionloop.app.ui.icons.MlIcons
 import com.motionloop.app.ui.theme.MlColors
 
+// combinedClickable was experimental in older Compose releases. The opt-in is harmless if it is stable now.
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(onOpenProject: (String) -> Unit, vm: HomeViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -139,12 +141,12 @@ fun HomeScreen(onOpenProject: (String) -> Unit, vm: HomeViewModel = hiltViewMode
                                 .aspectRatio(1f)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .pointerInput(p.id) {
-                                    detectTapGestures(
-                                        onTap = { onOpenProject(p.id) },
-                                        onLongPress = { pendingDelete = p.id },
-                                    )
-                                },
+                                .combinedClickable(
+                                    onClickLabel = "Open project",
+                                    onLongClickLabel = "Delete project",
+                                    onLongClick = { pendingDelete = p.id },
+                                    onClick = { onOpenProject(p.id) },
+                                ),
                         ) {
                             p.thumbnail?.let {
                                 Image(

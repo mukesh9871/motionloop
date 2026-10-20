@@ -39,6 +39,7 @@ data class EditorUiState(
     /** Baked LUT and the grade id it was baked for. Only used when the id still matches. */
     val lut: LutData? = null,
     val lutGradeId: String? = null,
+    val hasCustomLut: Boolean = false,
     /** One-off message (for example a rejected .cube file). */
     val message: String? = null,
 ) {

@@ -63,6 +63,8 @@ class LutRepositoryImpl @Inject constructor(
         if (!tmp.renameTo(target)) throw IOException("Could not store the LUT")
     }
 
+    override suspend fun hasCustom(projectId: String): Boolean = withContext(io) { cubeFile(projectId).exists() }
+
     private fun cubeFile(projectId: String) = File(ProjectRepositoryImpl.projectDir(context, projectId), CUBE_NAME)
 
     private fun java.io.InputStream.readNBytesCompat(limit: Int): ByteArray {
