@@ -24,11 +24,14 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -70,6 +74,7 @@ fun HomeScreen(onOpenProject: (String) -> Unit, vm: HomeViewModel = hiltViewMode
     }
     // The camera writes into our FileProvider Uri. Kept across rotation while the camera app is open.
     var cameraUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var pendingDelete by rememberSaveable { mutableStateOf<String?>(null) }
     val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
         val uri = cameraUri
         if (ok && uri != null) vm.importPhoto(uri)
@@ -117,6 +122,11 @@ fun HomeScreen(onOpenProject: (String) -> Unit, vm: HomeViewModel = hiltViewMode
             Spacer(Modifier.height(28.dp))
             if (state.recent.isNotEmpty()) {
                 Text("Recent", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Long-press a project to delete it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(Modifier.height(12.dp))
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(3),
@@ -129,7 +139,12 @@ fun HomeScreen(onOpenProject: (String) -> Unit, vm: HomeViewModel = hiltViewMode
                                 .aspectRatio(1f)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .clickable { onOpenProject(p.id) },
+                                .pointerInput(p.id) {
+                                    detectTapGestures(
+                                        onTap = { onOpenProject(p.id) },
+                                        onLongPress = { pendingDelete = p.id },
+                                    )
+                                },
                         ) {
                             p.thumbnail?.let {
                                 Image(
@@ -149,6 +164,21 @@ fun HomeScreen(onOpenProject: (String) -> Unit, vm: HomeViewModel = hiltViewMode
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+
+        pendingDelete?.let { id ->
+            AlertDialog(
+                onDismissRequest = { pendingDelete = null },
+                title = { Text("Delete this project?") },
+                text = { Text("The animation settings and the copied photo are removed. Your original photo is not touched.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        vm.delete(id)
+                        pendingDelete = null
+                    }) { Text("Delete", color = MlColors.Coral) }
+                },
+                dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Keep") } },
+            )
         }
 
         if (state.importing) {

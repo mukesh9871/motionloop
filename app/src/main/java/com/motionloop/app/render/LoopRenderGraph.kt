@@ -5,17 +5,21 @@ import android.graphics.Bitmap
 import android.opengl.GLES30
 import com.motionloop.app.core.gl.FullscreenQuad
 import com.motionloop.app.core.gl.GlTexture
+import com.motionloop.app.domain.model.Adjustments
 import com.motionloop.app.domain.model.Anchor
 import com.motionloop.app.domain.model.LoopMode
+import com.motionloop.app.domain.model.LutData
 import com.motionloop.app.domain.model.MaskStroke
 import com.motionloop.app.domain.model.MotionArrow
+import com.motionloop.app.render.passes.ColorPass
 import com.motionloop.app.render.passes.FlowFieldPass
 import com.motionloop.app.render.passes.LoopWarpPass
 import com.motionloop.app.render.passes.MaskPass
 
 /**
  * The pass chain shared by the editor preview and the exporters.
- * Phase 1: FlowField + Mask -> LoopWarp. Later phases insert passes between warp and output.
+ * FlowField + Mask -> LoopWarp -> Color (skipped when there is nothing to adjust).
+ * Later phases insert passes between warp and output.
  * Must be created, used and released on one GL thread.
  */
 class LoopRenderGraph(assets: AssetManager) {
@@ -24,6 +28,11 @@ class LoopRenderGraph(assets: AssetManager) {
     private val flowPass = FlowFieldPass(assets, quad)
     private val maskPass = MaskPass(assets)
     private val warpPass = LoopWarpPass(assets, quad)
+    private val colorPass = ColorPass(assets, quad)
+
+    // Offscreen frame between warp and color, only allocated when adjustments are active.
+    private var frame: GlTexture? = null
+    private var adjustments = Adjustments()
 
     private var source: GlTexture? = null
     private var sourceBitmap: Bitmap? = null
@@ -60,6 +69,12 @@ class LoopRenderGraph(assets: AssetManager) {
         }
     }
 
+    /** Color settings for following frames. [lut] must match [adjustments].gradeId (null for none). */
+    fun setColor(adjustments: Adjustments, lut: LutData?) {
+        this.adjustments = if (adjustments.gradeId != null && lut == null) adjustments.copy(gradeId = null) else adjustments
+        colorPass.setLut(lut)
+    }
+
     /**
      * Draws one frame into framebuffer [fbo] (0 = window or encoder surface) at the given viewport.
      * [flipY] is true for window surfaces, false for FBOs read back row by row.
@@ -79,18 +94,40 @@ class LoopRenderGraph(assets: AssetManager) {
         val src = source ?: return
         val flow = flowPass.texture ?: return
         val mask = maskPass.texture ?: return
+
+        if (adjustments.isIdentity) {
+            // Nothing to grade: warp straight into the target, no extra pass.
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
+            GLES30.glViewport(x, y, width, height)
+            warpPass.draw(src.id, flow.id, mask.id, flowPass.encoded, phase, mode, amount, maskOverlay, flipY)
+            return
+        }
+
+        // Warp into an offscreen frame (not flipped, row 0 = image top), then color it into the target.
+        val frame = ensureFrame(width, height)
+        frame.bindAsTarget()
+        warpPass.draw(src.id, flow.id, mask.id, flowPass.encoded, phase, mode, amount, maskOverlay, flipY = false)
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
         GLES30.glViewport(x, y, width, height)
-        warpPass.draw(src.id, flow.id, mask.id, flowPass.encoded, phase, mode, amount, maskOverlay, flipY)
+        colorPass.draw(frame.id, adjustments, flipY)
+    }
+
+    private fun ensureFrame(width: Int, height: Int): GlTexture {
+        frame?.let { if (it.width == width && it.height == height) return it else it.release() }
+        return GlTexture.empty(width, height, GLES30.GL_RGBA8, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE)
+            .also { frame = it }
     }
 
     fun release() {
         source?.release()
         source = null
         sourceBitmap = null
+        frame?.release()
+        frame = null
         flowPass.release()
         maskPass.release()
         warpPass.release()
+        colorPass.release()
         quad.release()
     }
 }

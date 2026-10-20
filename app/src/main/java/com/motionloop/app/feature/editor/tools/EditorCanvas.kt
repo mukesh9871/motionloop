@@ -37,6 +37,7 @@ fun EditorCanvas(
     anchors: List<Anchor>,
     showGuides: Boolean,
     brushRadius: Float,
+    enabled: Boolean,
     onDown: (NPoint) -> Unit,
     onMove: (NPoint) -> Unit,
     onUp: () -> Unit,
@@ -45,7 +46,8 @@ fun EditorCanvas(
     var cursor by remember { mutableStateOf<Offset?>(null) }
 
     Canvas(
-        modifier.pointerInput(tool) {
+        modifier.pointerInput(tool, enabled) {
+            if (!enabled) return@pointerInput
             fun norm(o: Offset) = NPoint(
                 (o.x / size.width).coerceIn(0f, 1f),
                 (o.y / size.height).coerceIn(0f, 1f),

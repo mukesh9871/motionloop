@@ -2,6 +2,8 @@ package com.motionloop.app.domain.repository
 
 import android.graphics.Bitmap
 import android.net.Uri
+import com.motionloop.app.domain.model.Adjustments
+import com.motionloop.app.domain.model.LutData
 import com.motionloop.app.domain.model.Project
 import java.io.File
 
@@ -24,6 +26,17 @@ interface ProjectRepository {
     /** Decodes the project photo with its long edge at most [maxEdge]. */
     suspend fun loadImage(id: String, maxEdge: Int): Bitmap
     suspend fun loadThumbnail(id: String): Bitmap?
+
+    /** Deletes the project folder. Waits for queued saves so a late save cannot recreate it. */
+    suspend fun delete(id: String)
+}
+
+interface LutRepository {
+    /** Baked LUT for the project grade, or null when no grade is set or the file is missing. */
+    suspend fun resolve(projectId: String, adjustments: Adjustments): LutData?
+
+    /** Validates and stores a .cube file as the project custom grade. Throws with a readable message if invalid. */
+    suspend fun importCube(projectId: String, source: Uri)
 }
 
 interface MediaRepository {

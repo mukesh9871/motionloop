@@ -64,4 +64,19 @@ class HomeViewModel @Inject constructor(
     }
 
     fun dismissError() = _state.update { it.copy(error = null) }
+
+    fun delete(id: String) {
+        // Optimistic: drop it from the grid now, then delete the files.
+        _state.update { s -> s.copy(recent = s.recent.filterNot { it.id == id }) }
+        viewModelScope.launch {
+            try {
+                projects.delete(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(error = "Could not delete the project") }
+                refresh()
+            }
+        }
+    }
 }

@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,9 +31,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.motionloop.app.feature.editor.components.AdjustPanel
 import com.motionloop.app.feature.editor.components.LabeledSlider
 import com.motionloop.app.feature.editor.components.PlaybackBar
 import com.motionloop.app.feature.editor.components.ToolBar
@@ -45,6 +50,10 @@ import com.motionloop.app.ui.theme.MlColors
 fun EditorScreen(onBack: () -> Unit, vm: EditorViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     var showExport by rememberSaveable { mutableStateOf(false) }
+    // .cube files have no registered MIME type, so accept any file and validate the contents.
+    val pickCube = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(vm::importCube)
+    }
 
     Column(
         Modifier
@@ -84,7 +93,8 @@ fun EditorScreen(onBack: () -> Unit, vm: EditorViewModel = hiltViewModel()) {
                         tool = state.tool,
                         arrows = state.visibleArrows,
                         anchors = project.anchors,
-                        showGuides = !state.playing,
+                        showGuides = !state.playing && state.panel == EditorPanel.ANIMATE,
+                        enabled = state.panel == EditorPanel.ANIMATE,
                         brushRadius = state.brushRadius,
                         onDown = vm::pointerDown,
                         onMove = vm::pointerMove,
@@ -102,7 +112,30 @@ fun EditorScreen(onBack: () -> Unit, vm: EditorViewModel = hiltViewModel()) {
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         ) {
             val project = state.project
-            if (state.isBrush) {
+            PanelTabs(selected = state.panel, onSelect = vm::setPanel)
+            Spacer(Modifier.height(6.dp))
+            state.message?.let { msg ->
+                Text(
+                    msg,
+                    color = MlColors.Coral,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = vm::dismissMessage)
+                        .padding(vertical = 4.dp),
+                )
+            }
+            if (state.panel == EditorPanel.ADJUST) {
+                if (project != null) {
+                    AdjustPanel(
+                        adjustments = project.adjustments,
+                        onChange = vm::setAdjustments,
+                        onSelectGrade = vm::selectGrade,
+                        onImportCube = { pickCube.launch(arrayOf("*/*")) },
+                        onReset = vm::resetAdjustments,
+                    )
+                }
+            } else if (state.isBrush) {
                 LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
                 LabeledSlider("Softness", 1f - state.brushHardness, 0.05f..1f, { vm.setBrushHardness(1f - it) })
             } else {
@@ -123,13 +156,41 @@ fun EditorScreen(onBack: () -> Unit, vm: EditorViewModel = hiltViewModel()) {
                     onMode = vm::setLoopMode,
                 )
             }
-            Spacer(Modifier.height(8.dp))
-            ToolBar(selected = state.tool, onSelect = vm::setTool)
+            if (state.panel == EditorPanel.ANIMATE) {
+                Spacer(Modifier.height(8.dp))
+                ToolBar(selected = state.tool, onSelect = vm::setTool)
+            }
         }
     }
 
     if (showExport) {
         ExportSheet(onDismiss = { showExport = false })
+    }
+}
+
+@Composable
+private fun PanelTabs(selected: EditorPanel, onSelect: (EditorPanel) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MlColors.SurfaceHigh),
+    ) {
+        EditorPanel.entries.forEach { panel ->
+            val active = panel == selected
+            Text(
+                if (panel == EditorPanel.ANIMATE) "Animate" else "Adjust",
+                style = MaterialTheme.typography.labelMedium,
+                color = if (active) MlColors.TextPrimary else MlColors.TextSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (active) MlColors.Violet else Color.Transparent)
+                    .clickable { onSelect(panel) }
+                    .padding(vertical = 8.dp),
+            )
+        }
     }
 }
 

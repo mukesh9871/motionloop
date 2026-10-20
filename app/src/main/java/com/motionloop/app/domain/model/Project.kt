@@ -58,6 +58,7 @@ data class Project(
     val anchors: List<Anchor> = emptyList(),
     val strokes: List<MaskStroke> = emptyList(),
     val loop: LoopSettings = LoopSettings(),
+    val adjustments: Adjustments = Adjustments(),
 ) {
     val aspect: Float get() = imageWidth.toFloat() / imageHeight
 }

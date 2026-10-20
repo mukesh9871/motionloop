@@ -1,8 +1,10 @@
 package com.motionloop.app.render
 
 import android.graphics.Bitmap
+import com.motionloop.app.domain.model.Adjustments
 import com.motionloop.app.domain.model.Anchor
 import com.motionloop.app.domain.model.LoopSettings
+import com.motionloop.app.domain.model.LutData
 import com.motionloop.app.domain.model.MaskStroke
 import com.motionloop.app.domain.model.MotionArrow
 
@@ -15,4 +17,7 @@ data class RenderScene(
     val loop: LoopSettings = LoopSettings(),
     val playing: Boolean = false,
     val showMask: Boolean = false,
+    val adjustments: Adjustments = Adjustments(),
+    /** Baked LUT for adjustments.gradeId, resolved off the GL thread by the ViewModel. */
+    val lut: LutData? = null,
 )

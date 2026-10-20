@@ -41,8 +41,7 @@ class ProjectRepositoryImpl @Inject constructor(
     private val saveScope = CoroutineScope(SupervisorJob() + serialIo)
     private val pending = ConcurrentHashMap<String, Project>()
 
-    private val root: File get() = File(context.filesDir, "projects").apply { mkdirs() }
-    private fun dir(id: String) = File(root, id)
+    private fun dir(id: String) = projectDir(context, id)
 
     override suspend fun createFromImage(source: Uri): Project = withContext(io) {
         val bitmap = BitmapDecoder.decode(context.contentResolver, source, MAX_STORED_EDGE)
@@ -92,7 +91,7 @@ class ProjectRepositoryImpl @Inject constructor(
     override suspend fun flush() = withContext(serialIo) { }
 
     override suspend fun recent(limit: Int): List<Project> = withContext(io) {
-        root.listFiles().orEmpty()
+        File(context.filesDir, PROJECTS).listFiles().orEmpty()
             .mapNotNull { d -> File(d, JSON).takeIf { it.exists() } }
             .mapNotNull { runCatching { json.decodeFromString<Project>(it.readText()) }.getOrNull() }
             .sortedByDescending { it.updatedAt }
@@ -107,6 +106,12 @@ class ProjectRepositoryImpl @Inject constructor(
         BitmapFactory.decodeFile(File(dir(id), THUMB).path)
     }
 
+    override suspend fun delete(id: String) {
+        pending.remove(id)
+        // On the serial writer: every earlier save finishes first, none can run after and recreate files.
+        withContext(serialIo) { dir(id).deleteRecursively() }
+    }
+
     private fun writeJson(project: Project) {
         // Write then rename, so a crash mid-write never corrupts the project.
         val dir = dir(project.id)
@@ -118,6 +123,10 @@ class ProjectRepositoryImpl @Inject constructor(
     companion object {
         private const val TAG = "ProjectRepository"
         const val MAX_STORED_EDGE = 4096
+        private const val PROJECTS = "projects"
+
+        /** Folder holding everything for one project. Shared with other repositories (custom LUT file). */
+        fun projectDir(context: Context, id: String) = File(File(context.filesDir, PROJECTS), id)
         private const val THUMB_EDGE = 320
         private const val SOURCE = "source.jpg"
         private const val THUMB = "thumb.jpg"

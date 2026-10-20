@@ -1,8 +1,10 @@
 package com.motionloop.app.feature.editor
 
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.motionloop.app.domain.model.Adjustments
 import com.motionloop.app.domain.model.Anchor
 import com.motionloop.app.domain.model.LoopMode
 import com.motionloop.app.domain.model.LoopSettings
@@ -11,24 +13,27 @@ import com.motionloop.app.domain.model.MaskStroke
 import com.motionloop.app.domain.model.MotionArrow
 import com.motionloop.app.domain.model.NPoint
 import com.motionloop.app.domain.model.Project
+import com.motionloop.app.domain.repository.LutRepository
 import com.motionloop.app.domain.repository.ProjectRepository
 import com.motionloop.app.navigation.Routes
-import dagger.hilt.android.lifecycle.HiltViewModel
 import com.motionloop.app.render.passes.FlowFieldPass
+import dagger.hilt.android.lifecycle.HiltViewModel
+import java.util.UUID
+import javax.inject.Inject
+import kotlin.math.hypot
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.UUID
-import javax.inject.Inject
-import kotlin.math.hypot
 
 @HiltViewModel
 class EditorViewModel @Inject constructor(
     savedState: SavedStateHandle,
     private val projects: ProjectRepository,
+    private val luts: LutRepository,
 ) : ViewModel() {
 
     private val projectId: String = checkNotNull(savedState[Routes.ARG_PROJECT_ID])
@@ -63,8 +68,69 @@ class EditorViewModel @Inject constructor(
                     error = if (preview == null) "Could not load the photo" else null,
                 )
             }
+            refreshLut()
         }
     }
+
+    // region color
+
+    private var lutJob: Job? = null
+
+    fun setPanel(panel: EditorPanel) = _state.update { it.copy(panel = panel, liveArrow = null, liveStroke = null) }
+
+    /** Slider changes. Not part of undo history: they are cheap to drag back and reset. */
+    fun setAdjustments(change: (Adjustments) -> Adjustments) {
+        val p = _state.value.project ?: return
+        val before = p.adjustments
+        val updated = p.copy(adjustments = change(before))
+        _state.update { it.copy(project = updated) }
+        persist(updated)
+        if (updated.adjustments.gradeId != before.gradeId) refreshLut()
+    }
+
+    fun resetAdjustments() = setAdjustments { Adjustments() }
+
+    fun selectGrade(id: String?) = setAdjustments { it.copy(gradeId = id, gradeIntensity = 1f) }
+
+    fun importCube(uri: Uri) {
+        viewModelScope.launch {
+            try {
+                luts.importCube(projectId, uri)
+                val p = _state.value.project ?: return@launch
+                if (p.adjustments.gradeId == Adjustments.CUSTOM_LUT_ID) {
+                    refreshLut() // same id, new file contents
+                } else {
+                    selectGrade(Adjustments.CUSTOM_LUT_ID)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(message = e.message ?: "Could not import that file") }
+            }
+        }
+    }
+
+    fun dismissMessage() = _state.update { it.copy(message = null) }
+
+    /** Bakes or loads the LUT for the current grade off the main thread. Latest request wins. */
+    private fun refreshLut() {
+        lutJob?.cancel()
+        val p = _state.value.project ?: return
+        val gradeId = p.adjustments.gradeId
+        if (gradeId == null) {
+            _state.update { it.copy(lut = null, lutGradeId = null) }
+            return
+        }
+        lutJob = viewModelScope.launch {
+            val lut = luts.resolve(projectId, p.adjustments)
+            _state.update { it.copy(lut = lut, lutGradeId = if (lut != null) gradeId else null) }
+            if (lut == null && gradeId == Adjustments.CUSTOM_LUT_ID) {
+                _state.update { it.copy(message = "The imported LUT file is missing. Import it again.") }
+            }
+        }
+    }
+
+    // endregion
 
     // region tools and playback
 
