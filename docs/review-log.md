@@ -67,3 +67,16 @@ Verdict: NEEDS WORK (1 blocker, 1 major, 7 minor). GL unit usage, LUT axis order
 | 7 | minor | Refresh could resurrect a project being deleted | Fixed: `deleting` set filters refresh results. |
 | 8 | minor | Long-press via `detectTapGestures` lost ripple and accessibility | Fixed: `combinedClickable` with labels. |
 | 9 | minor | Mask tint is graded when a grade is active | Accepted: cosmetic, editor only, never exported. |
+
+## Push 2, round 2
+
+Verdict: CLEAN (2 minor). All round-1 fixes verified, all unit tests traced.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | minor | Deleted id removed from the filter set too early, a slow refresh could resurrect it | Fixed: ids stay filtered for the session, removed only on failure. |
+| 2 | minor | Regex compiled per `.cube` line | Fixed: hoisted constant. |
+
+## Push 2, round 3 (delta a7fc7fc)
+
+Verdict: CLEAN. No findings.
