@@ -60,6 +60,7 @@ class GifExporter @Inject constructor(
                 g.setImage(bitmap)
                 g.setGeometry(project.arrows, project.anchors, project.strokes)
                 g.setColor(project.adjustments, luts.resolve(project.id, project.adjustments))
+                g.setOverlay(project.overlay)
                 bitmap.recycle() // uploaded to the GPU, the CPU copy is no longer needed
                 val t = GlTexture.empty(w, h, GLES30.GL_RGBA8, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE).also { target = it }
                 val readBuffer = ByteBuffer.allocateDirect(w * h * 4).order(ByteOrder.nativeOrder())

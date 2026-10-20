@@ -10,8 +10,8 @@ import com.motionloop.app.render.RenderScene
 
 enum class EditorTool { ARROW, ANCHOR, FREEZE, UNFREEZE, ERASE }
 
-/** Bottom panel: motion tools or color adjustments. */
-enum class EditorPanel { ANIMATE, ADJUST }
+/** Bottom panel: motion tools, color adjustments or overlays. */
+enum class EditorPanel(val label: String) { ANIMATE("Animate"), ADJUST("Adjust"), OVERLAY("Overlay") }
 
 /** Everything undo/redo covers. */
 data class Geometry(
@@ -61,6 +61,7 @@ data class EditorUiState(
                 showMask = !playing && panel == EditorPanel.ANIMATE && (isBrush || liveStroke != null),
                 adjustments = p.adjustments,
                 lut = lut.takeIf { lutGradeId != null && lutGradeId == p.adjustments.gradeId },
+                overlay = p.overlay,
             )
         }
 }

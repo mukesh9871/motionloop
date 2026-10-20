@@ -59,6 +59,7 @@ data class Project(
     val strokes: List<MaskStroke> = emptyList(),
     val loop: LoopSettings = LoopSettings(),
     val adjustments: Adjustments = Adjustments(),
+    val overlay: OverlaySettings = OverlaySettings(),
 ) {
     val aspect: Float get() = imageWidth.toFloat() / imageHeight
 }

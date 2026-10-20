@@ -12,6 +12,7 @@ import com.motionloop.app.domain.model.MaskMode
 import com.motionloop.app.domain.model.MaskStroke
 import com.motionloop.app.domain.model.MotionArrow
 import com.motionloop.app.domain.model.NPoint
+import com.motionloop.app.domain.model.OverlaySettings
 import com.motionloop.app.domain.model.Project
 import com.motionloop.app.domain.repository.LutRepository
 import com.motionloop.app.domain.repository.ProjectRepository
@@ -89,6 +90,14 @@ class EditorViewModel @Inject constructor(
     }
 
     fun resetAdjustments() = setAdjustments { Adjustments() }
+
+    /** Overlay changes. Like adjustments, not part of undo history. */
+    fun setOverlay(change: (OverlaySettings) -> OverlaySettings) {
+        val p = _state.value.project ?: return
+        val updated = p.copy(overlay = change(p.overlay))
+        _state.update { it.copy(project = updated) }
+        persist(updated)
+    }
 
     fun selectGrade(id: String?) = setAdjustments { it.copy(gradeId = id, gradeIntensity = 1f) }
 

@@ -38,6 +38,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.motionloop.app.feature.editor.components.AdjustPanel
 import com.motionloop.app.feature.editor.components.LabeledSlider
+import com.motionloop.app.feature.editor.components.OverlayPanel
 import com.motionloop.app.feature.editor.components.PlaybackBar
 import com.motionloop.app.feature.editor.components.ToolBar
 import com.motionloop.app.feature.editor.tools.EditorCanvas
@@ -125,7 +126,11 @@ fun EditorScreen(onBack: () -> Unit, vm: EditorViewModel = hiltViewModel()) {
                         .padding(vertical = 4.dp),
                 )
             }
-            if (state.panel == EditorPanel.ADJUST) {
+            if (state.panel == EditorPanel.OVERLAY) {
+                if (project != null) {
+                    OverlayPanel(settings = project.overlay, onChange = vm::setOverlay)
+                }
+            } else if (state.panel == EditorPanel.ADJUST) {
                 if (project != null) {
                     AdjustPanel(
                         adjustments = project.adjustments,
@@ -180,7 +185,7 @@ private fun PanelTabs(selected: EditorPanel, onSelect: (EditorPanel) -> Unit) {
         EditorPanel.entries.forEach { panel ->
             val active = panel == selected
             Text(
-                if (panel == EditorPanel.ANIMATE) "Animate" else "Adjust",
+                panel.label,
                 style = MaterialTheme.typography.labelMedium,
                 color = if (active) MlColors.TextPrimary else MlColors.TextSecondary,
                 textAlign = TextAlign.Center,

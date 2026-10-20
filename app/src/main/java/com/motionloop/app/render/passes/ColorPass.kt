@@ -7,9 +7,13 @@ import com.motionloop.app.core.gl.GlProgram
 import com.motionloop.app.core.gl.GlUtil
 import com.motionloop.app.domain.model.Adjustments
 import com.motionloop.app.domain.model.LutData
+import com.motionloop.app.domain.model.OverlaySettings
 import java.nio.ByteBuffer
 
-/** Brightness, contrast, saturation, warmth and a 3D LUT grade. Draws into the bound target. */
+/**
+ * Brightness, contrast, saturation, warmth, a 3D LUT grade, then the overlay layer blend.
+ * Draws into the bound target.
+ */
 class ColorPass(assets: AssetManager, private val quad: FullscreenQuad) : RenderPass {
 
     private val program = GlProgram.fromAssets(assets, "fullscreen.vert", "color.frag")
@@ -45,7 +49,11 @@ class ColorPass(assets: AssetManager, private val quad: FullscreenQuad) : Render
         GlUtil.checkError("ColorPass LUT upload")
     }
 
-    fun draw(srcTex: Int, adjustments: Adjustments, flipY: Boolean) {
+    /**
+     * @param overlayTex premultiplied overlay layer, or 0 for none.
+     * @param overlay settings for that layer (blend mode, opacity). Ignored when [overlayTex] is 0.
+     */
+    fun draw(srcTex: Int, adjustments: Adjustments, overlayTex: Int, overlay: OverlaySettings, flipY: Boolean) {
         program.use()
         program.set1f("uFlipY", if (flipY) 1f else 0f)
         program.bindTexture("uSrc", 0, srcTex)
@@ -60,6 +68,9 @@ class ColorPass(assets: AssetManager, private val quad: FullscreenQuad) : Render
         program.set1f("uContrast", adjustments.contrast)
         program.set1f("uSaturation", adjustments.saturation)
         program.set1f("uWarmth", adjustments.warmth)
+        program.bindTexture("uOverlay", 2, overlayTex)
+        program.set1i("uBlendMode", if (overlayTex != 0) overlay.blend.ordinal else -1)
+        program.set1f("uOverlayOpacity", overlay.opacity.coerceIn(0f, 1f))
         quad.draw()
         GLES30.glBindTexture(GLES30.GL_TEXTURE_3D, 0)
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)

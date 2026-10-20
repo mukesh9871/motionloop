@@ -45,6 +45,7 @@ class EditorRenderer(private val assets: AssetManager) : GLSurfaceView.Renderer 
         g.setImage(image)
         g.setGeometry(s.arrows, s.anchors, s.strokes)
         g.setColor(s.adjustments, s.lut)
+        g.setOverlay(s.overlay)
 
         // Advance phase by elapsed time so speed changes never make the loop jump.
         val now = System.nanoTime()

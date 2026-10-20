@@ -11,14 +11,17 @@ import com.motionloop.app.domain.model.LoopMode
 import com.motionloop.app.domain.model.LutData
 import com.motionloop.app.domain.model.MaskStroke
 import com.motionloop.app.domain.model.MotionArrow
+import com.motionloop.app.domain.model.OverlaySettings
 import com.motionloop.app.render.passes.ColorPass
 import com.motionloop.app.render.passes.FlowFieldPass
 import com.motionloop.app.render.passes.LoopWarpPass
 import com.motionloop.app.render.passes.MaskPass
+import com.motionloop.app.render.passes.OverlayPass
 
 /**
  * The pass chain shared by the editor preview and the exporters.
- * FlowField + Mask -> LoopWarp -> Color (skipped when there is nothing to adjust).
+ * FlowField + Mask -> LoopWarp -> [Overlay layer] -> Color + blend.
+ * The extra passes are skipped when there is nothing to adjust or overlay.
  * Later phases insert passes between warp and output.
  * Must be created, used and released on one GL thread.
  */
@@ -29,6 +32,8 @@ class LoopRenderGraph(assets: AssetManager) {
     private val maskPass = MaskPass(assets)
     private val warpPass = LoopWarpPass(assets, quad)
     private val colorPass = ColorPass(assets, quad)
+    private val overlayPass = OverlayPass(assets, quad)
+    private var overlay = OverlaySettings()
 
     // Offscreen frame between warp and color, only allocated when adjustments are active.
     private var frame: GlTexture? = null
@@ -75,6 +80,10 @@ class LoopRenderGraph(assets: AssetManager) {
         colorPass.setLut(lut)
     }
 
+    fun setOverlay(settings: OverlaySettings) {
+        overlay = settings
+    }
+
     /**
      * Draws one frame into framebuffer [fbo] (0 = window or encoder surface) at the given viewport.
      * [flipY] is true for window surfaces, false for FBOs read back row by row.
@@ -95,21 +104,27 @@ class LoopRenderGraph(assets: AssetManager) {
         val flow = flowPass.texture ?: return
         val mask = maskPass.texture ?: return
 
-        if (adjustments.isIdentity) {
-            // Nothing to grade: warp straight into the target, no extra pass.
+        if (adjustments.isIdentity && !overlay.isActive) {
+            // Nothing to grade or overlay: warp straight into the target, no extra pass.
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
             GLES30.glViewport(x, y, width, height)
             warpPass.draw(src.id, flow.id, mask.id, flowPass.encoded, phase, mode, amount, maskOverlay, flipY)
             return
         }
 
-        // Warp into an offscreen frame (not flipped, row 0 = image top), then color it into the target.
+        // Warp into an offscreen frame (not flipped, row 0 = image top), render the overlay layer
+        // the same way, then color and blend both into the target.
         val frame = ensureFrame(width, height)
         frame.bindAsTarget()
         warpPass.draw(src.id, flow.id, mask.id, flowPass.encoded, phase, mode, amount, maskOverlay, flipY = false)
+        var overlayTex = 0
+        if (overlay.isActive) {
+            overlayPass.render(overlay, phase, aspect, width, height)
+            overlayTex = overlayPass.layer?.id ?: 0
+        }
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
         GLES30.glViewport(x, y, width, height)
-        colorPass.draw(frame.id, adjustments, flipY)
+        colorPass.draw(frame.id, adjustments, overlayTex, overlay, flipY)
     }
 
     private fun ensureFrame(width: Int, height: Int): GlTexture {
@@ -128,6 +143,7 @@ class LoopRenderGraph(assets: AssetManager) {
         maskPass.release()
         warpPass.release()
         colorPass.release()
+        overlayPass.release()
         quad.release()
     }
 }

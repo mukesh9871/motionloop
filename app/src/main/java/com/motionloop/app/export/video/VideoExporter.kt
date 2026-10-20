@@ -72,6 +72,7 @@ class VideoExporter @Inject constructor(
                 g.setImage(bitmap)
                 g.setGeometry(project.arrows, project.anchors, project.strokes)
                 g.setColor(project.adjustments, luts.resolve(project.id, project.adjustments))
+                g.setOverlay(project.overlay)
                 bitmap.recycle() // uploaded to the GPU, the CPU copy is no longer needed
 
                 val m = MediaMuxer(out.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4).also { muxer = it }

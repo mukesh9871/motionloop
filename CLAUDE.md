@@ -67,8 +67,8 @@ brush strokes ─► [MaskPass] ──────► freeze mask (R8)
                                        │
                      [LoopWarpPass] ◄──┘   two-phase warp + crossfade, or boomerang
                            │
- Phase 2+  [AdjustPass] (brightness, contrast, saturation, LUT)
- Phase 3+  [OverlayPass] (particles, light leaks, blend modes)
+ Phase 3   [OverlayPass] -> overlay layer (particles, light leaks), premultiplied
+ Phase 2   [ColorPass] brightness, contrast, saturation, warmth, 3D LUT, then blends the overlay layer
  Phase 4+  [SkyPass]     Phase 5+ [ParallaxPass]
  Phase 6+  [BackgroundPass] -> [TextPass] -> [SubjectPass]
                            │
@@ -151,6 +151,8 @@ app/src/test/                     unit tests (flow math reference, loop timing, 
 ```
 
 ## Phased roadmap
+
+**Status (2026-10-21):** Phases 1, 2 and 3 are built and pass CI. Phases 4 to 6 need on-device ML models and wait for a go-ahead.
 
 | Phase | Features | Key deliverables |
 |---|---|---|
