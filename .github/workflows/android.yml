@@ -3,8 +3,15 @@ name: Android build
 on:
   push:
     branches: [ main ]
-  pull_request:
   workflow_dispatch:
+
+# contents: write lets the run publish its result to the ci-status branch.
+permissions:
+  contents: write
+
+concurrency:
+  group: android-build
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -27,13 +34,42 @@ jobs:
         with:
           gradle-version: "9.6.0"
 
-      - name: Unit tests
-        run: gradle testDebugUnitTest --stacktrace
-
-      - name: Build debug APK
-        run: gradle assembleDebug --stacktrace
+      - name: Test and build debug APK
+        id: build
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          gradle testDebugUnitTest assembleDebug --console=plain --stacktrace 2>&1 | tee build.log
 
       - uses: actions/upload-artifact@v4
+        if: steps.build.outcome == 'success'
         with:
           name: motionloop-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+
+      # The repo is private, so publish a readable summary to a branch that can be fetched over git.
+      - name: Publish build status
+        if: always()
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OUTCOME: ${{ steps.build.outcome }}
+        run: |
+          out=$(mktemp -d)
+          {
+            echo "sha=$GITHUB_SHA"
+            echo "result=$OUTCOME"
+            echo "run=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > "$out/status.txt"
+          if [ -f build.log ]; then
+            grep -nE "^e: |^w: .*deprecated|error:|What went wrong|FAILED|Exception" -A4 build.log | head -n 400 > "$out/errors.txt" || true
+            tail -n 300 build.log > "$out/build-tail.txt"
+          fi
+          cd "$out"
+          git init -q -b ci-status
+          git add .
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "CI $GITHUB_SHA $OUTCOME"
+          git push -qf "https://x-access-token:$TOKEN@github.com/$GITHUB_REPOSITORY.git" ci-status
+
+      - name: Fail job if the build failed
+        if: steps.build.outcome != 'success'
+        run: exit 1
