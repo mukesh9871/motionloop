@@ -93,3 +93,14 @@ Verdict: NEEDS WORK (1 major, 5 minor). Periodicity of every overlay term, blend
 | 4 | minor | Long rain streaks popped at the wrap on wide photos | Fixed: wrap margin scales with aspect. |
 | 5 | minor | Offscreen frame and overlay layer kept VRAM after being turned off | Fixed: released on the direct path. |
 | 6 | minor | Sub-pixel particles flicker in 480 px GIFs | Fixed: minimum width of about 1.5 px. |
+
+## Push 3, round 2
+
+Verdict: CLEAN (4 minor). All round-1 fixes verified, margin math checked for every aspect.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | minor | Rain slant left an empty wedge in the lower left | Fixed: start x spread over [-0.12, 1). |
+| 2 | minor | Rain streak angle did not match its motion on non-square photos | Fixed: streak axis uses `0.12 * aspect`. |
+| 3 | minor | Rain-sized margin made snow and embers sparse on wide photos | Fixed: separate smaller margin for them. |
+| 4 | minor | Stale comment on the offscreen frame | Fixed. |

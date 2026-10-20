@@ -28,9 +28,10 @@ void main() {
     float t = uPhase;
     // Integer speed tiers 1x, 2x, 3x give depth without breaking periodicity.
     float k = uSpeed * (1.0 + floor(r * 3.0));
-    // Wrap margin in normalized y, large enough that a particle (or rain streak, which is
-    // stretched and scaled by aspect) is fully off-screen when fract() wraps it around.
-    float margin = 0.02 + 0.08 * max(uAspect, 1.0);
+    // Wrap margins in normalized y, large enough that a particle is fully off-screen when
+    // fract() wraps it around. Rain streaks are long and scaled by aspect, so they get more.
+    float margin = 0.02 + 0.03 * max(uAspect, 1.0);
+    float rainMargin = 0.02 + 0.08 * max(uAspect, 1.0);
     float m = 1.0 + floor(fract(r * 7.0) * 2.0);
 
     vec2 pos;
@@ -56,9 +57,12 @@ void main() {
     } else if (uType == 3) {
         // Rain: fast, slanted streaks.
         float y = fract(y0 + 2.0 * k * t);
-        pos = vec2(x0 + 0.12 * y, y * (1.0 + 2.0 * margin) - margin);
+        // Start x spread over [-0.12, 1) so the slant still covers the lower left corner.
+        pos = vec2(x0 * 1.12 - 0.12 + 0.12 * y, y * (1.0 + 2.0 * rainMargin) - rainMargin);
         size = mix(0.0015, 0.003, r);
-        along = normalize(vec2(0.12, 1.0));
+        // Streak drawn along the actual motion: x moves 0.12 per unit y in normalized
+        // coordinates, which is 0.12 * aspect in the width-scaled space the quad is built in.
+        along = normalize(vec2(0.12 * uAspect, 1.0));
         stretch = 14.0;
         alpha = 0.35 + 0.35 * r;
         color = vec3(0.85, 0.9, 1.0);

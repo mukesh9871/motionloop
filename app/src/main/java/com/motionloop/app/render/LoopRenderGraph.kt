@@ -35,7 +35,7 @@ class LoopRenderGraph(assets: AssetManager) {
     private val overlayPass = OverlayPass(assets, quad)
     private var overlay = OverlaySettings()
 
-    // Offscreen frame between warp and color, only allocated when adjustments are active.
+    // Offscreen frame between warp and color, only allocated while adjustments or an overlay are active.
     private var frame: GlTexture? = null
     private var adjustments = Adjustments()
 
