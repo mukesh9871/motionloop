@@ -45,3 +45,9 @@ Verdict: NEEDS WORK (1 probable blocker, 6 minor). All round-1 fixes verified co
 | 5 | minor | Partial pass construction leaks GL objects if a shader fails | Accepted: only on a shader compile failure, which is a bug caught in development, and the context is torn down with the surface. |
 | 6 | minor | Speed slider queued a write per tick | Fixed: repository coalesces pending saves per project. |
 | 7 | minor | `catch (_: ...)` may not compile | Fixed: named parameter. |
+
+## Push 1, round 3 (round-2 fixes, test decoder, full compile scan)
+
+Verdict: CLEAN. No findings. LZW encoder and the independent test decoder traced by hand at the
+first codes, every width boundary and the table-full CLEAR. Save coalescing verified to never lose
+or reorder versions.
