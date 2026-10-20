@@ -39,7 +39,8 @@ class HomeViewModel @Inject constructor(
     private val _events = Channel<HomeEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
-    // Ids being deleted, so a refresh that read the disk earlier cannot bring them back.
+    // Ids deleted in this session. Never cleared on success: a refresh that read the disk before
+    // the delete finished must not bring them back. UUIDs, so the set stays tiny.
     private val deleting = mutableSetOf<String>()
 
     fun refresh() {
@@ -80,9 +81,10 @@ class HomeViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.update { it.copy(error = "Could not delete the project") }
-            } finally {
+                // The files may still be there, so let the next refresh show the project again.
                 deleting -= id
+                _state.update { it.copy(error = "Could not delete the project") }
+                refresh()
             }
         }
     }

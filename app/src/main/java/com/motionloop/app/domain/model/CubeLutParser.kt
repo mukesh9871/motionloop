@@ -15,6 +15,8 @@ object CubeLutParser {
     /** Real files go up to 65. Anything above is refused before allocating (129^3 floats is ~26 MB). */
     const val MAX_SOURCE_SIZE = 129
 
+    private val WHITESPACE = Regex("\\s+")
+
     fun parse(reader: Reader): LutData {
         var size = 0
         var domainMin = floatArrayOf(0f, 0f, 0f)
@@ -26,7 +28,7 @@ object CubeLutParser {
             for (raw in lines) {
                 val line = raw.substringBefore('#').trim()
                 if (line.isEmpty()) continue
-                val parts = line.split(Regex("\\s+"))
+                val parts = line.split(WHITESPACE)
                 when (parts[0].uppercase()) {
                     "TITLE" -> Unit
                     "LUT_1D_SIZE" -> throw CubeFormatException("1D LUTs are not supported")
