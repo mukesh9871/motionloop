@@ -1,5 +1,7 @@
 package com.motionloop.app.domain.model
 
+import kotlin.math.abs
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -15,4 +17,14 @@ object LoopTiming {
     /** Phase in cycles (not wrapped) for frame [index] of [frameCount]. */
     fun phaseForFrame(index: Int, frameCount: Int, cycles: Int): Float =
         cycles.toFloat() * index / frameCount
+
+    /**
+     * Weight of the second warp copy in continuous mode. Reference for `loop_warp.frag`,
+     * keep the two in sync. Copy 1 wraps at whole phases, where this is 1 (copy 1 hidden).
+     * Copy 2 wraps at half phases, where this is 0 (copy 2 hidden).
+     */
+    fun secondCopyWeight(phase: Float): Float {
+        val p1 = phase - floor(phase)
+        return abs(2f * p1 - 1f)
+    }
 }

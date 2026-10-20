@@ -1,10 +1,10 @@
 package com.motionloop.app.feature.export
 
-import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.motionloop.app.core.common.DefaultDispatcher
 import com.motionloop.app.domain.model.ExportFormat
 import com.motionloop.app.domain.model.ExportResolution
 import com.motionloop.app.domain.model.ExportSettings
@@ -14,15 +14,16 @@ import com.motionloop.app.export.gif.GifExporter
 import com.motionloop.app.export.video.VideoExporter
 import com.motionloop.app.navigation.Routes
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.io.File
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -41,11 +42,11 @@ data class ExportUiState(
 @HiltViewModel
 class ExportViewModel @Inject constructor(
     savedState: SavedStateHandle,
-    @ApplicationContext private val context: Context,
     private val projects: ProjectRepository,
     private val media: MediaRepository,
     private val videoExporter: VideoExporter,
     private val gifExporter: GifExporter,
+    @DefaultDispatcher private val cpu: CoroutineDispatcher,
 ) : ViewModel() {
 
     private val projectId: String = checkNotNull(savedState[Routes.ARG_PROJECT_ID])
@@ -56,12 +57,20 @@ class ExportViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             val project = projects.load(projectId) ?: return@launch
-            // Offer 4K only where the hardware encoder really supports it.
-            val available = ExportResolution.entries.filter {
-                it != ExportResolution.UHD || VideoExporter.supportsNominal(project, it)
+            // Offer 4K only where the hardware encoder really supports it. Codec queries are slow.
+            val available = withContext(cpu) {
+                ExportResolution.entries.filter {
+                    it != ExportResolution.UHD || VideoExporter.supportsNominal(project, it)
+                }
             }
             _state.update { it.copy(resolutions = available) }
         }
+    }
+
+    /** Called each time the sheet opens, so a finished export from before does not hide the Export button. */
+    fun reset() {
+        if (_state.value.running) return
+        _state.update { it.copy(progress = 0f, resultUri = null, resultMime = null, error = null) }
     }
 
     fun setFormat(format: ExportFormat) = updateSettings {
@@ -71,6 +80,9 @@ class ExportViewModel @Inject constructor(
 
     fun setLength(seconds: Int) = updateSettings { it.copy(lengthSeconds = seconds) }
     fun setResolution(r: ExportResolution) = updateSettings { it.copy(resolution = r) }
+
+    fun onStoragePermissionDenied() =
+        _state.update { it.copy(error = "Storage permission is needed to save to your gallery.") }
 
     private fun updateSettings(change: (ExportSettings) -> ExportSettings) {
         if (_state.value.running) return
@@ -86,9 +98,10 @@ class ExportViewModel @Inject constructor(
             val mime = if (isGif) "image/gif" else "video/mp4"
             val name = "MotionLoop_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) +
                 if (isGif) ".gif" else ".mp4"
-            val file = File(File(context.cacheDir, "exports").apply { mkdirs() }, name)
+            val file = media.exportTempFile(name)
             try {
-                // Re-read from disk: the editor saves every edit, so this is the latest state.
+                // Wait for the editor's queued saves, then read the latest state from disk.
+                projects.flush()
                 val project = projects.load(projectId) ?: error("Project not found")
                 val onProgress: (Float) -> Unit = { p -> _state.update { it.copy(progress = p) } }
                 if (isGif) {
@@ -104,7 +117,7 @@ class ExportViewModel @Inject constructor(
             } catch (e: Exception) {
                 _state.update { it.copy(running = false, error = e.message ?: "Export failed") }
             } finally {
-                file.delete()
+                withContext(NonCancellable + cpu) { file.delete() }
             }
         }
     }

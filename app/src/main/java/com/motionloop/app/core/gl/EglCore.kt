@@ -11,8 +11,11 @@ import android.view.Surface
 /**
  * Minimal EGL 1.4 wrapper for off-screen work (export). The editor uses GLSurfaceView instead.
  * Must be created, used and released on one thread.
+ *
+ * @param recordable true for rendering into a MediaCodec input surface (window surface),
+ *   false for pbuffer-only work. Asking only for what is needed finds a config on more devices.
  */
-class EglCore {
+class EglCore(private val recordable: Boolean) {
     private val display: EGLDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
     private val config: EGLConfig
     private val context: EGLContext
@@ -29,14 +32,12 @@ class EglCore {
             EGL14.EGL_BLUE_SIZE, 8,
             EGL14.EGL_ALPHA_SIZE, 8,
             EGL14.EGL_RENDERABLE_TYPE, EGLExt.EGL_OPENGL_ES3_BIT_KHR,
-            EGL14.EGL_SURFACE_TYPE, EGL14.EGL_WINDOW_BIT or EGL14.EGL_PBUFFER_BIT,
-            EGL_RECORDABLE_ANDROID, 1,
-            EGL14.EGL_NONE,
-        )
+            EGL14.EGL_SURFACE_TYPE, if (recordable) EGL14.EGL_WINDOW_BIT else EGL14.EGL_PBUFFER_BIT,
+        ) + (if (recordable) intArrayOf(EGL_RECORDABLE_ANDROID, 1) else IntArray(0)) + EGL14.EGL_NONE
         val configs = arrayOfNulls<EGLConfig>(1)
         val count = IntArray(1)
         check(EGL14.eglChooseConfig(display, attribs, 0, configs, 0, 1, count, 0) && count[0] > 0) {
-            "No recordable GLES3 EGL config"
+            if (recordable) "No recordable GLES3 EGL config" else "No GLES3 pbuffer EGL config"
         }
         config = configs[0]!!
 
@@ -49,6 +50,7 @@ class EglCore {
 
     /** Renders into an encoder input surface. */
     fun makeCurrentWindow(target: Surface) {
+        check(recordable) { "Created for pbuffer use only" }
         releaseSurface()
         surface = EGL14.eglCreateWindowSurface(display, config, target, intArrayOf(EGL14.EGL_NONE), 0)
         check(surface != EGL14.EGL_NO_SURFACE) { "eglCreateWindowSurface failed" }
@@ -57,6 +59,7 @@ class EglCore {
 
     /** Tiny pbuffer, used when all drawing goes to FBOs (GIF export). */
     fun makeCurrentPbuffer() {
+        check(!recordable) { "Created for window surfaces only" }
         releaseSurface()
         surface = EGL14.eglCreatePbufferSurface(
             display, config, intArrayOf(EGL14.EGL_WIDTH, 1, EGL14.EGL_HEIGHT, 1, EGL14.EGL_NONE), 0,

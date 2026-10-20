@@ -14,6 +14,8 @@ import com.motionloop.app.domain.model.Project
 import com.motionloop.app.domain.repository.ProjectRepository
 import com.motionloop.app.navigation.Routes
 import dagger.hilt.android.lifecycle.HiltViewModel
+import com.motionloop.app.render.passes.FlowFieldPass
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,7 +46,13 @@ class EditorViewModel @Inject constructor(
                 _state.update { it.copy(loading = false, error = "Project not found") }
                 return@launch
             }
-            val preview = runCatching { projects.loadImage(projectId, PREVIEW_EDGE) }.getOrNull()
+            val preview = try {
+                projects.loadImage(projectId, PREVIEW_EDGE)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            }
             _state.update {
                 it.copy(
                     loading = false,
@@ -86,9 +94,12 @@ class EditorViewModel @Inject constructor(
             EditorTool.ARROW ->
                 _state.update { it.copy(liveArrow = MotionArrow(UUID.randomUUID().toString(), p, p)) }
 
-            EditorTool.ANCHOR -> commit(
-                current(project).let { g -> g.copy(anchors = g.anchors + Anchor(UUID.randomUUID().toString(), p)) },
-            )
+            // The flow shader takes at most MAX_ITEMS anchors, so do not accept more than it can use.
+            EditorTool.ANCHOR -> if (project.anchors.size < FlowFieldPass.MAX_ITEMS) {
+                commit(
+                    current(project).let { g -> g.copy(anchors = g.anchors + Anchor(UUID.randomUUID().toString(), p)) },
+                )
+            }
 
             EditorTool.FREEZE, EditorTool.UNFREEZE -> _state.update {
                 it.copy(
@@ -125,8 +136,8 @@ class EditorViewModel @Inject constructor(
         val project = s.project ?: return
         s.liveArrow?.let { arrow ->
             _state.update { it.copy(liveArrow = null) }
-            val len = hypot(arrow.end.x - arrow.start.x, arrow.end.y - arrow.start.y)
-            if (len >= MIN_ARROW_LENGTH && project.arrows.size < MAX_ARROWS) {
+            val len = distance(arrow.start, arrow.end, project.aspect)
+            if (len >= MIN_ARROW_LENGTH && project.arrows.size < FlowFieldPass.MAX_ITEMS) {
                 commit(current(project).let { it.copy(arrows = it.arrows + arrow) })
             }
         }
@@ -137,10 +148,11 @@ class EditorViewModel @Inject constructor(
     }
 
     private fun eraseNear(project: Project, p: NPoint) {
-        val arrow = project.arrows.minByOrNull { distanceToSegment(p, it.start, it.end) }
-            ?.takeIf { distanceToSegment(p, it.start, it.end) < ERASE_RADIUS }
-        val anchor = project.anchors.minByOrNull { hypot(p.x - it.center.x, p.y - it.center.y) }
-            ?.takeIf { hypot(p.x - it.center.x, p.y - it.center.y) < ERASE_RADIUS }
+        val aspect = project.aspect
+        val arrow = project.arrows.minByOrNull { distanceToSegment(p, it.start, it.end, aspect) }
+            ?.takeIf { distanceToSegment(p, it.start, it.end, aspect) < ERASE_RADIUS }
+        val anchor = project.anchors.minByOrNull { distance(p, it.center, aspect) }
+            ?.takeIf { distance(p, it.center, aspect) < ERASE_RADIUS }
         val g = current(project)
         when {
             arrow != null -> commit(g.copy(arrows = g.arrows - arrow))
@@ -191,16 +203,22 @@ class EditorViewModel @Inject constructor(
 
     // endregion
 
-    private fun persist(project: Project) {
-        viewModelScope.launch { projects.save(project) }
-    }
+    /** Queued on the repository's app-wide serial writer, so it survives leaving the screen. */
+    private fun persist(project: Project) = projects.saveInBackground(project)
 
-    private fun distanceToSegment(p: NPoint, a: NPoint, b: NPoint): Float {
+    // Distances in units of image width: y is scaled by height / width = 1 / aspect,
+    // so hit areas are round on screen for any photo shape.
+    private fun distance(a: NPoint, b: NPoint, aspect: Float): Float =
+        hypot(b.x - a.x, (b.y - a.y) / aspect)
+
+    private fun distanceToSegment(p: NPoint, a: NPoint, b: NPoint, aspect: Float): Float {
         val abx = b.x - a.x
-        val aby = b.y - a.y
+        val aby = (b.y - a.y) / aspect
+        val apx = p.x - a.x
+        val apy = (p.y - a.y) / aspect
         val len2 = abx * abx + aby * aby
-        val t = if (len2 < 1e-8f) 0f else (((p.x - a.x) * abx + (p.y - a.y) * aby) / len2).coerceIn(0f, 1f)
-        return hypot(p.x - (a.x + abx * t), p.y - (a.y + aby * t))
+        val t = if (len2 < 1e-8f) 0f else ((apx * abx + apy * aby) / len2).coerceIn(0f, 1f)
+        return hypot(apx - abx * t, apy - aby * t)
     }
 
     private companion object {
@@ -209,7 +227,6 @@ class EditorViewModel @Inject constructor(
         const val MIN_ARROW_LENGTH = 0.01f
         const val MIN_STROKE_STEP = 0.003f
         const val ERASE_RADIUS = 0.04f
-        const val MAX_ARROWS = 64
         const val MAX_HISTORY = 100
     }
 }

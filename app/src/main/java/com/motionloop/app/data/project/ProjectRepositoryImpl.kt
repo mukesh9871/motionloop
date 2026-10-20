@@ -4,15 +4,20 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Log
 import com.motionloop.app.core.common.IoDispatcher
 import com.motionloop.app.core.image.BitmapDecoder
 import com.motionloop.app.domain.model.Project
 import com.motionloop.app.domain.repository.ProjectRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.IOException
 import java.util.UUID
 import javax.inject.Inject
 
@@ -29,6 +34,10 @@ class ProjectRepositoryImpl @Inject constructor(
         ignoreUnknownKeys = true
         encodeDefaults = true
     }
+
+    // One writer at a time, in call order. Lives as long as the app, not the screen.
+    private val serialIo = io.limitedParallelism(1)
+    private val saveScope = CoroutineScope(SupervisorJob() + serialIo)
 
     private val root: File get() = File(context.filesDir, "projects").apply { mkdirs() }
     private fun dir(id: String) = File(root, id)
@@ -62,9 +71,19 @@ class ProjectRepositoryImpl @Inject constructor(
         if (!file.exists()) null else runCatching { json.decodeFromString<Project>(file.readText()) }.getOrNull()
     }
 
-    override suspend fun save(project: Project) = withContext(io) {
-        writeJson(project.copy(updatedAt = System.currentTimeMillis()))
+    override fun saveInBackground(project: Project) {
+        saveScope.launch {
+            try {
+                writeJson(project.copy(updatedAt = System.currentTimeMillis()))
+            } catch (e: Exception) {
+                // Never let a failed save crash the app from this scope. The previous file stays intact.
+                Log.e(TAG, "Saving project ${project.id} failed", e)
+            }
+        }
     }
+
+    // The serial dispatcher runs queued blocks in order, so this returns after every earlier save.
+    override suspend fun flush() = withContext(serialIo) { }
 
     override suspend fun recent(limit: Int): List<Project> = withContext(io) {
         root.listFiles().orEmpty()
@@ -87,10 +106,11 @@ class ProjectRepositoryImpl @Inject constructor(
         val dir = dir(project.id)
         val tmp = File(dir, "$JSON.tmp")
         tmp.writeText(json.encodeToString(Project.serializer(), project))
-        tmp.renameTo(File(dir, JSON))
+        if (!tmp.renameTo(File(dir, JSON))) throw IOException("Could not replace $JSON")
     }
 
     companion object {
+        private const val TAG = "ProjectRepository"
         const val MAX_STORED_EDGE = 4096
         private const val THUMB_EDGE = 320
         private const val SOURCE = "source.jpg"

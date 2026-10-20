@@ -16,13 +16,15 @@ import kotlin.math.roundToInt
 object BitmapDecoder {
 
     fun decode(resolver: ContentResolver, uri: Uri, maxEdge: Int): Bitmap {
-        val rotation = resolver.openInputStream(uri)?.use(::exifRotation) ?: 0
-        return decode(maxEdge, rotation) { resolver.openInputStream(uri) ?: throw IOException("Cannot open $uri") }
+        val orientation = resolver.openInputStream(uri)?.use(::exifOrientation) ?: ExifInterface.ORIENTATION_NORMAL
+        return decode(maxEdge, orientation) { resolver.openInputStream(uri) ?: throw IOException("Cannot open $uri") }
     }
 
-    fun decode(file: File, maxEdge: Int): Bitmap = decode(maxEdge, rotation = 0) { file.inputStream() }
+    /** Project files are stored upright already, so EXIF is not read again. */
+    fun decode(file: File, maxEdge: Int): Bitmap =
+        decode(maxEdge, ExifInterface.ORIENTATION_NORMAL) { file.inputStream() }
 
-    private fun decode(maxEdge: Int, rotation: Int, open: () -> InputStream): Bitmap {
+    private fun decode(maxEdge: Int, orientation: Int, open: () -> InputStream): Bitmap {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         open().use { BitmapFactory.decodeStream(it, null, bounds) }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw IOException("Unsupported image")
@@ -38,25 +40,40 @@ object BitmapDecoder {
             ?: throw IOException("Decode failed")
 
         val scale = minOf(1f, maxEdge.toFloat() / max(decoded.width, decoded.height))
-        if (scale >= 1f && rotation == 0) return decoded
+        if (scale >= 1f && orientation == ExifInterface.ORIENTATION_NORMAL) return decoded
         val m = Matrix().apply {
             postScale(scale, scale)
-            postRotate(rotation.toFloat())
+            applyOrientation(this, orientation)
         }
         val out = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, m, true)
         if (out !== decoded) decoded.recycle()
         return out
     }
 
-    private fun exifRotation(stream: InputStream): Int = try {
-        when (ExifInterface(stream).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
-            ExifInterface.ORIENTATION_ROTATE_90 -> 90
-            ExifInterface.ORIENTATION_ROTATE_180 -> 180
-            ExifInterface.ORIENTATION_ROTATE_270 -> 270
-            else -> 0
-        }
+    private fun exifOrientation(stream: InputStream): Int = try {
+        ExifInterface(stream).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
     } catch (_: IOException) {
-        0
+        ExifInterface.ORIENTATION_NORMAL
+    }
+
+    /** All 8 EXIF orientations, including the mirrored ones some front cameras write. */
+    private fun applyOrientation(m: Matrix, orientation: Int) {
+        when (orientation) {
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> m.postScale(-1f, 1f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> m.postRotate(180f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> m.postScale(1f, -1f)
+            ExifInterface.ORIENTATION_TRANSPOSE -> {
+                m.postRotate(90f)
+                m.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_ROTATE_90 -> m.postRotate(90f)
+            ExifInterface.ORIENTATION_TRANSVERSE -> {
+                m.postRotate(-90f)
+                m.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_ROTATE_270 -> m.postRotate(270f)
+            else -> Unit
+        }
     }
 
     fun scaleToLongEdge(src: Bitmap, longEdge: Int): Bitmap {

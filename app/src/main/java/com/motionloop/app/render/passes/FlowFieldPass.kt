@@ -56,6 +56,7 @@ class FlowFieldPass(assets: AssetManager, private val quad: FullscreenQuad) : Re
         program.set1f("uAspect", aspect)
         program.set1f("uEncode", if (encoded) 1f else 0f)
         program.set1f("uMaxFlow", MAX_FLOW)
+        program.set1f("uFalloff", FALLOFF)
         quad.draw()
         GlUtil.checkError("FlowFieldPass")
     }
@@ -83,6 +84,9 @@ class FlowFieldPass(assets: AssetManager, private val quad: FullscreenQuad) : Re
 
         /** Upper bound on per-cycle displacement, only used by the RGBA8 fallback encoding. */
         const val MAX_FLOW = 1f
+
+        /** At this distance from the nearest arrow (in image heights) motion is about half speed. */
+        const val FALLOFF = 0.3f
 
         // Flow is smooth, so a small texture with linear filtering is enough.
         private const val LONG_EDGE = 256

@@ -10,7 +10,12 @@ class GlProgram(vertexSrc: String, fragmentSrc: String) {
 
     init {
         val vs = compile(GLES30.GL_VERTEX_SHADER, vertexSrc)
-        val fs = compile(GLES30.GL_FRAGMENT_SHADER, fragmentSrc)
+        val fs = try {
+            compile(GLES30.GL_FRAGMENT_SHADER, fragmentSrc)
+        } catch (e: IllegalStateException) {
+            GLES30.glDeleteShader(vs)
+            throw e
+        }
         id = GLES30.glCreateProgram()
         GLES30.glAttachShader(id, vs)
         GLES30.glAttachShader(id, fs)

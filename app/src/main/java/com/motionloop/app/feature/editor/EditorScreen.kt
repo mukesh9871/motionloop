@@ -30,7 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.motionloop.app.feature.editor.components.LabeledSlider
 import com.motionloop.app.feature.editor.components.PlaybackBar
@@ -76,11 +76,8 @@ fun EditorScreen(onBack: () -> Unit, vm: EditorViewModel = hiltViewModel()) {
             when {
                 state.loading -> CircularProgressIndicator()
                 state.error != null -> Text(state.error ?: "", color = MlColors.Coral)
-                project != null -> Box(
-                    Modifier
-                        .aspectRatio(project.aspect)
-                        .clip(RoundedCornerShape(8.dp)),
-                ) {
+                // No rounded clip: clipping does not apply to a SurfaceView.
+                project != null -> Box(Modifier.aspectRatio(project.aspect)) {
                     // The GL view and the touch layer share the exact photo bounds.
                     GlPreview(scene = state.scene, modifier = Modifier.fillMaxSize())
                     EditorCanvas(

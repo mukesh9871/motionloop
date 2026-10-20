@@ -3,6 +3,7 @@ package com.motionloop.app
 import com.motionloop.app.domain.model.LoopSettings
 import com.motionloop.app.domain.model.LoopTiming
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
 import kotlin.math.floor
@@ -31,16 +32,25 @@ class LoopTimingTest {
     }
 
     @Test
-    fun crossfadeWeightHidesEachWrap() {
-        // Mirrors loop_warp.frag: copy 1 has weight 1 - |2 p1 - 1|, zero exactly where p1 wraps.
-        fun weight1(phase: Float): Float {
-            val p1 = phase - floor(phase)
-            return 1f - abs(2f * p1 - 1f)
+    fun crossfadeHidesEachWrap() {
+        // Copy 1 wraps at whole phases: copy 2 must have full weight there.
+        assertEquals(1f, LoopTiming.secondCopyWeight(0f), 1e-6f)
+        assertEquals(1f, LoopTiming.secondCopyWeight(3f), 1e-6f)
+        assertEquals(1f, LoopTiming.secondCopyWeight(2.99999f), 1e-4f)
+        // Copy 2 wraps at half phases: its weight must be zero there.
+        assertEquals(0f, LoopTiming.secondCopyWeight(0.5f), 1e-6f)
+        assertEquals(0f, LoopTiming.secondCopyWeight(7.5f), 1e-6f)
+    }
+
+    @Test
+    fun crossfadeIsContinuous() {
+        var prev = LoopTiming.secondCopyWeight(0f)
+        var t = 0f
+        while (t < 4f) {
+            t += 0.001f
+            val w = LoopTiming.secondCopyWeight(t)
+            assertTrue(abs(w - prev) < 0.01f)
+            prev = w
         }
-        assertEquals(0f, weight1(0f), 1e-6f)
-        assertEquals(0f, weight1(3f), 1e-6f)
-        assertEquals(1f, weight1(0.5f), 1e-6f)
-        // Copy 2 wraps at p1 = 0.5, where its weight (1 - weight1) is zero.
-        assertEquals(0f, 1f - weight1(2.5f), 1e-6f)
     }
 }

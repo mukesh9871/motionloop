@@ -6,6 +6,8 @@ import android.media.MediaCodecInfo
 import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.media.MediaMuxer
+import android.os.Build
+import android.view.Surface
 import com.motionloop.app.core.gl.EglCore
 import com.motionloop.app.core.gl.GlUtil
 import com.motionloop.app.domain.model.ExportResolution
@@ -33,7 +35,8 @@ class VideoExporter @Inject constructor(
 
     suspend fun export(project: Project, settings: ExportSettings, out: File, onProgress: (Float) -> Unit) =
         OffscreenLoop.onGlThread("ml-video-export") {
-            val (w, h) = outputSize(project, settings.resolution)
+            val encoderInfo = avcEncoder() ?: error("This device has no H.264 encoder")
+            val (w, h) = outputSize(project, settings.resolution, encoderInfo)
                 ?: error("This device cannot encode ${settings.resolution.label} video")
             val fps = ExportSettings.VIDEO_FPS
             val frameCount = settings.lengthSeconds * fps
@@ -45,30 +48,35 @@ class VideoExporter @Inject constructor(
                 setInteger(MediaFormat.KEY_FRAME_RATE, fps)
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
             }
-            val codec = MediaCodec.createEncoderByType(MIME)
+            var codec: MediaCodec? = null
+            var inputSurface: Surface? = null
             var muxer: MediaMuxer? = null
-            val egl = EglCore()
+            var egl: EglCore? = null
             var graph: LoopRenderGraph? = null
             var success = false
             try {
-                codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-                val inputSurface = codec.createInputSurface()
-                codec.start()
-                egl.makeCurrentWindow(inputSurface)
+                out.parentFile?.mkdirs()
+                // Same codec that the size check used, so a "supported" size cannot fail in configure().
+                val c = MediaCodec.createByCodecName(encoderInfo.name).also { codec = it }
+                c.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+                val surface = c.createInputSurface().also { inputSurface = it }
+                c.start()
+                val e = EglCore(recordable = true).also { egl = it }
+                e.makeCurrentWindow(surface)
 
                 // Decode near output size: sharper than GPU minification and far less memory.
                 val bitmap = projects.loadImage(project.id, minOf(max(w, h) * 2, GlUtil.maxTextureSize()))
-                graph = LoopRenderGraph(context.assets).apply {
-                    setImage(bitmap)
-                    setGeometry(project.arrows, project.anchors, project.strokes)
-                }
+                val g = LoopRenderGraph(context.assets).also { graph = it }
+                g.setImage(bitmap)
+                g.setGeometry(project.arrows, project.anchors, project.strokes)
+                bitmap.recycle() // uploaded to the GPU, the CPU copy is no longer needed
 
                 val m = MediaMuxer(out.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4).also { muxer = it }
-                val drainer = Drainer(codec, m)
+                val drainer = Drainer(c, m)
                 for (i in 0 until frameCount) {
                     currentCoroutineContext().ensureActive()
                     drainer.drain(endOfStream = false)
-                    graph.draw(
+                    g.draw(
                         fbo = 0, x = 0, y = 0, width = w, height = h,
                         phase = LoopTiming.phaseForFrame(i, frameCount, cycles),
                         mode = project.loop.mode,
@@ -76,20 +84,25 @@ class VideoExporter @Inject constructor(
                         maskOverlay = 0f,
                         flipY = true,
                     )
-                    egl.setPresentationTime(i * 1_000_000_000L / fps)
-                    egl.swapBuffers()
+                    e.setPresentationTime(i * 1_000_000_000L / fps)
+                    e.swapBuffers()
                     onProgress((i + 1f) / frameCount)
                 }
-                codec.signalEndOfInputStream()
+                c.signalEndOfInputStream()
                 drainer.drain(endOfStream = true)
                 success = true
             } finally {
                 graph?.release()
-                egl.release()
-                runCatching { codec.stop() }
-                codec.release()
-                runCatching { muxer?.stop() }
-                muxer?.release()
+                egl?.release()
+                codec?.let {
+                    runCatching { it.stop() }
+                    it.release()
+                }
+                inputSurface?.release()
+                muxer?.let {
+                    runCatching { it.stop() }
+                    it.release()
+                }
                 if (!success) out.delete()
             }
         }
@@ -115,6 +128,7 @@ class VideoExporter @Inject constructor(
                         muxer.start()
                     }
                     index >= 0 -> {
+                        idleTries = 0
                         val buffer = codec.getOutputBuffer(index) ?: error("Null output buffer")
                         if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) info.size = 0
                         if (info.size > 0 && track >= 0) {
@@ -133,9 +147,9 @@ class VideoExporter @Inject constructor(
     companion object {
         private const val MIME = MediaFormat.MIMETYPE_VIDEO_AVC
 
-        /** Output size for [resolution], shrunk until the device encoder accepts it. Null if nothing fits. */
-        fun outputSize(project: Project, resolution: ExportResolution): Pair<Int, Int>? {
-            val caps = avcCapabilities() ?: return null
+        /** Output size for [resolution], shrunk until [encoder] accepts it. Null if nothing fits. */
+        fun outputSize(project: Project, resolution: ExportResolution, encoder: MediaCodecInfo): Pair<Int, Int>? {
+            val caps = encoder.getCapabilitiesForType(MIME).videoCapabilities ?: return null
             var edge = resolution.shortEdge
             while (edge >= 144) {
                 val (w, h) = OffscreenLoop.fit(
@@ -148,17 +162,23 @@ class VideoExporter @Inject constructor(
             return null
         }
 
-        /** True if the encoder can do [resolution] at (close to) its nominal size. Used to hide 4K. */
+        /** True if the encoder can do [resolution] at its nominal size. Used to hide 4K. Slow, call off main. */
         fun supportsNominal(project: Project, resolution: ExportResolution): Boolean {
-            val caps = avcCapabilities() ?: return false
+            val caps = avcEncoder()?.getCapabilitiesForType(MIME)?.videoCapabilities ?: return false
             val (w, h) = OffscreenLoop.fit(project.aspect, resolution.shortEdge, true, Int.MAX_VALUE, Int.MAX_VALUE, 16)
             return caps.isSizeSupported(w, h)
         }
 
-        private fun avcCapabilities(): MediaCodecInfo.VideoCapabilities? =
-            MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
-                .firstOrNull { it.isEncoder && it.supportedTypes.any { t -> t.equals(MIME, ignoreCase = true) } }
-                ?.getCapabilitiesForType(MIME)?.videoCapabilities
+        /** Prefers a hardware H.264 encoder (API 29+ can tell), else the first one listed. */
+        private fun avcEncoder(): MediaCodecInfo? {
+            val encoders = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
+                .filter { it.isEncoder && it.supportedTypes.any { t -> t.equals(MIME, ignoreCase = true) } }
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                encoders.firstOrNull { it.isHardwareAccelerated } ?: encoders.firstOrNull()
+            } else {
+                encoders.firstOrNull()
+            }
+        }
 
         /** About 0.2 bits per pixel per frame: clean for slow-moving content without huge files. */
         private fun bitrateFor(w: Int, h: Int, fps: Int): Int = (w.toLong() * h * fps / 5).coerceIn(2_000_000, 40_000_000).toInt()

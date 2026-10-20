@@ -17,7 +17,7 @@ out vec4 fragColor;
 
 vec2 flowAt(vec2 uv) {
     vec2 f = texture(uFlow, uv).rg;
-    if (uEncoded > 0.5) f = (f * 2.0 - 1.0) * uMaxFlow;
+    if (uEncoded > 0.5) f = (f * 255.0 - 127.0) / 127.0 * uMaxFlow;
     return f * (1.0 - texture(uMask, uv).r) * uAmount;
 }
 
@@ -32,6 +32,7 @@ void main() {
         float p2 = fract(uPhase + 0.5);
         vec3 c1 = texture(uImage, vUv - f * (p1 - 0.5)).rgb;
         vec3 c2 = texture(uImage, vUv - f * (p2 - 0.5)).rgb;
+        // Same formula as LoopTiming.secondCopyWeight (unit tested there).
         color = mix(c1, c2, abs(2.0 * p1 - 1.0));
     } else {
         // Forward then back, eased at both ends.

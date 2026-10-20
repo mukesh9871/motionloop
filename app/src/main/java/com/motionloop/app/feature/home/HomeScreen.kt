@@ -44,7 +44,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.motionloop.app.data.media.MediaIntents
@@ -66,13 +66,13 @@ fun HomeScreen(onOpenProject: (String) -> Unit, vm: HomeViewModel = hiltViewMode
 
     // Photo Picker needs no storage permission and is backported to API 26 by Play services.
     val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        uri?.let(vm::import)
+        uri?.let(vm::importPhoto)
     }
     // The camera writes into our FileProvider Uri. Kept across rotation while the camera app is open.
     var cameraUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
         val uri = cameraUri
-        if (ok && uri != null) vm.import(uri)
+        if (ok && uri != null) vm.importPhoto(uri)
     }
 
     Box(

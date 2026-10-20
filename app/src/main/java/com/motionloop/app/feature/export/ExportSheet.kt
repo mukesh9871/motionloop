@@ -22,15 +22,18 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.motionloop.app.data.media.MediaIntents
 import com.motionloop.app.domain.model.ExportFormat
@@ -47,8 +50,9 @@ fun ExportSheet(onDismiss: () -> Unit, vm: ExportViewModel = hiltViewModel()) {
     // Android 8 and 9 need the legacy storage permission to save into the gallery.
     val needsPermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) vm.start()
+        if (granted) vm.start() else vm.onStoragePermissionDenied()
     }
+    LaunchedEffect(Unit) { vm.reset() }
     val startExport = {
         if (needsPermission &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
@@ -60,9 +64,15 @@ fun ExportSheet(onDismiss: () -> Unit, vm: ExportViewModel = hiltViewModel()) {
         }
     }
 
+    // The sheet hides itself before onDismissRequest, so block hiding while an export runs.
+    // Otherwise the progress and Cancel button would vanish with the export still going.
+    val running by rememberUpdatedState(state.running)
     ModalBottomSheet(
-        onDismissRequest = { if (!state.running) onDismiss() },
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        onDismissRequest = { if (!running) onDismiss() },
+        sheetState = rememberModalBottomSheetState(
+            skipPartiallyExpanded = true,
+            confirmValueChange = { it != SheetValue.Hidden || !running },
+        ),
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
         Column(

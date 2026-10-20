@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.motionloop.app.domain.repository.ProjectRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,14 +46,20 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun import(uri: Uri) {
+    fun importPhoto(uri: Uri) {
         if (_state.value.importing) return
         _state.update { it.copy(importing = true, error = null) }
         viewModelScope.launch {
-            runCatching { projects.createFromImage(uri) }
-                .onSuccess { _events.send(HomeEvent.OpenEditor(it.id)) }
-                .onFailure { e -> _state.update { it.copy(error = "Could not open that photo (${e.message})") } }
-            _state.update { it.copy(importing = false) }
+            try {
+                val project = projects.createFromImage(uri)
+                _events.send(HomeEvent.OpenEditor(project.id))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(error = "Could not open that photo (${e.message})") }
+            } finally {
+                _state.update { it.copy(importing = false) }
+            }
         }
     }
 

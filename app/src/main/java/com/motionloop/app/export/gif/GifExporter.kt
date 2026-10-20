@@ -44,17 +44,18 @@ class GifExporter @Inject constructor(
             val frameCount = (settings.lengthSeconds * 100f / delay).roundToInt()
             val cycles = LoopTiming.cyclesForClip(settings.lengthSeconds.toFloat(), project.loop.speed)
 
-            val egl = EglCore()
+            var egl: EglCore? = null
             var graph: LoopRenderGraph? = null
             var target: GlTexture? = null
             var success = false
             try {
-                egl.makeCurrentPbuffer()
+                out.parentFile?.mkdirs()
+                egl = EglCore(recordable = false).apply { makeCurrentPbuffer() }
                 val bitmap = projects.loadImage(project.id, minOf(max(w, h) * 2, GlUtil.maxTextureSize()))
-                val g = LoopRenderGraph(context.assets).apply {
-                    setImage(bitmap)
-                    setGeometry(project.arrows, project.anchors, project.strokes)
-                }.also { graph = it }
+                val g = LoopRenderGraph(context.assets).also { graph = it }
+                g.setImage(bitmap)
+                g.setGeometry(project.arrows, project.anchors, project.strokes)
+                bitmap.recycle() // uploaded to the GPU, the CPU copy is no longer needed
                 val t = GlTexture.empty(w, h, GLES30.GL_RGBA8, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE).also { target = it }
                 val readBuffer = ByteBuffer.allocateDirect(w * h * 4).order(ByteOrder.nativeOrder())
 
@@ -102,7 +103,7 @@ class GifExporter @Inject constructor(
             } finally {
                 target?.release()
                 graph?.release()
-                egl.release()
+                egl?.release()
                 if (!success) out.delete()
             }
         }

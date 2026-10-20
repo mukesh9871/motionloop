@@ -20,6 +20,9 @@ class MediaStoreSaver @Inject constructor(
     @IoDispatcher private val io: CoroutineDispatcher,
 ) : MediaRepository {
 
+    // No disk access here (called on main). Exporters create the folder on their own thread.
+    override fun exportTempFile(name: String): File = File(File(context.cacheDir, "exports"), name)
+
     override suspend fun saveToGallery(file: File, mimeType: String, displayName: String): Uri = withContext(io) {
         val isVideo = mimeType.startsWith("video/")
         val collection = if (isVideo) {

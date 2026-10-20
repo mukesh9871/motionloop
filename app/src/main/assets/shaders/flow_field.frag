@@ -15,6 +15,7 @@ uniform vec4 uAnchors[MAX_ITEMS];  // center.xy, radius (fraction of width), unu
 uniform float uAspect;             // width / height
 uniform float uEncode;             // 1.0: pack into an RGBA8 target
 uniform float uMaxFlow;
+uniform float uFalloff;            // distance (aspect units) where arrow influence halves
 
 out vec4 fragColor;
 
@@ -43,6 +44,10 @@ void main() {
         wsum += w;
     }
 
+    // A constant vote for zero velocity, so areas far from every arrow stay still
+    // instead of the whole photo sliding with a single arrow.
+    wsum += 1.0 / (uFalloff * uFalloff);
+
     // Anchors vote for zero velocity and also hard-stop motion inside their radius.
     float still = 1.0;
     for (int i = 0; i < MAX_ITEMS; i++) {
@@ -58,7 +63,9 @@ void main() {
     vec2 v = wsum > 0.0 ? (sum / wsum) * still : vec2(0.0);
 
     if (uEncode > 0.5) {
-        fragColor = vec4(clamp(v / uMaxFlow, -1.0, 1.0) * 0.5 + 0.5, 0.0, 1.0);
+        // Scale 127 so zero is byte 127 and decodes back to exactly zero (see loop_warp.frag).
+        vec2 e = clamp(v / uMaxFlow, -1.0, 1.0) * 127.0 + 127.0;
+        fragColor = vec4(floor(e + 0.5) / 255.0, 0.0, 1.0);
     } else {
         fragColor = vec4(v, 0.0, 1.0);
     }
