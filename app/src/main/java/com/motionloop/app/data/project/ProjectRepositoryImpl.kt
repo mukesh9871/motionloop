@@ -19,6 +19,7 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.IOException
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
 /**
@@ -38,6 +39,7 @@ class ProjectRepositoryImpl @Inject constructor(
     // One writer at a time, in call order. Lives as long as the app, not the screen.
     private val serialIo = io.limitedParallelism(1)
     private val saveScope = CoroutineScope(SupervisorJob() + serialIo)
+    private val pending = ConcurrentHashMap<String, Project>()
 
     private val root: File get() = File(context.filesDir, "projects").apply { mkdirs() }
     private fun dir(id: String) = File(root, id)
@@ -72,12 +74,16 @@ class ProjectRepositoryImpl @Inject constructor(
     }
 
     override fun saveInBackground(project: Project) {
+        // Coalesce: a slider drag queues many saves, but each queued task writes the newest
+        // pending version and later tasks for the same id find nothing left to do.
+        pending[project.id] = project
         saveScope.launch {
+            val latest = pending.remove(project.id) ?: return@launch
             try {
-                writeJson(project.copy(updatedAt = System.currentTimeMillis()))
+                writeJson(latest.copy(updatedAt = System.currentTimeMillis()))
             } catch (e: Exception) {
                 // Never let a failed save crash the app from this scope. The previous file stays intact.
-                Log.e(TAG, "Saving project ${project.id} failed", e)
+                Log.e(TAG, "Saving project ${latest.id} failed", e)
             }
         }
     }

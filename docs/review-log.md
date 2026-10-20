@@ -31,3 +31,17 @@ Verdict: NEEDS WORK (4 major, 21 minor, 1 build risk).
 | 23 | minor | Camera temp file created on main thread | Rejected: tiny cache-dir operation, the launcher needs the Uri synchronously. |
 | 24 | minor | Rounded clip does not apply to SurfaceView | Fixed: removed. |
 | 25 | minor | Crossfade test duplicated the formula | Fixed: `LoopTiming.secondCopyWeight` is the tested reference. |
+
+## Push 1, round 2 (round-1 fixes + full re-read)
+
+Verdict: NEEDS WORK (1 probable blocker, 6 minor). All round-1 fixes verified correct.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | blocker? | `javax.imageio` likely missing from the Android unit test classpath | Fixed: own spec-based GIF decoder in test sources, exact index comparison. |
+| 2 | minor | EGL context leaked if `makeCurrentPbuffer` threw | Fixed: assign before use. |
+| 3 | minor | `muxer.stop()` failure on success path still saved a broken MP4 | Fixed: stop inside `try`. |
+| 4 | minor | Editor could load before queued saves finished | Fixed: `flush()` before `load()`. |
+| 5 | minor | Partial pass construction leaks GL objects if a shader fails | Accepted: only on a shader compile failure, which is a bug caught in development, and the context is torn down with the surface. |
+| 6 | minor | Speed slider queued a write per tick | Fixed: repository coalesces pending saves per project. |
+| 7 | minor | `catch (_: ...)` may not compile | Fixed: named parameter. |

@@ -41,6 +41,8 @@ class EditorViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            // Reopening right after leaving: wait for that session's queued saves first.
+            projects.flush()
             val project = projects.load(projectId)
             if (project == null) {
                 _state.update { it.copy(loading = false, error = "Project not found") }

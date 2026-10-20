@@ -108,7 +108,7 @@ fun HomeScreen(onOpenProject: (String) -> Unit, vm: HomeViewModel = hiltViewMode
                         cameraUri = uri
                         try {
                             takePhoto.launch(uri)
-                        } catch (_: ActivityNotFoundException) {
+                        } catch (ignored: ActivityNotFoundException) {
                             cameraUri = null
                         }
                     },

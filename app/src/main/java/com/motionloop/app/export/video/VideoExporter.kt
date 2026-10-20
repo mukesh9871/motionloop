@@ -90,6 +90,11 @@ class VideoExporter @Inject constructor(
                 }
                 c.signalEndOfInputStream()
                 drainer.drain(endOfStream = true)
+                // Stop inside try: a muxer that never started or fails to finalize is a failed export,
+                // not a broken file saved to the gallery.
+                m.stop()
+                m.release()
+                muxer = null
                 success = true
             } finally {
                 graph?.release()

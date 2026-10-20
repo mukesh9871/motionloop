@@ -52,7 +52,7 @@ object BitmapDecoder {
 
     private fun exifOrientation(stream: InputStream): Int = try {
         ExifInterface(stream).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
-    } catch (_: IOException) {
+    } catch (ignored: IOException) {
         ExifInterface.ORIENTATION_NORMAL
     }
 
