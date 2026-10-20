@@ -1,0 +1,55 @@
+---
+name: motionloop-review
+description: Thorough pre-push code review for MotionLoop with a review, fix, re-review loop. Use before every push to main, and when asked to review MotionLoop code.
+---
+
+# MotionLoop pre-push review
+
+Nothing is pushed until a review pass comes back with **zero blocking findings**.
+
+## Loop
+1. Collect the diff since the last pushed commit: `git diff origin/main...HEAD` plus uncommitted changes.
+2. Run the review (below) with a fresh reviewer agent that has not seen the code being written. Give it the diff, `CLAUDE.md` and `.claude/skills/motionloop-coding/SKILL.md`. Ask for findings with file, line, severity, failure scenario and a fix.
+3. Verify each finding yourself before acting on it. Drop false positives, with a one-line reason.
+4. Fix every confirmed **blocker** and **major**. Fix **minor** findings when cheap.
+5. Commit the fixes (`motionloop-commit` skill), then run a **new** review pass on the updated code. Do not reuse the earlier reviewer's conclusions.
+6. Repeat until a pass returns no blocker or major findings. Then push.
+7. Record each round (findings, fixed, rejected with reason) in `docs/review-log.md`.
+
+## Severity
+- **Blocker:** will not compile, crashes, data loss, GL call on the wrong thread, resource leak per frame, broken export file, security problem.
+- **Major:** wrong behaviour in a normal flow, leak per screen visit, visible loop seam, main-thread jank (pixel loops, disk IO, decode on main), missing cancellation, process-death state loss.
+- **Minor:** style, naming, readability, small inefficiency, missing test.
+
+## Checklist for the reviewer
+### Compile and API correctness
+- Imports exist for the pinned versions in `libs.versions.toml` (AGP 9.4, Kotlin 2.4, Compose BOM 2026.09, Hilt 2.60).
+- Hilt: every `@Inject` dependency has a binding. No Java keywords as method names.
+- Smart casts are valid (no smart cast on `var` or on properties from other modules).
+
+### Threads and GL
+- All GL calls on the owning GL thread. EGL context made current before the first GL call.
+- Every `glGen*` or `glCreate*` has a matching delete on every path, including errors and cancellation.
+- Framebuffer and viewport are rebound after a pass that changes them.
+- `GLSurfaceView` paused and resumed with the lifecycle. Context loss recreates resources.
+
+### Rendering correctness
+- Orientation: uploaded bitmap row 0 is image top, window surfaces use `flipY = true`.
+- Loop seam: continuous mode crossfade weight is 0 at each phase wrap. Exported clips use a whole number of cycles.
+- Aspect ratio handled in distances and brush radii.
+
+### Export
+- MediaCodec: format change handled once, codec config buffers skipped, EOS drained with a timeout, codec, muxer and surface released in `finally`, partial file deleted on failure.
+- Sizes are encoder-supported and multiples of 16. GIF LZW code width growth and clear codes are valid.
+- Gallery save works on API 26 to 28 (permission) and on 29 and later (`IS_PENDING`).
+
+### UI and state
+- No blocking work on the main thread. Large bitmaps decoded off the main thread and downsampled.
+- State survives rotation (ViewModel) and process death (project on disk, id in nav args).
+- Gestures map to normalized coordinates of the photo, not the container.
+
+### Product
+- No copied names, icons or assets. User-facing text is clear.
+
+## Output format of a review pass
+A table: `#`, severity, file:line, problem, failure scenario, suggested fix. Then the verdict: "CLEAN" or "NEEDS WORK".

@@ -12,12 +12,12 @@ Android app that turns still photos into seamless looping animations. Original n
 | DI | Hilt |
 | Rendering | OpenGL ES 3.0 (GLSL `#version 300 es`), no compute shaders (those need 3.1) |
 | Video export | MediaCodec (H.264) with an input Surface + MediaMuxer. Media3 Transformer added in Phase 6 for audio muxing |
-| GIF export | Own encoder (NeuQuant quantizer + LZW), runs on a background dispatcher |
-| Persistence | Project folder per project: `project.json` (kotlinx.serialization) + source image + mask PNG |
+| GIF export | Own encoder: one global median-cut palette, 4x4 ordered dither, LZW. Runs on the default dispatcher |
+| Persistence | Project folder per project: `project.json` (kotlinx.serialization, includes mask strokes) + `source.jpg` + `thumb.jpg` |
 | Images | Photo Picker (`PickVisualMedia`) for gallery, `TakePicture` + FileProvider for camera |
 | AI (later) | LiteRT (the new name of TensorFlow Lite) and MediaPipe Tasks Vision |
-| Build | Gradle Kotlin DSL, version catalog (`gradle/libs.versions.toml`) |
-| SDK | `minSdk 26`, `compileSdk` and `targetSdk` = latest stable platform installed (confirm in SDK Manager at setup) |
+| Build | Gradle Kotlin DSL, version catalog (`gradle/libs.versions.toml`), AGP 9.4 with built-in Kotlin, Gradle 9.6, built on GitHub Actions |
+| SDK | `minSdk 26`, `compileSdk 37`, `targetSdk 37` |
 | App ID | `com.motionloop.app` |
 
 ## Non-negotiable rules
@@ -26,7 +26,7 @@ Android app that turns still photos into seamless looping animations. Original n
 2. **One GL thread per surface.** The editor preview owns a `GLSurfaceView` render thread. Export creates its own EGL context on its own thread. Never share GL objects across threads without a shared EGL context.
 3. **CPU pixel work is allowed only off the main thread** and only where the GPU cannot do it: GIF quantization, image decode/downsample, ML inference pre/post-processing. Use `Dispatchers.Default` / `IO`.
 4. **Resolution independence.** All user geometry (arrows, anchors, brush strokes) is stored in normalized image coordinates `[0,1] x [0,1]`. Preview and export rasterize from the same data at different sizes.
-5. **Build after every major step.** Run `./gradlew assembleDebug` (and `testDebugUnitTest` when tests change). Fix all errors before moving on.
+5. **Build after every major step.** CI (`.github/workflows/android.yml`) runs `testDebugUnitTest assembleDebug` on every push to `main`. Fix all errors before moving on.
 6. **Render pipeline is a pass chain from day one** so later features plug in without rewriting the renderer.
 
 ## Architecture
@@ -102,7 +102,7 @@ color = mix(c1, c2, w)
 
 ### Export
 - **MP4:** dedicated thread, `EglCore` with `EGL_RECORDABLE_ANDROID`, `MediaCodec` input surface, `eglPresentationTimeANDROID` per frame, `MediaMuxer`. H.264, 24 fps, lengths 3 / 5 / 10 / 15 s, resolution 720p / 1080p (and 4K only if `MediaCodecInfo` reports support). Dimensions rounded to multiples of 16. Renders from the full-resolution source (capped by `GL_MAX_TEXTURE_SIZE`), not the preview texture.
-- **GIF:** render to FBO at max 480 px long edge, 12 or 15 fps, `glReadPixels` into a PBO on the export GL thread, quantize + LZW-encode on `Dispatchers.Default`.
+- **GIF:** render to FBO at 480 px long edge, 12.5 fps (8 cs delay), `glReadPixels` on the export GL thread, then palette mapping + LZW on the default dispatcher. Palette is built once from 4 frames spread over the loop, so colors do not flicker.
 - **Output:** saved to MediaStore (`Movies/MotionLoop`, `Pictures/MotionLoop`). API 26 to 28 needs `WRITE_EXTERNAL_STORAGE` with `maxSdkVersion="28"`. Share via FileProvider + `ACTION_SEND` chooser.
 - Progress reported as `Flow<ExportProgress>`, cancellable from the UI.
 
@@ -125,7 +125,7 @@ app/src/main/
     domain/
       model/                      Project, MotionArrow, Anchor, MaskStroke, LoopSettings, ExportSettings
       repository/                 ProjectRepository, MediaRepository (interfaces)
-      usecase/                    ImportPhoto, SaveProject, ExportVideo, ExportGif
+                                  (use case classes are added only when a flow has real logic of its own)
     data/
       project/                    ProjectRepositoryImpl, ProjectJson
       media/                      MediaStoreSaver, ShareHelper, CameraUriProvider
@@ -136,7 +136,7 @@ app/src/main/
       editor/                     EditorRenderer (GLSurfaceView.Renderer), GlPreview composable
     export/
       video/                      VideoExporter, EncoderSurface
-      gif/                        GifExporter, GifEncoder, NeuQuant
+      gif/                        GifExporter, GifEncoder (+ LZW), GifQuantizer
     feature/
       home/                       HomeScreen, HomeViewModel
       editor/                     EditorScreen, EditorViewModel, EditorUiState
@@ -187,14 +187,26 @@ Build order matters: the shared segmentation module comes first.
 5. **11b Live wallpaper:** `WallpaperService` with its own EGL context reusing RenderGraph, renders a saved project, pauses on `onVisibilityChanged(false)`.
 6. **11c Sound and music:** built-in ambient sounds (own or properly licensed recordings), user audio import, beat-sync (onset/energy detection on a background thread, mapped to a speed envelope), MP4 with audio via Media3 Transformer, aspect ratios 1:1, 4:5, 9:16 (crop/fit chosen in the export sheet).
 
-## Commands
+## Build, CI and workflow
 
+The office laptop has no JDK or Android SDK and nothing may be installed there. All builds run on GitHub Actions.
+
+- Repo: `git@github.com:mukesh9871/motionloop.git` (private), pushed with a repo-scoped deploy key.
+- Every push to `main` runs unit tests and `assembleDebug`, uploads the APK as the `motionloop-debug-apk` artifact, and force-pushes a summary (`status.txt`, `errors.txt`, `build-tail.txt`) to the `ci-status` branch.
+- Watch a run from the laptop: `bash tools/wait_ci.sh "$PWD" "$(git rev-parse HEAD)"`.
+- No Gradle wrapper is committed yet (CI pins Gradle 9.6.0). On a machine with Android Studio run `gradle wrapper --gradle-version 9.6.0` once and commit the result.
+
+On a dev machine with the SDK:
 ```bash
-./gradlew assembleDebug          # build debug APK
-./gradlew testDebugUnitTest      # unit tests
-./gradlew installDebug           # install on a connected device (USB debugging on)
+./gradlew testDebugUnitTest assembleDebug
+./gradlew installDebug
 ```
 APK output: `app/build/outputs/apk/debug/app-debug.apk`
+
+### Project skills
+- `motionloop-coding`: coding rules (read before writing code).
+- `motionloop-review`: review, fix, re-review loop. Required before every push. Log in `docs/review-log.md`.
+- `motionloop-commit`: commit format, milestone commits, CI watch after push.
 
 ## Conventions
 - Comments: short, explain why, not what.
