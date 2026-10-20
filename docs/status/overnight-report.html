@@ -1,0 +1,137 @@
+<title>MotionLoop Overnight Build</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column, a status strip up top, then sections that scan top to bottom. */
+:root {
+  --bg: #f6f6fb; --surface: #ffffff; --fg: #1b1c2b; --muted: #5d6079; --line: #dddff0;
+  --violet: #5b3ee6; --mint: #0f9e86; --coral: #d4475a; --amber: #b7791f;
+  --display: "Sora", "Segoe UI", system-ui, sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e0f1a; --surface: #181a2a; --fg: #eef0fa; --muted: #a3a7c2; --line: #2b2e48;
+  --violet: #9b85ff; --mint: #2ee6c5; --coral: #ff7a88; --amber: #f0b44c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e0f1a; --surface: #181a2a; --fg: #eef0fa; --muted: #a3a7c2; --line: #2b2e48;
+  --violet: #9b85ff; --mint: #2ee6c5; --coral: #ff7a88; --amber: #f0b44c; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); }
+.wrap { max-width: 860px; margin: 0 auto; padding-block: 32px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 36px; }
+h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; }
+h1 { font-size: 2rem; letter-spacing: -0.02em; }
+h2 { font-size: 1.2rem; }
+p { margin: 0; max-width: 65ch; }
+.eyebrow { font: 600 0.75rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--violet); }
+.lede { color: var(--muted); }
+section { display: grid; gap: 14px; }
+.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 2px; }
+.stat b { font: 700 1.5rem var(--display); font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 0.9rem; }
+.table-box { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 0.75rem var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+.pill { display: inline-block; padding: 2px 10px; border-radius: 99px; font: 600 0.75rem var(--mono); white-space: nowrap; }
+.ok { color: var(--mint); border: 1px solid var(--mint); }
+.wait { color: var(--amber); border: 1px solid var(--amber); }
+.bad { color: var(--coral); border: 1px solid var(--coral); }
+.chain { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.node { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; display: grid; }
+.node small { color: var(--muted); font-size: 0.78rem; }
+.node.opt { border-style: dashed; }
+.arrow { color: var(--muted); font-family: var(--mono); }
+ol.steps { margin: 0; padding-left: 1.3em; display: grid; gap: 8px; max-width: 70ch; }
+.callout { border-left: 3px solid var(--amber); background: var(--surface); padding: 12px 16px; border-radius: 0 10px 10px 0; display: grid; gap: 6px; }
+.callout.decide { border-left-color: var(--violet); }
+a { color: var(--violet); }
+a:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+  <header style="display:grid; gap:10px">
+    <div class="eyebrow">Status, morning of 21 Oct 2026</div>
+    <h1>MotionLoop: Phases 1 to 3 built</h1>
+    <p class="lede">Photo import, motion arrows, anchors, freeze brush, seamless loop and bounce, MP4 and GIF export, color grades and particle overlays are written, reviewed and building on GitHub. None of it has run on a real phone yet. That is the next step and needs you.</p>
+  </header>
+
+  <div class="strip" aria-label="Summary">
+    <div class="stat"><b>3 of 6</b><span>roadmap phases built</span></div>
+    <div class="stat"><b id="ci-stat">3 green</b><span>CI builds, one per phase push</span></div>
+    <div class="stat"><b>9</b><span>review rounds before pushing</span></div>
+    <div class="stat"><b>0</b><span>blockers or majors left open</span></div>
+  </div>
+
+  <section>
+    <h2>What was built</h2>
+    <div class="table-box"><table>
+      <thead><tr><th>Phase</th><th>Features</th><th>Pushed</th><th>CI</th></tr></thead>
+      <tbody>
+        <tr><td>1 MVP</td><td>Gallery and camera import. Motion arrows turned into a smooth flow field on the GPU. Anchors and freeze/unfreeze brush with undo. Seamless two-phase loop and bounce, speed. MP4 (720p, 1080p, 4K when the encoder supports it, 3 to 15 s, 24 fps) and GIF export, gallery save, share sheet.</td><td class="num mono">e95aacb</td><td><span class="pill ok">green</span></td></tr>
+        <tr><td>2 Color</td><td>Brightness, contrast, saturation, warmth. 8 original grades built as 3D LUTs, plus <code>.cube</code> import. Recent projects with long-press delete.</td><td class="num mono">3a56b92</td><td><span class="pill ok">green</span></td></tr>
+        <tr><td>3 Overlays</td><td>Sparkle, snow, rain, bokeh and ember particles. Warm, rose and aurora light leaks. Six blend modes and opacity. Every overlay loops seamlessly.</td><td class="num mono">11dffd9</td><td><span class="pill ok" id="ci-p3">green</span></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>How a frame is drawn</h2>
+    <p>Everything per pixel runs on the GPU. Dashed stages are skipped when unused, so a plain loop costs a single pass.</p>
+    <div class="chain" role="img" aria-label="Render chain: flow field and mask feed the loop warp, then optional overlay layer and color pass, then screen or encoder">
+      <div class="node">Flow field<small>arrows + anchors</small></div><span class="arrow">+</span>
+      <div class="node">Freeze mask<small>brush strokes</small></div><span class="arrow">→</span>
+      <div class="node">Loop warp<small>crossfade or bounce</small></div><span class="arrow">→</span>
+      <div class="node opt">Overlay layer<small>particles, leaks</small></div><span class="arrow">→</span>
+      <div class="node opt">Color pass<small>adjust, LUT, blend</small></div><span class="arrow">→</span>
+      <div class="node">Screen / encoder<small>preview, MP4, GIF</small></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Review loop before every push</h2>
+    <p>Each push went through a fresh reviewer, fixes, then another fresh review, until no blocker or major was left. The full record is in <code>docs/review-log.md</code>.</p>
+    <div class="table-box"><table>
+      <thead><tr><th>Push</th><th>Round 1</th><th>Round 2</th><th>Round 3</th><th>Notable catches</th></tr></thead>
+      <tbody>
+        <tr><td>1 MVP</td><td class="num">4 major, 21 minor</td><td class="num">1 blocker, 6 minor</td><td class="num">clean</td><td>Parallel saves could corrupt <code>project.json</code>. One arrow moved the whole photo. Test used a JDK-only API.</td></tr>
+        <tr><td>2 Color</td><td class="num">1 blocker, 1 major</td><td class="num">2 minor</td><td class="num">clean</td><td>Compile error in LUT baking. A crafted <code>.cube</code> header could allocate 200 MB.</td></tr>
+        <tr><td>3 Overlays</td><td class="num">1 major, 5 minor</td><td class="num">4 minor</td><td class="num">1 minor</td><td>Opacity 0 hid the controls for good. Rain streak angle and edge pops.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Try it on your phone</h2>
+    <ol class="steps">
+      <li>Open <a href="https://github.com/mukesh9871/motionloop/actions" target="_blank" rel="noopener">github.com/mukesh9871/motionloop/actions</a>, pick the newest green run, and download <span class="mono">motionloop-debug-apk</span> (a zip).</li>
+      <li>Unzip it and copy <span class="mono">app-debug.apk</span> to the phone (USB, Drive, or email to yourself).</li>
+      <li>Tap the file on the phone. Android asks to allow installs from that app (Files or Drive): allow it once.</li>
+      <li>Open MotionLoop, pick a photo, drag arrows on water or clouds, press play, then Export.</li>
+    </ol>
+    <p class="lede">On your personal laptop with Android Studio: clone the repo, run <span class="mono">gradle wrapper --gradle-version 9.6.0</span> once (or let Studio offer it), then Run on a USB-connected phone with USB debugging on.</p>
+  </section>
+
+  <section>
+    <h2>What I could not verify</h2>
+    <div class="callout">
+      <p>Nothing has run on a device or emulator yet. CI proves the code compiles and the unit tests pass (loop timing, GIF encoder round trips, LUT parsing, overlay settings). It cannot show visual quality, export playback on real encoders, or touch handling. Please send screenshots or a short screen recording of anything that looks wrong.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Decisions for you</h2>
+    <div class="callout decide">
+      <p><b>Start Phases 4 to 6?</b> Sky replacement, 3D parallax, tap-to-select masking, background removal and text behind subject all need on-device ML models (MediaPipe segmenters, a depth model) added to the project. I stopped before downloading any.</p>
+    </div>
+    <div class="callout decide">
+      <p><b>Short slow exports.</b> A clip must contain whole loop cycles to be seamless, so a 3 s export at speed 0.25 plays faster than the preview. Options: lengthen the clip to one full cycle, or keep the length and show the real speed in the export sheet.</p>
+    </div>
+  </section>
+</div>
