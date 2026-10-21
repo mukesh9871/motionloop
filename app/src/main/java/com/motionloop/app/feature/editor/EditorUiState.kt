@@ -20,6 +20,7 @@ enum class EditorTool {
 enum class EditorPanel(val label: String, val defaultTool: EditorTool) {
     ANIMATE("Animate", EditorTool.ARROW),
     SKY("Sky", EditorTool.SKY_ADD),
+    DEPTH("3D", EditorTool.ARROW),
     ADJUST("Adjust", EditorTool.ARROW),
     OVERLAY("Overlay", EditorTool.ARROW),
 }
@@ -63,6 +64,8 @@ data class EditorUiState(
     val skyMaskRev: Int = 0,
     val skyPhoto: Bitmap? = null,
     val skyPhotoRev: Int = 0,
+    val depth: AlphaMask? = null,
+    val depthRev: Int = 0,
 ) {
     val isSkyBrush: Boolean get() = tool == EditorTool.SKY_PAINT || tool == EditorTool.SKY_ERASE
     val isBrush: Boolean get() = tool == EditorTool.FREEZE || tool == EditorTool.UNFREEZE || isSkyBrush
@@ -89,6 +92,8 @@ data class EditorUiState(
                 skyPhoto = skyPhoto.takeIf { skyPhotoRev == p.sky.photoRev },
                 // In the sky panel, show the area as a tint while painting or before replacing is on.
                 skyReplace = !(panel == EditorPanel.SKY && !playing && (liveStroke != null || !p.sky.enabled)),
+                parallax = p.parallax,
+                depth = depth.takeIf { depthRev == p.parallax.depthRev },
             )
         }
 }

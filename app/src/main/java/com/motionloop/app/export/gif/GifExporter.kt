@@ -11,6 +11,7 @@ import com.motionloop.app.domain.model.LoopTiming
 import com.motionloop.app.domain.model.Project
 import com.motionloop.app.domain.repository.LutRepository
 import com.motionloop.app.domain.repository.ProjectAssetRepository
+import com.motionloop.app.export.applyParallax
 import com.motionloop.app.export.applySky
 import com.motionloop.app.domain.repository.ProjectRepository
 import com.motionloop.app.export.OffscreenLoop
@@ -65,6 +66,7 @@ class GifExporter @Inject constructor(
                 g.setColor(project.adjustments, luts.resolve(project.id, project.adjustments))
                 g.setOverlay(project.overlay)
                 applySky(g, project, assets, max(w, h))
+                applyParallax(g, project, assets)
                 bitmap.recycle() // uploaded to the GPU, the CPU copy is no longer needed
                 val t = GlTexture.empty(w, h, GLES30.GL_RGBA8, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE).also { target = it }
                 val readBuffer = ByteBuffer.allocateDirect(w * h * 4).order(ByteOrder.nativeOrder())

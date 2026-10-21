@@ -42,6 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.motionloop.app.domain.pro.ProFeature
 import com.motionloop.app.domain.pro.ProPolicy
 import com.motionloop.app.feature.editor.components.AdjustPanel
+import com.motionloop.app.feature.editor.components.DepthPanel
 import com.motionloop.app.feature.editor.components.LabeledSlider
 import com.motionloop.app.feature.editor.components.OverlayPanel
 import com.motionloop.app.feature.editor.components.SkyPanel
@@ -148,7 +149,16 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                         .padding(vertical = 4.dp),
                 )
             }
-            if (state.panel == EditorPanel.SKY) {
+            if (state.panel == EditorPanel.DEPTH) {
+                if (project != null) {
+                    DepthPanel(
+                        settings = project.parallax,
+                        busy = state.busy != null,
+                        onCreateDepth = { gated(ProFeature.PARALLAX) { vm.createDepth() } },
+                        onChange = { change -> gated(ProFeature.PARALLAX) { vm.setParallax(change) } },
+                    )
+                }
+            } else if (state.panel == EditorPanel.SKY) {
                 if (project != null) {
                     SkyPanel(
                         sky = project.sky,

@@ -8,6 +8,7 @@ import com.motionloop.app.domain.model.LutData
 import com.motionloop.app.domain.model.MaskStroke
 import com.motionloop.app.domain.model.MotionArrow
 import com.motionloop.app.domain.model.OverlaySettings
+import com.motionloop.app.domain.model.ParallaxSettings
 import com.motionloop.app.domain.model.SkySettings
 import com.motionloop.ml.AlphaMask
 
@@ -30,4 +31,7 @@ data class RenderScene(
     val skyPhoto: Bitmap? = null,
     /** False while editing the sky area: tint it instead of replacing it. */
     val skyReplace: Boolean = true,
+    val parallax: ParallaxSettings = ParallaxSettings(),
+    /** Depth map for parallax.depthRev, loaded off the GL thread. */
+    val depth: AlphaMask? = null,
 )

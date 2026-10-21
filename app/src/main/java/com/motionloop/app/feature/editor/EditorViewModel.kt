@@ -28,6 +28,8 @@ import com.motionloop.app.domain.repository.ProjectAssetRepository
 import com.motionloop.app.domain.repository.ProjectRepository
 import com.motionloop.app.navigation.Routes
 import com.motionloop.app.render.passes.FlowFieldPass
+import com.motionloop.app.domain.model.ParallaxSettings
+import com.motionloop.ml.DepthEstimator
 import com.motionloop.ml.Segmenter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
@@ -50,6 +52,7 @@ class EditorViewModel @Inject constructor(
     private val luts: LutRepository,
     private val assets: ProjectAssetRepository,
     private val segmenter: Segmenter,
+    private val depthEstimator: DepthEstimator,
     @DefaultDispatcher private val cpu: CoroutineDispatcher,
     entitlements: Entitlements,
     appSettings: AppSettings,
@@ -82,6 +85,7 @@ class EditorViewModel @Inject constructor(
             // since undo history starts empty.
             assets.prune(projectId, MaskKind.SKY, setOf(project.sky.maskRev))
             assets.pruneImages(projectId, ImageKind.SKY_PHOTO, setOf(project.sky.photoRev))
+            assets.prune(projectId, MaskKind.DEPTH, setOf(project.parallax.depthRev))
             val preview = try {
                 projects.loadImage(projectId, PREVIEW_EDGE)
             } catch (e: CancellationException) {
@@ -101,8 +105,37 @@ class EditorViewModel @Inject constructor(
             _state.update { it.copy(hasCustomLut = luts.hasCustom(projectId)) }
             loadSkyMask(project.sky.maskRev)
             loadSkyPhoto(project.sky.photoRev)
+            loadDepth(project.parallax.depthRev)
         }
     }
+
+    // region 3D
+
+    /** Settings, not part of undo. */
+    fun setParallax(change: (ParallaxSettings) -> ParallaxSettings) {
+        val p = _state.value.project ?: return
+        val updated = p.copy(parallax = change(p.parallax))
+        _state.update { it.copy(project = updated) }
+        persist(updated)
+    }
+
+    /** Runs the depth model once per project, the result is stored and reused. */
+    fun createDepth() = runModel("Measuring depth") { preview ->
+        val depth = withContext(cpu) { depthEstimator.estimate(preview) }
+        val rev = assets.saveMask(projectId, MaskKind.DEPTH, depth)
+        _state.update { it.copy(depth = depth, depthRev = rev) }
+        setParallax { it.copy(depthRev = rev, enabled = true) }
+    }
+
+    private fun loadDepth(rev: Int) {
+        if (rev == 0) return
+        viewModelScope.launch {
+            val depth = assets.loadMask(projectId, MaskKind.DEPTH, rev)
+            _state.update { it.copy(depth = depth, depthRev = rev) }
+        }
+    }
+
+    // endregion
 
     // region sky
 

@@ -12,6 +12,7 @@ import com.motionloop.app.domain.model.LutData
 import com.motionloop.app.domain.model.MaskStroke
 import com.motionloop.app.domain.model.MotionArrow
 import com.motionloop.app.domain.model.OverlaySettings
+import com.motionloop.app.domain.model.ParallaxSettings
 import com.motionloop.app.domain.model.SkySettings
 import com.motionloop.app.domain.model.SkyStyle
 import com.motionloop.app.render.passes.ColorPass
@@ -19,13 +20,14 @@ import com.motionloop.app.render.passes.FlowFieldPass
 import com.motionloop.app.render.passes.LoopWarpPass
 import com.motionloop.app.render.passes.MaskPass
 import com.motionloop.app.render.passes.OverlayPass
+import com.motionloop.app.render.passes.ParallaxPass
 import com.motionloop.app.render.passes.SourcePass
 import com.motionloop.ml.AlphaMask
 
 /**
  * The pass chain shared by the editor preview, the exporters and the live wallpaper.
  *
- * photo -> [Source: sky replace] -> LoopWarp (flow, freeze mask) -> post stages -> target
+ * photo -> [Source: sky replace] -> LoopWarp (flow, freeze mask) -> [Color + overlay] -> [Parallax] -> target
  *
  * Post stages (color + overlay so far) ping-pong between two offscreen frames, and the last one
  * draws into the target. Every bracketed or post stage is skipped when it has nothing to do.
@@ -47,6 +49,7 @@ class LoopRenderGraph(assets: AssetManager) {
     private val warpPass = LoopWarpPass(assets, quad)
     private val colorPass = ColorPass(assets, quad)
     private val overlayPass = OverlayPass(assets, quad)
+    private val parallaxPass = ParallaxPass(assets, quad)
 
     private var photo: GlTexture? = null
     private var photoBitmap: Bitmap? = null
@@ -63,6 +66,9 @@ class LoopRenderGraph(assets: AssetManager) {
     private var skyReplace = true
     private val skyMask = MaskTexture()
     private var skyPhoto: GlTexture? = null
+
+    private var parallax = ParallaxSettings()
+    private val depthMask = MaskTexture()
     private var skyPhotoBitmap: Bitmap? = null
 
     // Last inputs, so flow and masks are only rebuilt when they actually change.
@@ -88,6 +94,18 @@ class LoopRenderGraph(assets: AssetManager) {
         }
 
         override fun draw(inputTex: Int, flipY: Boolean) = colorPass.draw(inputTex, adjustments, overlayTex, overlay, flipY)
+    }
+
+    // Last post stage: 3D camera move by depth. Always last, so it moves everything drawn before it.
+    private val parallaxStage = object : PostStage {
+        private var phase = 0f
+
+        override fun prepare(phase: Float, width: Int, height: Int) {
+            this.phase = phase
+        }
+
+        override fun draw(inputTex: Int, flipY: Boolean) =
+            parallaxPass.draw(inputTex, depthMask.id, parallax, phase, aspect, flipY)
     }
 
     val hasImage: Boolean get() = photo != null
@@ -151,6 +169,12 @@ class LoopRenderGraph(assets: AssetManager) {
         }
     }
 
+    /** 3D camera. [depth] is the depth map for [settings].depthRev (null if none or not loaded). */
+    fun setParallax(settings: ParallaxSettings, depth: AlphaMask?) {
+        parallax = settings
+        depthMask.set(depth)
+    }
+
     /**
      * Draws one frame into framebuffer [fbo] (0 = window or encoder surface) at the given viewport.
      * [flipY] is true for window surfaces, false for FBOs read back row by row.
@@ -175,6 +199,7 @@ class LoopRenderGraph(assets: AssetManager) {
 
         val stages = ArrayList<PostStage>(2)
         if (!adjustments.isIdentity || overlay.isActive) stages += colorStage
+        if (parallax.isActive && depthMask.id != 0) stages += parallaxStage
         if (!overlay.isActive) overlayPass.releaseLayer()
 
         if (stages.isEmpty()) {
@@ -248,6 +273,7 @@ class LoopRenderGraph(assets: AssetManager) {
         skyPhoto = null
         skyPhotoBitmap = null
         skyMask.release()
+        depthMask.release()
         releaseFrames()
         flowPass.release()
         maskPass.release()
@@ -256,6 +282,7 @@ class LoopRenderGraph(assets: AssetManager) {
         warpPass.release()
         colorPass.release()
         overlayPass.release()
+        parallaxPass.release()
         quad.release()
     }
 

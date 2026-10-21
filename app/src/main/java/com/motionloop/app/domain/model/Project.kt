@@ -61,6 +61,7 @@ data class Project(
     val adjustments: Adjustments = Adjustments(),
     val overlay: OverlaySettings = OverlaySettings(),
     val sky: SkySettings = SkySettings(),
+    val parallax: ParallaxSettings = ParallaxSettings(),
 ) {
     val aspect: Float get() = imageWidth.toFloat() / imageHeight
 }

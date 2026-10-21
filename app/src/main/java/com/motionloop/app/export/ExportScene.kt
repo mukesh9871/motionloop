@@ -7,6 +7,13 @@ import com.motionloop.app.domain.repository.ImageKind
 import com.motionloop.app.domain.repository.ProjectAssetRepository
 import com.motionloop.app.render.LoopRenderGraph
 
+/** Loads the depth map for an export's 3D camera and hands it to the graph. */
+internal suspend fun applyParallax(graph: LoopRenderGraph, project: Project, assets: ProjectAssetRepository) {
+    val parallax = project.parallax
+    if (!parallax.isActive) return
+    graph.setParallax(parallax, assets.loadMask(project.id, MaskKind.DEPTH, parallax.depthRev))
+}
+
 /**
  * Loads the sky mask and photo for an export and hands them to the graph.
  * Runs on the export GL thread, the loads themselves hop to IO and come back.
