@@ -376,3 +376,5 @@ Verdict: CLEAN (0 blocker, 0 major, 1 minor). Column counts checked at 320 to 84
 | # | Sev | Finding | Outcome |
 |---|---|---|---|
 | 1 | minor | A cancel landing in the few microseconds between the check and the handover can still drop one audio track | Accepted: rare, bounded, freed by the collector. |
+
+CI after the full review: three failures the reviewers missed, all compile errors (nullable `videoCapabilities`, `bitrateRange` on the wrong capabilities class, a test naming a Pro feature that does not exist). Green on 85ef5f4, with R8 running on every push from now on.
