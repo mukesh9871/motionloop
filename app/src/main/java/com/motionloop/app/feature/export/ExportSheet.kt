@@ -100,7 +100,12 @@ fun ExportSheet(onDismiss: () -> Unit, onOpenPro: () -> Unit, vm: ExportViewMode
                 lengths.forEach { s ->
                     val lock = s == ExportSettings.VIDEO_LENGTHS.last() && locked(ProFeature.LONG_EXPORT)
                     Chip(if (lock) "${s}s (Pro)" else "${s}s", selected = settings.lengthSeconds == s, enabled = !state.running) {
-                        if (lock) onOpenPro() else vm.setLength(s)
+                        if (lock) {
+                            onDismiss()
+                            onOpenPro()
+                        } else {
+                            vm.setLength(s)
+                        }
                     }
                 }
             }
@@ -109,7 +114,12 @@ fun ExportSheet(onDismiss: () -> Unit, onOpenPro: () -> Unit, vm: ExportViewMode
                     state.resolutions.forEach { r ->
                         val lock = r == ExportResolution.UHD && locked(ProFeature.EXPORT_4K)
                         Chip(if (lock) "${r.label} (Pro)" else r.label, selected = settings.resolution == r, enabled = !state.running) {
-                            if (lock) onOpenPro() else vm.setResolution(r)
+                            if (lock) {
+                                onDismiss()
+                                onOpenPro()
+                            } else {
+                                vm.setResolution(r)
+                            }
                         }
                     }
                 }

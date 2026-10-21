@@ -70,6 +70,9 @@ interface MediaRepository {
     /** Scratch file for an export in progress. The caller deletes it. */
     fun exportTempFile(name: String): File
 
+    /** False for split installs (from an app bundle), where the APK cannot be shared as one file. */
+    val canShareApk: Boolean
+
     /** A content Uri to the installed app's APK, for "share the app" without a store. */
     suspend fun shareableApk(): Uri
 

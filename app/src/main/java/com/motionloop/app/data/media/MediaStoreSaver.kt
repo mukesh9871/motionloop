@@ -21,8 +21,17 @@ class MediaStoreSaver @Inject constructor(
     @IoDispatcher private val io: CoroutineDispatcher,
 ) : MediaRepository {
 
+    override val canShareApk: Boolean
+        // Installs from an app bundle are split into several APKs. base.apk alone would not install.
+        get() = context.applicationInfo.splitSourceDirs.isNullOrEmpty()
+
     override suspend fun shareableApk(): Uri = withContext(io) {
-        val dir = File(context.cacheDir, "share").apply { mkdirs() }
+        if (!canShareApk) throw IOException("This install is split into several files and cannot be shared as one")
+        val dir = File(context.cacheDir, "share").apply {
+            // Only ever one shared copy.
+            deleteRecursively()
+            mkdirs()
+        }
         val target = File(dir, "MotionLoop.apk")
         File(context.applicationInfo.sourceDir).copyTo(target, overwrite = true)
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", target)

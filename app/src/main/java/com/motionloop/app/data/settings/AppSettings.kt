@@ -22,7 +22,8 @@ data class SettingsState(
 
 /**
  * App preferences in SharedPreferences (a handful of values, no extra dependency needed).
- * The first read happens lazily: inject into ViewModels, which are created off the critical path.
+ * The first read is lazy and happens on the main thread when the first screen asks.
+ * The file is tiny, so that costs a few milliseconds once.
  */
 @Singleton
 class AppSettings @Inject constructor(@ApplicationContext context: Context) {
@@ -52,8 +53,10 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
     }
 
     private fun read() = SettingsState(
+        // Only HD and Full HD can be defaults: 4K depends on the encoder and on Pro.
         defaultResolution = prefs.getString(KEY_RESOLUTION, null)
             ?.let { name -> ExportResolution.entries.firstOrNull { it.name == name } }
+            ?.takeIf { it != ExportResolution.UHD }
             ?: ExportResolution.FULL_HD,
         keepScreenOn = prefs.getBoolean(KEY_SCREEN_ON, true),
         simulatePro = BuildConfig.DEBUG && prefs.getBoolean(KEY_SIMULATE_PRO, false),

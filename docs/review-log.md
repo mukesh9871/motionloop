@@ -130,3 +130,22 @@ Verdict: NEEDS WORK (1 major, 9 minor). APIs of MediaPipe 0.10.35, LiteRT 1.4.2,
 
 Verdict: CLEAN (3 minor). All round-1 fixes verified, buildSrc and redirect handling confirmed.
 Minors 1 (tap while the stored mask still loads) and 2 (photo load ordering) are fixed in the next milestone. Minor 3 (sky photo sampled at level 0) accepted: the photo is loaded at the preview's size, so there is little minification.
+
+## Push 5 (app shell), round 1
+
+Verdict: NEEDS WORK (3 major, 9 minor). Compile, Hilt, Gradle and photo licenses (all CC0, authors match) verified.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | major | Wikimedia returns 429 under load, the download had no retry | Fixed: retry with backoff and Retry-After, contact in User-Agent, content-addressed cache in the Gradle home so CI downloads once. Pins follow from CI. |
+| 2 | major | Back with the drawer open could exit the app | Fixed: `BackHandler` closes the drawer. |
+| 3 | major | Sharing base.apk breaks for split installs | Fixed: "Share app file" only offered for single-APK installs, copy shows the busy overlay, old copy removed first. |
+| 4 | minor | Unguarded `popBackStack` on five screens | Fixed: `dropUnlessResumed`. |
+| 5 | minor | Drawer could come back half open after navigating | Fixed: close, then navigate. |
+| 6 | minor | Misleading comment about where settings are first read | Fixed comment (a tiny one-time read). |
+| 7 | minor | 15 s gate could never lock | Fixed: `LONG_EXPORT` is Pro-only. |
+| 8 | minor | Pro page listed unbuilt features | Fixed: `available` flag, only shipped features are listed. |
+| 9 | minor | Credits claimed generated sounds that do not exist yet | Fixed. |
+| 10 | minor | A stored 4K default could bypass encoder checks | Fixed: defaults limited to HD and Full HD. |
+| 11 | minor | Locked chip opened Pro under the export sheet | Fixed: sheet closes first. |
+| 12 | minor | Accessibility of switches, chips, sample images and tiles | Fixed: toggleable rows, selectable chips, no duplicate image labels, tile labels. |

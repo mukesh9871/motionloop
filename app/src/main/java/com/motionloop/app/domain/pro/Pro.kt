@@ -6,15 +6,15 @@ import kotlinx.coroutines.flow.StateFlow
  * Features that can be reserved for MotionLoop Pro. The list of what is actually locked lives
  * in [ProPolicy], so changing the free tier is a one-line change.
  */
-enum class ProFeature(val title: String, val description: String) {
-    EXPORT_4K("4K export", "Export loops in 4K on phones whose encoder supports it."),
-    LONG_EXPORT("Long videos", "Export 15 second videos."),
-    SKY_PHOTO("Your own skies", "Use any photo as the new sky."),
-    PARALLAX("3D camera", "Depth-based 3D camera motion."),
-    CUSTOM_LUT("Custom color grades", "Import your own .cube color grades."),
-    BACKGROUND_PHOTO("Background photos", "Replace the background with any photo."),
-    MUSIC("Your own music", "Add your own audio and sync motion to the beat."),
-    LIVE_WALLPAPER("Live wallpaper", "Set any loop as your home or lock screen wallpaper."),
+enum class ProFeature(val title: String, val description: String, val available: Boolean) {
+    EXPORT_4K("4K export", "Export loops in 4K on phones whose encoder supports it.", available = true),
+    LONG_EXPORT("Long videos", "Export 15 second videos.", available = true),
+    SKY_PHOTO("Your own skies", "Use any photo as the new sky.", available = true),
+    PARALLAX("3D camera", "Depth-based 3D camera motion.", available = false),
+    CUSTOM_LUT("Custom color grades", "Import your own .cube color grades.", available = true),
+    BACKGROUND_PHOTO("Background photos", "Replace the background with any photo.", available = false),
+    MUSIC("Your own music", "Add your own audio and sync motion to the beat.", available = false),
+    LIVE_WALLPAPER("Live wallpaper", "Set any loop as your home or lock screen wallpaper.", available = false),
 }
 
 object ProPolicy {
@@ -27,6 +27,7 @@ object ProPolicy {
     /** Features locked for free users once gating is on. */
     val proOnly: Set<ProFeature> = setOf(
         ProFeature.EXPORT_4K,
+        ProFeature.LONG_EXPORT,
         ProFeature.SKY_PHOTO,
         ProFeature.PARALLAX,
         ProFeature.CUSTOM_LUT,

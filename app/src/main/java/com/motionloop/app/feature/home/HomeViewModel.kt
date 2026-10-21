@@ -48,6 +48,7 @@ class HomeViewModel @Inject constructor(
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
 
     val isPro: StateFlow<Boolean> = entitlements.isPro
+    val canShareApk: Boolean = media.canShareApk
 
     private val _events = Channel<HomeEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
@@ -96,6 +97,9 @@ class HomeViewModel @Inject constructor(
 
     /** Copies the installed APK somewhere shareable, then asks the screen to open the share sheet. */
     fun shareApk() {
+        if (_state.value.importing) return
+        // The copy takes a few seconds for a large APK: reuse the busy overlay.
+        _state.update { it.copy(importing = true) }
         viewModelScope.launch {
             try {
                 _events.send(HomeEvent.ShareApk(media.shareableApk()))
@@ -103,6 +107,8 @@ class HomeViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 _state.update { it.copy(error = "Could not prepare the app file (${e.message})") }
+            } finally {
+                _state.update { it.copy(importing = false) }
             }
         }
     }

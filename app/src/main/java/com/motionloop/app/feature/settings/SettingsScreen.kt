@@ -5,7 +5,10 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -16,7 +19,9 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -61,25 +66,18 @@ fun SettingsScreen(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
                         .background(if (active) MlColors.Violet else MlColors.SurfaceHigh)
-                        .clickable { vm.setDefaultResolution(r) }
+                        .selectable(selected = active, role = Role.RadioButton) { vm.setDefaultResolution(r) }
                         .padding(horizontal = 14.dp, vertical = 7.dp),
                 )
             }
         }
 
         SectionTitle("Editor")
-        MenuRow(
-            title = "Keep screen on while editing",
-            trailing = { SettingSwitch(state.keepScreenOn, vm::setKeepScreenOn) },
-        )
+        SwitchRow("Keep screen on while editing", null, state.keepScreenOn, vm::setKeepScreenOn)
 
         if (BuildConfig.DEBUG) {
             SectionTitle("Developer")
-            MenuRow(
-                title = "Simulate Pro",
-                subtitle = "Debug builds only. Unlocks Pro features for testing.",
-                trailing = { SettingSwitch(state.simulatePro, vm::setSimulatePro) },
-            )
+            SwitchRow("Simulate Pro", "Debug builds only. Unlocks Pro features for testing.", state.simulatePro, vm::setSimulatePro)
         }
 
         SectionTitle("About")
@@ -90,9 +88,22 @@ fun SettingsScreen(
     }
 }
 
+/** The whole row toggles, so TalkBack reads the title together with the on/off state. */
 @Composable
-private fun SettingSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
-    Switch(checked = checked, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedTrackColor = MlColors.Violet))
+private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
+            .padding(vertical = 10.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = MlColors.TextPrimary)
+            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MlColors.TextSecondary)
+        }
+        Switch(checked = checked, onCheckedChange = null, colors = SwitchDefaults.colors(checkedTrackColor = MlColors.Violet))
+    }
 }
 
 /** Opens a link in the browser. Returns false when no app can open it. */

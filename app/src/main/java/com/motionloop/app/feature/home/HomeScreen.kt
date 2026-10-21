@@ -2,6 +2,7 @@ package com.motionloop.app.feature.home
 
 import android.content.ActivityNotFoundException
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -56,6 +57,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -111,10 +114,16 @@ fun HomeScreen(
         if (ok && uri != null) vm.importPhoto(uri)
     }
 
+    // Close first, then act: navigating mid-animation would come back to a half-open drawer.
     fun closeThen(action: () -> Unit) {
-        scope.launch { drawer.close() }
-        action()
+        scope.launch {
+            drawer.close()
+            action()
+        }
     }
+
+    // Back closes an open drawer instead of leaving the app.
+    BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
 
     ModalNavigationDrawer(
         drawerState = drawer,
@@ -212,7 +221,8 @@ fun HomeScreen(
                                     ) {
                                         Image(
                                             bitmap = demo.thumbnail.asImageBitmap(),
-                                            contentDescription = demo.photo.title,
+                                            // The title below is read instead.
+                                            contentDescription = null,
                                             contentScale = ContentScale.Crop,
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -260,6 +270,7 @@ fun HomeScreen(
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .semantics { contentDescription = "Saved project" }
                             .combinedClickable(
                                 onClickLabel = "Open project",
                                 onLongClickLabel = "Delete project",
@@ -299,7 +310,15 @@ fun HomeScreen(
                 AlertDialog(
                     onDismissRequest = { showShare = false },
                     title = { Text("Share MotionLoop") },
-                    text = { Text("Send a link to the app, or the app file itself for people who install it directly.") },
+                    text = {
+                        Text(
+                            if (vm.canShareApk) {
+                                "Send a link to the app, or the app file itself for people who install it directly."
+                            } else {
+                                "Send a link to the app."
+                            },
+                        )
+                    },
                     confirmButton = {
                         TextButton(onClick = {
                             showShare = false
@@ -307,10 +326,12 @@ fun HomeScreen(
                         }) { Text("Share link") }
                     },
                     dismissButton = {
-                        TextButton(onClick = {
-                            showShare = false
-                            vm.shareApk()
-                        }) { Text("Share app file") }
+                        if (vm.canShareApk) {
+                            TextButton(onClick = {
+                                showShare = false
+                                vm.shareApk()
+                            }) { Text("Share app file") }
+                        }
                     },
                 )
             }

@@ -63,7 +63,8 @@ fun ProScreen(onBack: () -> Unit, vm: SettingsViewModel = hiltViewModel()) {
             )
         }
 
-        ProFeature.entries.filter { it in ProPolicy.proOnly }.forEach { feature ->
+        // Only what the app can do today: no promises for features that are not built yet.
+        ProFeature.entries.filter { it in ProPolicy.proOnly && it.available }.forEach { feature ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
                 Icon(MlIcons.Check, contentDescription = null, tint = MlColors.Mint, modifier = Modifier.size(20.dp))
                 Column {

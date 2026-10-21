@@ -38,8 +38,8 @@ val downloadModels = tasks.register<DownloadAssetsTask>("downloadModels") {
         "https://storage.googleapis.com/mediapipe-models/interactive_segmenter/magic_touch/float32/1/magic_touch.tflite",
     )
     urls.put("midas_small.tflite", "https://github.com/isl-org/MiDaS/releases/download/v2_1/model_opt.tflite")
-    sha256.put("magic_touch.tflite", "")
-    sha256.put("midas_small.tflite", "")
+    sha256.put("magic_touch.tflite", "e24338a717c1b7ad8d159666677ef400babb7f33b8ad60c4d96db4ecf694cd25")
+    sha256.put("midas_small.tflite", "93d871071edff1218973ce25ee27ce95ccd20450c70a55e1b89efa3f5a772cdd")
     outputDir.set(layout.buildDirectory.dir("generated/models"))
 }
 

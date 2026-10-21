@@ -1,6 +1,8 @@
 package com.motionloop.app.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.dropUnlessResumed
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -24,10 +26,16 @@ object Routes {
     fun editor(projectId: String) = "editor/$projectId"
 }
 
+/**
+ * Back that only works while the screen is resumed: a double tap during the exit animation
+ * would otherwise pop the screen below too and leave a blank page.
+ */
+@Composable
+private fun guardedBack(nav: NavHostController): () -> Unit = dropUnlessResumed { nav.popBackStack() }
+
 @Composable
 fun MotionLoopNavHost() {
     val nav = rememberNavController()
-    val back: () -> Unit = { nav.popBackStack() }
     // launchSingleTop: a double tap must not stack two copies of the same page.
     val openPro: () -> Unit = { nav.navigate(Routes.PRO) { launchSingleTop = true } }
     NavHost(navController = nav, startDestination = Routes.HOME) {
@@ -43,17 +51,17 @@ fun MotionLoopNavHost() {
             route = Routes.EDITOR,
             arguments = listOf(navArgument(Routes.ARG_PROJECT_ID) { type = NavType.StringType }),
         ) {
-            EditorScreen(onBack = back, onOpenPro = openPro)
+            EditorScreen(onBack = guardedBack(nav), onOpenPro = openPro)
         }
         composable(Routes.SETTINGS) {
             SettingsScreen(
-                onBack = back,
+                onBack = guardedBack(nav),
                 onOpenPro = openPro,
                 onOpenLicenses = { nav.navigate(Routes.LICENSES) { launchSingleTop = true } },
             )
         }
-        composable(Routes.LICENSES) { LicensesScreen(onBack = back) }
-        composable(Routes.HELP) { HelpScreen(onBack = back) }
-        composable(Routes.PRO) { ProScreen(onBack = back) }
+        composable(Routes.LICENSES) { LicensesScreen(onBack = guardedBack(nav)) }
+        composable(Routes.HELP) { HelpScreen(onBack = guardedBack(nav)) }
+        composable(Routes.PRO) { ProScreen(onBack = guardedBack(nav)) }
     }
 }
