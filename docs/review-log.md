@@ -184,3 +184,21 @@ Verdict: NEEDS WORK (2 major, 6 minor). All 11 parallax fixes verified, compile 
 | 6 | minor | Drawer action ran on any cancellation, double navigation on fast taps | Fixed: action only after a completed close (supersedes the round-2 shell minor 3 trade-off). |
 | 7 | minor | Parallax reserve could reach 0.5 on extreme panoramas | Fixed: capped at 0.4. |
 | 8 | minor | Editor checkerboard flows with the warp | Accepted: editor-only, transparency shows black in video and real alpha in PNG. |
+
+## Push 6, text milestone round 1 (42a3a63)
+
+Verdict: NEEDS WORK (5 major + 1 design major, 5 minor). Compile, GLSL, geometry, premultiplied compositing and typewriter level math verified.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | major | PNG still at phase 0 hid faded, sliding and typewriter text | Fixed: stills render text without animation. |
+| 2 | major | Cutout PNG alpha ignored text | Fixed: text coverage is added to the alpha target. |
+| 3 | major | Bitmap clamp cropped long text, worst at 4K | Fixed: raster shrinks to fit and reports its effective reference width, so size on screen is kept. |
+| 4 | major | Stale rasterization could overwrite a newer look | Fixed: cancel first, apply only if the key is still current, cancel on delete. |
+| 5 | major | Typewriter showed shadows and outlines of unrevealed characters | Fixed: order map without antialiasing, wide stroke, nearest sampling without mipmaps, unclaimed pixels only at full reveal. |
+| 6 | major | Front text sheared by the 3D camera | Fixed: behind-text stage before parallax, front-text stage after it. |
+| 7 | minor | Emoji and right-to-left text in the typewriter | Fixed: graphemes, bidi text reveals whole. |
+| 8 | minor | Overlapping neighbors in the order map | Fixed: drawn last to first. |
+| 9 | minor | A full render per slider tick | Fixed: 40 ms debounce per layer. |
+| 10 | minor | Per-frame allocations in TextPass | Fixed: texture sync skipped for the same list, index loops. |
+| 11 | minor | Hit test ignored draw order and raster padding | Fixed. |

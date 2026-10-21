@@ -44,6 +44,7 @@ import kotlin.math.hypot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -158,6 +159,7 @@ class EditorViewModel @Inject constructor(
     fun deleteSelectedText() {
         val p = _state.value.project ?: return
         val id = _state.value.selectedTextId ?: return
+        textJobs.remove(id)?.cancel()
         setTexts(p.texts.filterNot { it.id == id })
         _state.update { it.copy(selectedTextId = null, renderedTexts = it.renderedTexts - id) }
     }
@@ -174,11 +176,18 @@ class EditorViewModel @Inject constructor(
     private fun rasterizeTexts(texts: List<TextLayer>) {
         for (layer in texts) {
             val key = layer.renderKey()
-            if (_state.value.renderedTexts[layer.id]?.key == key) continue
+            // Cancel first: a change and its undo inside one render must not let the older job land.
             textJobs[layer.id]?.cancel()
+            if (_state.value.renderedTexts[layer.id]?.key == key) continue
             textJobs[layer.id] = viewModelScope.launch {
+                // Slider drags and typing change the look many times a second: draw only the last one.
+                delay(TEXT_DEBOUNCE_MS)
                 val rendered = withContext(cpu) { TextRasterizer.render(layer, TEXT_REF_WIDTH) }
-                _state.update { it.copy(renderedTexts = it.renderedTexts + (layer.id to rendered)) }
+                _state.update { s ->
+                    // Only if this is still the layer's current look (and the layer still exists).
+                    val current = s.project?.texts?.firstOrNull { it.id == layer.id }?.renderKey()
+                    if (current == key) s.copy(renderedTexts = s.renderedTexts + (layer.id to rendered)) else s
+                }
             }
         }
     }
@@ -186,7 +195,9 @@ class EditorViewModel @Inject constructor(
     /** Text panel touch: pick the text under the finger, then drag it. */
     private fun textDown(p: NPoint) {
         val project = _state.value.project ?: return
-        val hit = project.texts.lastOrNull { t -> hitsText(t, p, project.aspect) }
+        // Topmost first: front layers are drawn after behind layers, then in list order.
+        val behindFirst = project.texts.sortedBy { !(it.behindSubject && project.subject.hasArea) }
+        val hit = behindFirst.lastOrNull { t -> hitsText(t, p, project.aspect) }
         _state.update { it.copy(selectedTextId = hit?.id) }
         dragStart = if (hit != null) p else null
         dragOrigin = hit?.let { NPoint(it.x, it.y) }
@@ -212,8 +223,10 @@ class EditorViewModel @Inject constructor(
     /** Hit test against the rotated text box (from the rasterized size), with a little slack. */
     private fun hitsText(t: TextLayer, p: NPoint, aspect: Float): Boolean {
         val r = _state.value.renderedTexts[t.id] ?: return distance(p, NPoint(t.x, t.y), aspect) < 0.08f
-        val halfW = r.main.width / (2f * r.refWidth) + 0.02f
-        val halfH = r.main.height / (2f * r.refWidth) + 0.02f
+        // The raster has padding for outline and glow: hit the glyph area plus a small finger margin.
+        val pad = TextRasterizer.PAD_EM * t.size
+        val halfW = r.main.width / (2f * r.refWidth) - pad + 0.02f
+        val halfH = r.main.height / (2f * r.refWidth) - pad + 0.02f
         // Into width units around the center, then undo the rotation.
         val dx = p.x - t.x
         val dy = (p.y - t.y) / aspect
@@ -758,5 +771,6 @@ class EditorViewModel @Inject constructor(
 
         /** Text is rasterized against this image width: sharp at 1080p and still small. */
         const val TEXT_REF_WIDTH = 1440
+        const val TEXT_DEBOUNCE_MS = 40L
     }
 }

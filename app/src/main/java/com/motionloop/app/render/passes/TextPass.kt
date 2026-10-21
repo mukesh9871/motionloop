@@ -15,8 +15,9 @@ import com.motionloop.app.render.text.RenderedText
 class TextDraw(val layer: TextLayer, val rendered: RenderedText)
 
 /**
- * Text layers over the frame, with the subject drawn again on top of the "behind" layers (11e).
- * Draws into the bound target: frame copy, behind text, subject, front text.
+ * Text layers over the frame (11e), in two calls so the graph can put the 3D camera in between:
+ * [drawBehind] draws the frame, the "behind" layers and the subject again on top of them,
+ * [drawFront] draws the frame and the other layers. Both draw into the bound target.
  */
 class TextPass(assets: AssetManager, private val quad: FullscreenQuad) : RenderPass {
 
@@ -25,29 +26,45 @@ class TextPass(assets: AssetManager, private val quad: FullscreenQuad) : RenderP
 
     /** Uploaded bitmaps by object, so a layer is uploaded once per rasterization. */
     private val textures = HashMap<Bitmap, GlTexture>()
+    private var syncedFor: List<TextDraw>? = null
 
-    fun draw(
-        frameTex: Int,
-        subjectTex: Int,
-        subjectFeather: Float,
-        texts: List<TextDraw>,
-        phase: Float,
-        aspect: Float,
-        flipY: Boolean,
-    ) {
+    /** True when a layer goes behind the subject (needs one). Otherwise it is drawn in front. */
+    fun isBehind(t: TextDraw, hasSubject: Boolean) = hasSubject && t.layer.behindSubject
+
+    fun drawBehind(frameTex: Int, subjectTex: Int, feather: Float, texts: List<TextDraw>, phase: Float, aspect: Float, flipY: Boolean) {
         syncTextures(texts)
         GLES30.glDisable(GLES30.GL_BLEND)
-        drawFrame(frameTex, subjectTex, subjectFeather, mode = 0, flipY)
+        drawFrame(frameTex, subjectTex, feather, mode = 0, flipY)
+        beginBlend()
+        for (i in texts.indices) if (isBehind(texts[i], subjectTex != 0)) drawText(texts[i], phase, aspect, flipY, alphaOnly = false)
+        drawFrame(frameTex, subjectTex, feather, mode = 1, flipY)
+        endBlend()
+    }
 
+    fun drawFront(frameTex: Int, texts: List<TextDraw>, hasSubject: Boolean, phase: Float, aspect: Float, flipY: Boolean) {
+        syncTextures(texts)
+        GLES30.glDisable(GLES30.GL_BLEND)
+        drawFrame(frameTex, 0, 0f, mode = 0, flipY)
+        beginBlend()
+        for (i in texts.indices) if (!isBehind(texts[i], hasSubject)) drawText(texts[i], phase, aspect, flipY, alphaOnly = false)
+        endBlend()
+    }
+
+    /** Adds the coverage of every layer to an alpha target (PNG cutouts keep their text). */
+    fun drawAlpha(texts: List<TextDraw>, phase: Float, aspect: Float) {
+        syncTextures(texts)
+        beginBlend()
+        for (i in texts.indices) drawText(texts[i], phase, aspect, flipY = false, alphaOnly = true)
+        endBlend()
+    }
+
+    private fun beginBlend() {
         GLES30.glEnable(GLES30.GL_BLEND)
         GLES30.glBlendEquation(GLES30.GL_FUNC_ADD)
         GLES30.glBlendFunc(GLES30.GL_ONE, GLES30.GL_ONE_MINUS_SRC_ALPHA)
-        val behind = subjectTex != 0
-        texts.filter { it.layer.behindSubject && behind }.forEach { drawText(it, phase, aspect, flipY) }
-        if (behind && texts.any { it.layer.behindSubject }) {
-            drawFrame(frameTex, subjectTex, subjectFeather, mode = 1, flipY)
-        }
-        texts.filter { !it.layer.behindSubject || !behind }.forEach { drawText(it, phase, aspect, flipY) }
+    }
+
+    private fun endBlend() {
         GLES30.glDisable(GLES30.GL_BLEND)
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         GlUtil.checkError("TextPass")
@@ -63,7 +80,7 @@ class TextPass(assets: AssetManager, private val quad: FullscreenQuad) : RenderP
         quad.draw()
     }
 
-    private fun drawText(t: TextDraw, phase: Float, aspect: Float, flipY: Boolean) {
+    private fun drawText(t: TextDraw, phase: Float, aspect: Float, flipY: Boolean, alphaOnly: Boolean) {
         val r = t.rendered
         val main = textures[r.main] ?: return
         val anim = TextTiming.at(t.layer.animation, phase)
@@ -84,13 +101,20 @@ class TextPass(assets: AssetManager, private val quad: FullscreenQuad) : RenderP
         textProgram.set1f("uGlowAlpha", if (r.glow != null) anim.glow else 0f)
         textProgram.set1f("uReveal", anim.reveal)
         textProgram.set1i("uUseOrder", if (r.order != null) 1 else 0)
+        textProgram.set1i("uAlphaOnly", if (alphaOnly) 1 else 0)
         quad.draw()
     }
 
-    /** Uploads new bitmaps and frees textures of bitmaps no longer in use. */
+    /** Uploads new bitmaps and frees textures of bitmaps no longer in use. Skipped when nothing changed. */
     private fun syncTextures(texts: List<TextDraw>) {
+        if (texts === syncedFor) return
+        syncedFor = texts
         val wanted = HashSet<Bitmap>()
-        texts.forEach { t -> listOfNotNull(t.rendered.main, t.rendered.glow, t.rendered.order).forEach(wanted::add) }
+        for (t in texts) {
+            wanted += t.rendered.main
+            t.rendered.glow?.let(wanted::add)
+            t.rendered.order?.let(wanted::add)
+        }
         val iterator = textures.entries.iterator()
         while (iterator.hasNext()) {
             val (bitmap, texture) = iterator.next()
@@ -99,14 +123,23 @@ class TextPass(assets: AssetManager, private val quad: FullscreenQuad) : RenderP
                 iterator.remove()
             }
         }
-        for (bitmap in wanted) {
-            if (bitmap !in textures && !bitmap.isRecycled) textures[bitmap] = GlTexture.fromBitmap(bitmap)
+        for (t in texts) {
+            upload(t.rendered.main, nearest = false)
+            t.rendered.glow?.let { upload(it, nearest = false) }
+            // Order levels are exact ids, never blend them: no mipmaps, nearest sampling.
+            t.rendered.order?.let { upload(it, nearest = true) }
         }
+    }
+
+    private fun upload(bitmap: Bitmap, nearest: Boolean) {
+        if (bitmap in textures || bitmap.isRecycled) return
+        textures[bitmap] = if (nearest) GlTexture.fromBitmapNearest(bitmap) else GlTexture.fromBitmap(bitmap)
     }
 
     override fun release() {
         textures.values.forEach { it.release() }
         textures.clear()
+        syncedFor = null
         textProgram.release()
         frameProgram.release()
     }

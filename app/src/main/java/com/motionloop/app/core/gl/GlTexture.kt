@@ -65,6 +65,14 @@ class GlTexture private constructor(val id: Int, val width: Int, val height: Int
             return GlTexture(id, bitmap.width, bitmap.height)
         }
 
+        /** No mipmaps, nearest sampling: for bitmaps whose pixel values are ids (typewriter order). */
+        fun fromBitmapNearest(bitmap: Bitmap): GlTexture {
+            val id = newTextureId(GLES30.GL_NEAREST)
+            GLUtils.texImage2D(GLES30.GL_TEXTURE_2D, 0, bitmap, 0)
+            GlUtil.checkError("texImage2D nearest")
+            return GlTexture(id, bitmap.width, bitmap.height)
+        }
+
         /** Single-channel R8 texture from a model mask (sky, subject, depth, selection). */
         fun fromMask(mask: AlphaMask): GlTexture {
             val id = newTextureId(GLES30.GL_LINEAR)

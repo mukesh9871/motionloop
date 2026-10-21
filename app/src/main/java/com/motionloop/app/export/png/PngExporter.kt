@@ -65,7 +65,8 @@ class PngExporter @Inject constructor(
             applySky(g, project, assets, max(w, h))
             // No 3D camera on a still: the cutout mask must line up with the unshifted photo.
             applySubject(g, project, assets, max(w, h), cutout = cutout)
-            texts = renderTexts(project, w)
+            // A still shows every text fully: at phase 0 a fade or typewriter would hide it.
+            texts = renderTexts(project, w, animated = false)
             g.setTexts(texts)
             bitmap.recycle()
             onProgress(0.3f)
@@ -78,6 +79,8 @@ class PngExporter @Inject constructor(
             val mask = if (cutout) {
                 val a = GlTexture.empty(w, h, GLES30.GL_RGBA8, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE).also { alpha = it }
                 g.drawSubjectMask(a.framebuffer(), w, h)
+                // Text over a transparent background stays visible in the cutout.
+                g.drawTextAlpha(a.framebuffer(), w, h, phase = 0f)
                 readPixels(w, h)
             } else {
                 null

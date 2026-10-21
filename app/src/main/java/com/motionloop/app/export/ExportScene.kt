@@ -2,6 +2,7 @@ package com.motionloop.app.export
 
 import com.motionloop.app.domain.model.BackgroundMode
 import com.motionloop.app.domain.model.MaskKind
+import com.motionloop.app.domain.model.TextAnimation
 import com.motionloop.app.domain.model.Project
 import com.motionloop.app.domain.model.SkyStyle
 import com.motionloop.app.domain.repository.ImageKind
@@ -54,8 +55,11 @@ internal suspend fun applySubject(
  * Rasterizes the project's text layers for an export at [outputWidth] (at least the editor's
  * resolution, so text never looks softer than in the preview). The caller recycles the bitmaps.
  */
-internal fun renderTexts(project: Project, outputWidth: Int): List<TextDraw> =
-    project.texts.map { TextDraw(it, TextRasterizer.render(it, maxOf(1440, outputWidth))) }
+internal fun renderTexts(project: Project, outputWidth: Int, animated: Boolean = true): List<TextDraw> =
+    project.texts.map {
+        val layer = if (animated) it else it.copy(animation = TextAnimation.NONE)
+        TextDraw(layer, TextRasterizer.render(layer, maxOf(1440, outputWidth)))
+    }
 
 /** Loads the depth map for an export's 3D camera and hands it to the graph. */
 internal suspend fun applyParallax(graph: LoopRenderGraph, project: Project, assets: ProjectAssetRepository) {
