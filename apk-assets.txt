@@ -1,0 +1,9 @@
+   230279  1981-01-01 01:01   assets/demos/campfire.jpg
+  1066156  1981-01-01 01:01   assets/demos/falls_portrait.jpg
+   556782  1981-01-01 01:01   assets/demos/lake.jpg
+   290370  1981-01-01 01:01   assets/demos/mountains.jpg
+   421941  1981-01-01 01:01   assets/demos/ocean.jpg
+   388650  1981-01-01 01:01   assets/demos/waterfall.jpg
+  6227884  1981-01-01 01:01   assets/magic_touch.tflite
+ 66338288  1981-01-01 01:01   assets/midas_small.tflite
+-rw-r--r-- 1 runner runner 136928168 Oct 21 19:45 app/build/outputs/apk/debug/app-debug.apk
