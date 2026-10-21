@@ -168,15 +168,19 @@ class LoopRenderGraph(assets: AssetManager) {
     // Dispersion moves with the photo: first after the warp, so 3D and text sit over it correctly.
     private val dispersionStage = object : PostStage {
         private var phase = 0f
+        private var holeId = 0
 
+        // The blur may render (its own FBOs and viewport) on a cache miss: do it here, before the
+        // stage target is bound, never inside draw().
         override fun prepare(phase: Float, width: Int, height: Int) {
             this.phase = phase
+            holeId = photo?.let { blurPass.texture(it).id } ?: 0
         }
 
         override fun draw(inputTex: Int, flipY: Boolean) {
-            val src = photo ?: return
             val mask = dispersionMaskPass.texture ?: return
-            dispersionPass.draw(inputTex, mask.id, blurPass.texture(src).id, effects.dispersion, phase, aspect, flipY)
+            if (holeId == 0) return
+            dispersionPass.draw(inputTex, mask.id, holeId, effects.dispersion, phase, aspect, flipY)
         }
     }
 

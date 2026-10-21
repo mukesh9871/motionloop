@@ -50,7 +50,8 @@ enum class EditorPanel(val label: String, val defaultTool: EditorTool) {
     TEXT("Text", EditorTool.TEXT_MOVE),
     SOUND("Sound", EditorTool.ARROW),
     ADJUST("Adjust", EditorTool.ARROW),
-    OVERLAY("Overlay", EditorTool.OVERLAY_PAINT),
+    // No painting until "Paint area" is chosen: a stray touch must not limit the particles.
+    OVERLAY("Overlay", EditorTool.ARROW),
 }
 
 /** Everything undo/redo covers. */

@@ -284,3 +284,20 @@ Verdict: CLEAN (0 blocker, 0 major, 3 minor). All round 1 fixes verified, 115 th
 | 1 | minor | Lazy scroll bar clamp could throw on a viewport shorter than the minimum thumb | Fixed: thumb capped at the viewport. |
 | 2 | minor | A result for another panel was dropped by any unrelated panel switch | Fixed: leaving a panel clears only its own messages. |
 | 3 | minor | Export fallback to 1080p was not shown in the sheet | Fixed: the sheet shows the settings actually used. |
+
+## Push 9, effects round 1 (d8615a1)
+
+Verdict: NEEDS WORK (3 blocker, 1 major, 6 minor). Exhaustive whens, uniform names, orientation, loop periodicity, GL releases and new tests verified.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | blocker | CutoutTest still expected two selection modes | Fixed. |
+| 2 | blocker | `uKind` precision differed between sticker stages: link failure on strict drivers | Fixed: highp in both. |
+| 3 | blocker | Dispersion blur could render inside draw with the target bound: blank PNG, corrupted blur cache | Fixed: blur resolved in prepare. |
+| 4 | major | Overlay panel painted an area on any touch, even with no particles | Fixed: painting only after Paint area, and only with particles on. |
+| 5 | minor | Flake cell from float division could pick the wrong row | Fixed: integer math. |
+| 6 | minor | Bird wingtip popped at the sticker edge | Fixed: wider wrap. |
+| 7 | minor | smoothstep with reversed edges | Fixed. |
+| 8 | minor | Bubble and heart wrap margin too small on wide photos | Fixed: scaled by aspect. |
+| 9 | minor | Animate Clear shown with only water regions | Fixed. |
+| 10 | minor | Area stroke cap dropped the oldest strokes silently | Fixed: refuses new strokes with a message. |

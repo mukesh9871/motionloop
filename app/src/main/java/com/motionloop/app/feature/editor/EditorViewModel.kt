@@ -903,12 +903,18 @@ class EditorViewModel @Inject constructor(
         s.liveStroke?.let { stroke ->
             _state.update { it.copy(liveStroke = null) }
             // Effect areas are settings, like the rest of their panel: not part of undo.
+            // At the cap, refuse new strokes rather than silently dropping the first (often the main) ones.
+            val full = (if (s.isEffectBrush) project.effects.dispersion.strokes.size else project.overlay.areaStrokes.size) >= MAX_AREA_STROKES
+            if ((s.isEffectBrush || s.isOverlayBrush) && full) {
+                _state.update { it.copy(messagePanel = it.panel, message = "That area has as many strokes as it can hold. Clear it to paint again.") }
+                return
+            }
             if (s.isEffectBrush) {
-                setEffects { e -> e.copy(dispersion = e.dispersion.copy(strokes = (e.dispersion.strokes + stroke).takeLast(MAX_AREA_STROKES))) }
+                setEffects { e -> e.copy(dispersion = e.dispersion.copy(strokes = e.dispersion.strokes + stroke)) }
                 return
             }
             if (s.isOverlayBrush) {
-                setOverlay { o -> o.copy(areaStrokes = (o.areaStrokes + stroke).takeLast(MAX_AREA_STROKES)) }
+                setOverlay { o -> o.copy(areaStrokes = o.areaStrokes + stroke) }
                 return
             }
             val g = current(project)

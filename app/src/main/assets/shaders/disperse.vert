@@ -22,8 +22,9 @@ const float TAU = 6.28318530718;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
 void main() {
-    float id = float(gl_InstanceID);
-    vec2 cell = vec2(mod(id, uGrid.x), floor(id / uGrid.x));
+    // Integer math: float division can land just under a whole number and pick the wrong row.
+    int cols = int(uGrid.x + 0.5);
+    vec2 cell = vec2(ivec2(gl_InstanceID % cols, gl_InstanceID / cols));
     vec2 origin = (cell + 0.5) / uGrid;
     vLocal = aPos;
     vColor = vec3(0.0);

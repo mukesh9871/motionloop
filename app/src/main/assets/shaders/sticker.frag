@@ -6,7 +6,8 @@ precision highp float;
 
 in vec2 vLocal;            // [-1, 1], +y down
 
-uniform int uKind;          // 1 butterfly, 2 flame, 3 birds, 4 glint
+// highp: also declared in sticker.vert, and a uniform shared by both stages must match in precision.
+uniform highp int uKind;    // 1 butterfly, 2 flame, 3 birds, 4 glint
 uniform float uPhase;
 
 out vec4 fragColor;
@@ -40,7 +41,7 @@ vec4 flame(vec2 p) {
     // Teardrop that flickers in height and sways at the tip.
     float t = TAU * uPhase;
     float h = 0.85 + 0.08 * sin(3.0 * t) + 0.05 * sin(7.0 * t + 1.3);
-    float sway = 0.08 * sin(5.0 * t) * smoothstep(0.6, -0.9, p.y);
+    float sway = 0.08 * sin(5.0 * t) * (1.0 - smoothstep(-0.9, 0.6, p.y));
     vec2 q = vec2(p.x - sway, p.y);
     float y = (q.y - 0.6) / (1.4 * h);            // 0 at the base, about -1 at the tip
     float width = 0.42 * sqrt(max(0.0, -y)) * (1.0 + y * 0.6);
@@ -59,7 +60,8 @@ vec4 birds(vec2 p) {
     for (int i = 0; i < 3; i++) {
         float fi = float(i);
         // Each bird crosses the sticker once per cycle, a third of a cycle apart.
-        float x = fract(uPhase + fi / 3.0) * 2.4 - 1.2;
+        // Wraps beyond the quad edge plus a bird's half width, so no wingtip pops at the edges.
+        float x = fract(uPhase + fi / 3.0) * 2.6 - 1.3;
         vec2 c = vec2(x, -0.3 + 0.3 * fi + 0.06 * sin(TAU * (2.0 * uPhase + fi)));
         vec2 q = (p - c) / 0.28;
         float flap = 0.45 * sin(TAU * (6.0 * uPhase + fi * 0.3));

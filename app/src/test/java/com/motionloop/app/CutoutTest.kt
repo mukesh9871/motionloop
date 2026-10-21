@@ -23,7 +23,7 @@ class CutoutTest {
             listOf("NONE", "TRANSPARENT", "SOLID", "GRADIENT", "BLUR", "PHOTO"),
             BackgroundMode.entries.map { it.name },
         )
-        assertEquals(listOf("FREEZE", "ANIMATE_ONLY"), SelectionMode.entries.map { it.name })
+        assertEquals(listOf("FREEZE", "ANIMATE_ONLY", "RIPPLE"), SelectionMode.entries.map { it.name })
         assertTrue(ExportFormat.PNG in ExportFormat.entries)
     }
 

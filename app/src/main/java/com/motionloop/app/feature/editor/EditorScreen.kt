@@ -101,7 +101,8 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
     }
     val touchPanel = state.panel == EditorPanel.ANIMATE || state.panel == EditorPanel.SKY ||
         state.panel == EditorPanel.CUTOUT || state.panel == EditorPanel.TEXT ||
-        state.panel == EditorPanel.EFFECTS || state.panel == EditorPanel.OVERLAY
+        state.panel == EditorPanel.EFFECTS ||
+        (state.panel == EditorPanel.OVERLAY && state.isOverlayBrush && state.project?.overlay?.particles != ParticleType.NONE)
     // Any audio file the device can decode.
     val pickAudio = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(vm::importAudio)
@@ -336,7 +337,7 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                                 modifier = Modifier.weight(1f).padding(vertical = 6.dp),
                             )
                             val selecting = state.tool == EditorTool.SELECT_FREEZE || state.tool == EditorTool.SELECT_ANIMATE
-                            if (selecting && project?.selections?.isNotEmpty() == true) {
+                            if (selecting && project?.selections?.any { it.mode != SelectionMode.RIPPLE } == true) {
                                 Text(
                                     "Clear",
                                     style = MaterialTheme.typography.labelMedium,

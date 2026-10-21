@@ -82,7 +82,7 @@ void main() {
         color = mix(vec3(1.0, 0.45, 0.1), vec3(1.0, 0.8, 0.3), fract(r * 17.0));
     } else if (uType == 6) {
         // Bubbles: rise slowly with a wobble. Larger wrap margin: bubbles are big.
-        float bm = margin + 0.04;
+        float bm = margin + 0.07 * max(uAspect, 1.0);
         float y = fract(y0 + uSpeed * t);
         pos = vec2(x0 + 0.02 * sin(TAU * (2.0 * m * t + ph)), 1.0 + bm - y * (1.0 + 2.0 * bm));
         size = mix(0.01, 0.035, r);
@@ -90,7 +90,7 @@ void main() {
         color = mix(vec3(0.85, 0.95, 1.0), vec3(1.0, 0.9, 1.0), fract(r * 9.0));
     } else if (uType == 7) {
         // Hearts: float up and sway, gently pulsing.
-        float hm = margin + 0.03;
+        float hm = margin + 0.06 * max(uAspect, 1.0);
         float y = fract(y0 + uSpeed * t);
         pos = vec2(x0 + 0.03 * sin(TAU * (m * t + ph)), 1.0 + hm - y * (1.0 + 2.0 * hm));
         size = mix(0.012, 0.03, r) * (0.9 + 0.1 * sin(TAU * (2.0 * m * t + ph)));
