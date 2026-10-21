@@ -313,3 +313,31 @@ Verdict: CLEAN (0 blocker, 0 major, 5 minor). All round 1 fixes verified, cross-
 | 3 | minor | Faint square around the flame glow | Fixed: glow faded before the quad edge. |
 | 4 | minor | Dispersion holes blur the original photo, not a replaced sky | Accepted and documented: a per-frame blur costs too much for a soft fill. |
 | 5 | minor | No softness slider for effect brushes | Fixed. |
+
+## Full review round 1 (a850612), six reviewers by area
+
+Verdicts: render NEEDS WORK (1 major, 3 minor), export NEEDS WORK (1 major, 8 minor), editor NEEDS WORK (2 major, 13 minor), data and build NEEDS WORK (2 major, 7 minor), app shell NEEDS WORK (2 major, 15 minor), tests CLEAN (6 weak tests, 15 proposed). Fixed in 6d34ba6.
+
+| Area | Sev | Finding | Outcome |
+|---|---|---|---|
+| Render | major | mediump uv in the full-frame copy, subject and text shaders blurred 1080p and 4K frames with text or stickers | Fixed: highp. |
+| Render | minor | Preview phase wrapped at 1000 cycles, particles lost precision after long play | Fixed: wraps at 1. |
+| Render | minor | Still sources (replaced background, sky tint) redrawn with mipmaps every frame | Fixed: rendered once per change. |
+| Render | minor | Sky photo sampled at mip level 0 | Fixed: level from the fitted scale. |
+| Export | major | The sheet kept the project's sound state from its first opening | Fixed: refreshed on every open. |
+| Export | minor | Wallpaper surface release without try/finally, vsync wakeups on 120 Hz screens, double load on a new wallpaper project | Fixed. |
+| Export | minor | Encoder size check ignored frame rate, bitrate not clamped, 4K offered for small photos, software encoder on old systems | Fixed. |
+| Export | minor | Half-written file on a failed legacy save, stale temp exports, decoder stall guard reset by input | Fixed. |
+| Export | minor | PNG cutout holds four frame-sized buffers | Accepted: peak about 130 MB only for 2048 px cutouts, next round if phones show it. |
+| Editor | major | Camera path row did not scroll, Float unreachable on narrow phones | Fixed. |
+| Editor | major | Undo during a tap-to-select run committed onto the undone state | Fixed: history waits while busy, taps verify their revision. |
+| Editor | minor | Field order, two Size sliders, missing softness, three names for one action, sky photo gate bypass, tabs and swatches without roles, mixed distance units, lost regions in history, first text search in undo, gesture restart on busy, text field lag, dead code, selection masks never freed | Fixed. |
+| Data | major | 48 MP photos decoded in full before scaling, out of memory on 256 MB heaps | Fixed: decoder scales to size. |
+| Data | major | Rename without fsync could leave an empty project file after power loss | Fixed: synced atomic writes, backup copy. |
+| Data | minor | R8 never run, no backup rules, dark cold start in light theme, ML close outside the lock, decode under the lock, superseded CI runs, placeholder links, personal address in code | Fixed. |
+| Shell | major | Drawer did not scroll in landscape or at large fonts | Fixed. |
+| Shell | major | Import overlay let taps through, two editors could stack | Fixed. |
+| Shell | minor | Back during drawer opening, double navigation, small touch targets, missing roles, contrast on violet, identical project labels, camera cleanup on main, help flicker, naming, refresh races, dead links | Fixed. |
+| Tests | minor | Loose upscale bound, duplicate enum test, policy test asserting nothing | Fixed, plus 11 new tests. |
+
+External checklists from android/skills and claude-android-ninja added under the review skill. First pass items fixed: shrinkResources, SideEffect for system bars, IME padding, StrictMode in debug, keep rules. Accepted for now: English-only strings, JUnit assertions, no Detekt, no ViewModel tests.
