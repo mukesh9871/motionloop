@@ -16,6 +16,8 @@ import com.motionloop.app.export.OffscreenLoop
 import com.motionloop.app.export.applySky
 import com.motionloop.app.export.applySubject
 import com.motionloop.app.export.loadSelections
+import com.motionloop.app.export.renderTexts
+import com.motionloop.app.render.passes.TextDraw
 import com.motionloop.app.render.LoopRenderGraph
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
@@ -46,6 +48,7 @@ class PngExporter @Inject constructor(
         val cutout = project.background.mode == BackgroundMode.TRANSPARENT && project.subject.hasArea
         var egl: EglCore? = null
         var graph: LoopRenderGraph? = null
+        var texts: List<TextDraw> = emptyList()
         var color: GlTexture? = null
         var alpha: GlTexture? = null
         var success = false
@@ -62,6 +65,8 @@ class PngExporter @Inject constructor(
             applySky(g, project, assets, max(w, h))
             // No 3D camera on a still: the cutout mask must line up with the unshifted photo.
             applySubject(g, project, assets, max(w, h))
+            texts = renderTexts(project, w)
+            g.setTexts(texts)
             bitmap.recycle()
             onProgress(0.3f)
 
@@ -95,6 +100,7 @@ class PngExporter @Inject constructor(
             color?.release()
             alpha?.release()
             graph?.release()
+            texts.forEach { it.rendered.recycle() }
             egl?.release()
             if (!success) out.delete()
         }

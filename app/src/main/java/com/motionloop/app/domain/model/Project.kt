@@ -66,6 +66,8 @@ data class Project(
     val background: BackgroundSettings = BackgroundSettings(),
     /** Tap-to-select regions on the freeze mask (11a). */
     val selections: List<SelectionRegion> = emptyList(),
+    /** Text layers (11e), drawn in list order. */
+    val texts: List<TextLayer> = emptyList(),
 ) {
     val aspect: Float get() = imageWidth.toFloat() / imageHeight
 }

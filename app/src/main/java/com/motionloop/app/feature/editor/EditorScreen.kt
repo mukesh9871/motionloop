@@ -49,6 +49,7 @@ import com.motionloop.app.feature.editor.components.DepthPanel
 import com.motionloop.app.feature.editor.components.LabeledSlider
 import com.motionloop.app.feature.editor.components.OverlayPanel
 import com.motionloop.app.feature.editor.components.SkyPanel
+import com.motionloop.app.feature.editor.components.TextPanel
 import com.motionloop.app.feature.editor.components.PlaybackBar
 import com.motionloop.app.feature.editor.components.ToolBar
 import com.motionloop.app.feature.editor.tools.EditorCanvas
@@ -79,7 +80,8 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
     val pickSkyPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let(vm::importSkyPhoto)
     }
-    val touchPanel = state.panel == EditorPanel.ANIMATE || state.panel == EditorPanel.SKY || state.panel == EditorPanel.CUTOUT
+    val touchPanel = state.panel == EditorPanel.ANIMATE || state.panel == EditorPanel.SKY ||
+        state.panel == EditorPanel.CUTOUT || state.panel == EditorPanel.TEXT
     val pickBackgroundPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let(vm::importBackgroundPhoto)
     }
@@ -155,7 +157,19 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                         .padding(vertical = 4.dp),
                 )
             }
-            if (state.panel == EditorPanel.CUTOUT) {
+            if (state.panel == EditorPanel.TEXT) {
+                if (project != null) {
+                    TextPanel(
+                        texts = project.texts,
+                        selected = state.selectedText,
+                        hasSubject = project.subject.hasArea,
+                        onAdd = vm::addText,
+                        onSelect = vm::selectText,
+                        onChange = vm::updateSelectedText,
+                        onDelete = vm::deleteSelectedText,
+                    )
+                }
+            } else if (state.panel == EditorPanel.CUTOUT) {
                 if (project != null) {
                     CutoutPanel(
                         subject = project.subject,

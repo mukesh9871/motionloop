@@ -14,6 +14,8 @@ import com.motionloop.app.domain.repository.ProjectAssetRepository
 import com.motionloop.app.export.applyParallax
 import com.motionloop.app.export.applySubject
 import com.motionloop.app.export.loadSelections
+import com.motionloop.app.export.renderTexts
+import com.motionloop.app.render.passes.TextDraw
 import com.motionloop.app.export.applySky
 import com.motionloop.app.domain.repository.ProjectRepository
 import com.motionloop.app.export.OffscreenLoop
@@ -54,6 +56,7 @@ class GifExporter @Inject constructor(
 
             var egl: EglCore? = null
             var graph: LoopRenderGraph? = null
+            var texts: List<TextDraw> = emptyList()
             var target: GlTexture? = null
             var success = false
             try {
@@ -70,6 +73,8 @@ class GifExporter @Inject constructor(
                 applySky(g, project, assets, max(w, h))
                 applyParallax(g, project, assets)
                 applySubject(g, project, assets, max(w, h))
+                texts = renderTexts(project, w)
+                g.setTexts(texts)
                 bitmap.recycle() // uploaded to the GPU, the CPU copy is no longer needed
                 val t = GlTexture.empty(w, h, GLES30.GL_RGBA8, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE).also { target = it }
                 val readBuffer = ByteBuffer.allocateDirect(w * h * 4).order(ByteOrder.nativeOrder())
@@ -118,6 +123,7 @@ class GifExporter @Inject constructor(
             } finally {
                 target?.release()
                 graph?.release()
+                texts.forEach { it.rendered.recycle() }
                 egl?.release()
                 if (!success) out.delete()
             }

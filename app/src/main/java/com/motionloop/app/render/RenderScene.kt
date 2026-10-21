@@ -5,6 +5,7 @@ import com.motionloop.app.domain.model.Adjustments
 import com.motionloop.app.domain.model.BackgroundSettings
 import com.motionloop.app.domain.model.SelectionMode
 import com.motionloop.app.domain.model.SubjectSettings
+import com.motionloop.app.render.passes.TextDraw
 import com.motionloop.app.domain.model.Anchor
 import com.motionloop.app.domain.model.LoopSettings
 import com.motionloop.app.domain.model.LutData
@@ -48,4 +49,5 @@ data class RenderScene(
     val backgroundPhoto: Bitmap? = null,
     /** True while editing the subject area: tint it instead of replacing the background. */
     val subjectTintOnly: Boolean = false,
+    val texts: List<TextDraw> = emptyList(),
 )

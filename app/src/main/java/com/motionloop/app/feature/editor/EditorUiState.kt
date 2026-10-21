@@ -9,7 +9,11 @@ import com.motionloop.app.domain.model.Project
 import com.motionloop.app.domain.model.BackgroundMode
 import com.motionloop.app.domain.model.SelectionRegion
 import com.motionloop.app.render.RenderScene
+import com.motionloop.app.domain.model.TextAnimation
+import com.motionloop.app.domain.model.TextLayer
 import com.motionloop.app.render.SelectionLayer
+import com.motionloop.app.render.passes.TextDraw
+import com.motionloop.app.render.text.RenderedText
 import com.motionloop.ml.AlphaMask
 
 enum class EditorTool {
@@ -23,6 +27,9 @@ enum class EditorTool {
 
     /** Cutout panel: tap to add or remove subject areas, or restore and erase by hand (11d). */
     SUBJECT_ADD, SUBJECT_REMOVE, SUBJECT_RESTORE, SUBJECT_ERASE,
+
+    /** Text panel: tap a text to select it, drag to move it (11e). */
+    TEXT_MOVE,
 }
 
 /** Bottom panel: motion tools, sky, color adjustments or overlays. */
@@ -31,6 +38,7 @@ enum class EditorPanel(val label: String, val defaultTool: EditorTool) {
     SKY("Sky", EditorTool.SKY_ADD),
     DEPTH("3D", EditorTool.ARROW),
     CUTOUT("Cutout", EditorTool.SUBJECT_ADD),
+    TEXT("Text", EditorTool.TEXT_MOVE),
     ADJUST("Adjust", EditorTool.ARROW),
     OVERLAY("Overlay", EditorTool.ARROW),
 }
@@ -86,7 +94,12 @@ data class EditorUiState(
     val backgroundPhotoRev: Int = 0,
     /** Loaded tap-to-select masks by revision. */
     val selectionMasks: Map<Int, AlphaMask> = emptyMap(),
+    /** Rasterized text by layer id. May lag one edit behind while a new one is drawn. */
+    val renderedTexts: Map<String, RenderedText> = emptyMap(),
+    val selectedTextId: String? = null,
 ) {
+    val selectedText: TextLayer? get() = project?.texts?.firstOrNull { it.id == selectedTextId }
+
     val isSkyBrush: Boolean get() = tool == EditorTool.SKY_PAINT || tool == EditorTool.SKY_ERASE
     val isSubjectBrush: Boolean get() = tool == EditorTool.SUBJECT_RESTORE || tool == EditorTool.SUBJECT_ERASE
     val isBrush: Boolean
@@ -134,6 +147,10 @@ data class EditorUiState(
                 // In the cutout panel, show the subject as a tint while painting or before a background is chosen.
                 subjectTintOnly = panel == EditorPanel.CUTOUT && !playing &&
                     (liveStroke != null || p.background.mode == BackgroundMode.NONE),
+                // Paused: show every text fully (a fade starts invisible at phase 0), animate only while playing.
+                texts = p.texts.mapNotNull { t ->
+                    renderedTexts[t.id]?.let { TextDraw(if (playing) t else t.copy(animation = TextAnimation.NONE), it) }
+                },
             )
         }
 }

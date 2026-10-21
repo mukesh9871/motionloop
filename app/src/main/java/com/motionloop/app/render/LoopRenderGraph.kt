@@ -28,12 +28,14 @@ import com.motionloop.app.render.passes.MaskPass
 import com.motionloop.app.render.passes.OverlayPass
 import com.motionloop.app.render.passes.ParallaxPass
 import com.motionloop.app.render.passes.SourcePass
+import com.motionloop.app.render.passes.TextDraw
+import com.motionloop.app.render.passes.TextPass
 import com.motionloop.ml.AlphaMask
 
 /**
  * The pass chain shared by the editor preview, the exporters and the live wallpaper.
  *
- * photo -> [Source: sky, background] -> LoopWarp (flow, freeze mask) -> [Parallax] -> [Color + overlay] -> target
+ * photo -> [Source: sky, background] -> LoopWarp (flow, freeze mask) -> [Text] -> [Parallax] -> [Color + overlay] -> target
  *
  * Post stages (color + overlay so far) ping-pong between two offscreen frames, and the last one
  * draws into the target. Every bracketed or post stage is skipped when it has nothing to do.
@@ -59,6 +61,8 @@ class LoopRenderGraph(assets: AssetManager) {
     private val colorPass = ColorPass(assets, quad)
     private val overlayPass = OverlayPass(assets, quad)
     private val parallaxPass = ParallaxPass(assets, quad)
+    private val textPass = TextPass(assets, quad)
+    private var texts: List<TextDraw> = emptyList()
 
     private var photo: GlTexture? = null
     private var photoBitmap: Bitmap? = null
@@ -120,7 +124,20 @@ class LoopRenderGraph(assets: AssetManager) {
         override fun draw(inputTex: Int, flipY: Boolean) = colorPass.draw(inputTex, adjustments, overlayTex, overlay, flipY)
     }
 
-    // First post stage: 3D camera move by depth, applied to the warped photo only.
+    // Text layers, with the subject drawn again over "behind" layers (11e). Before parallax, so text
+    // behind the subject moves with the background in 3D and stays correctly hidden.
+    private val textStage = object : PostStage {
+        private var phase = 0f
+
+        override fun prepare(phase: Float, width: Int, height: Int) {
+            this.phase = phase
+        }
+
+        override fun draw(inputTex: Int, flipY: Boolean) =
+            textPass.draw(inputTex, subjectMaskTextureId, subject.feather, texts, phase, aspect, flipY)
+    }
+
+    // 3D camera move by depth, applied to the warped photo (and text) before color and overlays.
     private val parallaxStage = object : PostStage {
         private var phase = 0f
 
@@ -265,6 +282,11 @@ class LoopRenderGraph(assets: AssetManager) {
         }
     }
 
+    /** Text layers to draw. Bitmaps are uploaded once per object and freed when no longer listed. */
+    fun setTexts(texts: List<TextDraw>) {
+        this.texts = texts
+    }
+
     /** 3D camera. [depth] is the depth map for [settings].depthRev (null if none or not loaded). */
     fun setParallax(settings: ParallaxSettings, depth: AlphaMask?) {
         parallax = settings
@@ -293,8 +315,9 @@ class LoopRenderGraph(assets: AssetManager) {
 
         val warpInput = sourceTexture(src, phase)
 
-        val stages = ArrayList<PostStage>(2)
-        // Parallax first: it moves the photo, while color is per pixel and overlays stay in screen space.
+        val stages = ArrayList<PostStage>(3)
+        // Text, then parallax: both move with the photo. Color is per pixel and overlays stay in screen space.
+        if (texts.isNotEmpty()) stages += textStage
         if (parallax.isActive && depthMask.id != 0) stages += parallaxStage
         if (!adjustments.isIdentity || overlay.isActive) stages += colorStage
         if (!overlay.isActive) overlayPass.releaseLayer()
@@ -407,6 +430,7 @@ class LoopRenderGraph(assets: AssetManager) {
         colorPass.release()
         overlayPass.release()
         parallaxPass.release()
+        textPass.release()
         quad.release()
     }
 

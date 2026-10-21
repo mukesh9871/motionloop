@@ -19,6 +19,8 @@ import com.motionloop.app.domain.repository.ProjectAssetRepository
 import com.motionloop.app.export.applyParallax
 import com.motionloop.app.export.applySubject
 import com.motionloop.app.export.loadSelections
+import com.motionloop.app.export.renderTexts
+import com.motionloop.app.render.passes.TextDraw
 import com.motionloop.app.export.applySky
 import com.motionloop.app.domain.repository.ProjectRepository
 import com.motionloop.app.export.OffscreenLoop
@@ -61,6 +63,7 @@ class VideoExporter @Inject constructor(
             var muxer: MediaMuxer? = null
             var egl: EglCore? = null
             var graph: LoopRenderGraph? = null
+            var texts: List<TextDraw> = emptyList()
             var success = false
             try {
                 out.parentFile?.mkdirs()
@@ -82,6 +85,8 @@ class VideoExporter @Inject constructor(
                 applySky(g, project, assets, max(w, h))
                 applyParallax(g, project, assets)
                 applySubject(g, project, assets, max(w, h))
+                texts = renderTexts(project, w)
+                g.setTexts(texts)
                 bitmap.recycle() // uploaded to the GPU, the CPU copy is no longer needed
 
                 val m = MediaMuxer(out.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4).also { muxer = it }
@@ -111,6 +116,7 @@ class VideoExporter @Inject constructor(
                 success = true
             } finally {
                 graph?.release()
+                texts.forEach { it.rendered.recycle() }
                 egl?.release()
                 codec?.let {
                     runCatching { it.stop() }

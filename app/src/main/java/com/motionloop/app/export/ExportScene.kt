@@ -8,6 +8,8 @@ import com.motionloop.app.domain.repository.ImageKind
 import com.motionloop.app.domain.repository.ProjectAssetRepository
 import com.motionloop.app.render.LoopRenderGraph
 import com.motionloop.app.render.SelectionLayer
+import com.motionloop.app.render.passes.TextDraw
+import com.motionloop.app.render.text.TextRasterizer
 
 /** Tap-to-select regions of the freeze mask, loaded for an export. Missing files are skipped. */
 internal suspend fun loadSelections(project: Project, assets: ProjectAssetRepository): List<SelectionLayer> =
@@ -32,6 +34,13 @@ internal suspend fun applySubject(graph: LoopRenderGraph, project: Project, asse
     // Uploaded to the GPU, and the graph only keeps it for an identity check.
     photo?.recycle()
 }
+
+/**
+ * Rasterizes the project's text layers for an export at [outputWidth] (at least the editor's
+ * resolution, so text never looks softer than in the preview). The caller recycles the bitmaps.
+ */
+internal fun renderTexts(project: Project, outputWidth: Int): List<TextDraw> =
+    project.texts.map { TextDraw(it, TextRasterizer.render(it, maxOf(1440, outputWidth))) }
 
 /** Loads the depth map for an export's 3D camera and hands it to the graph. */
 internal suspend fun applyParallax(graph: LoopRenderGraph, project: Project, assets: ProjectAssetRepository) {

@@ -33,6 +33,8 @@ import com.motionloop.app.domain.model.BackgroundSettings
 import com.motionloop.app.domain.model.ParallaxSettings
 import com.motionloop.app.domain.model.SelectionMode
 import com.motionloop.app.domain.model.SelectionRegion
+import com.motionloop.app.domain.model.TextLayer
+import com.motionloop.app.render.text.TextRasterizer
 import com.motionloop.ml.DepthEstimator
 import com.motionloop.ml.Segmenter
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -75,6 +77,9 @@ class EditorViewModel @Inject constructor(
     private var skyPhotoJob: Job? = null
     private var subjectMaskJob: Job? = null
     private var backgroundPhotoJob: Job? = null
+    private val textJobs = HashMap<String, Job>()
+    private var dragStart: NPoint? = null
+    private var dragOrigin: NPoint? = null
     private val undoStack = ArrayDeque<Geometry>()
     private val redoStack = ArrayDeque<Geometry>()
 
@@ -118,8 +123,107 @@ class EditorViewModel @Inject constructor(
             loadSubjectMask(project.subject.maskRev)
             loadBackgroundPhoto(project.background.photoRev)
             loadSelections(project.selections)
+            rasterizeTexts(project.texts)
         }
     }
+
+    // region text (11e)
+
+    /** Adds a text layer near the top third, selected and ready to edit. */
+    fun addText() {
+        val p = _state.value.project ?: return
+        if (p.texts.size >= TextLayer.MAX_LAYERS) {
+            _state.update { it.copy(message = "Up to ${TextLayer.MAX_LAYERS} text layers.") }
+            return
+        }
+        val layer = TextLayer(
+            id = UUID.randomUUID().toString(),
+            // Behind the subject only makes sense when there is one.
+            behindSubject = p.subject.hasArea,
+            y = 0.3f + 0.08f * p.texts.size,
+        )
+        setTexts(p.texts + layer)
+        _state.update { it.copy(selectedTextId = layer.id) }
+    }
+
+    fun selectText(id: String?) = _state.update { it.copy(selectedTextId = id) }
+
+    /** Edits the selected layer. Text edits are not part of undo, like other settings. */
+    fun updateSelectedText(change: (TextLayer) -> TextLayer) {
+        val p = _state.value.project ?: return
+        val id = _state.value.selectedTextId ?: return
+        setTexts(p.texts.map { if (it.id == id) change(it).let { t -> t.copy(text = t.text.take(TextLayer.MAX_LENGTH)) } else it })
+    }
+
+    fun deleteSelectedText() {
+        val p = _state.value.project ?: return
+        val id = _state.value.selectedTextId ?: return
+        setTexts(p.texts.filterNot { it.id == id })
+        _state.update { it.copy(selectedTextId = null, renderedTexts = it.renderedTexts - id) }
+    }
+
+    private fun setTexts(texts: List<TextLayer>, persistNow: Boolean = true) {
+        val p = _state.value.project ?: return
+        val updated = p.copy(texts = texts)
+        _state.update { it.copy(project = updated) }
+        if (persistNow) persist(updated)
+        rasterizeTexts(texts)
+    }
+
+    /** Redraws only layers whose look changed. Older bitmaps are left to the GC: the GL thread may still upload them. */
+    private fun rasterizeTexts(texts: List<TextLayer>) {
+        for (layer in texts) {
+            val key = layer.renderKey()
+            if (_state.value.renderedTexts[layer.id]?.key == key) continue
+            textJobs[layer.id]?.cancel()
+            textJobs[layer.id] = viewModelScope.launch {
+                val rendered = withContext(cpu) { TextRasterizer.render(layer, TEXT_REF_WIDTH) }
+                _state.update { it.copy(renderedTexts = it.renderedTexts + (layer.id to rendered)) }
+            }
+        }
+    }
+
+    /** Text panel touch: pick the text under the finger, then drag it. */
+    private fun textDown(p: NPoint) {
+        val project = _state.value.project ?: return
+        val hit = project.texts.lastOrNull { t -> hitsText(t, p, project.aspect) }
+        _state.update { it.copy(selectedTextId = hit?.id) }
+        dragStart = if (hit != null) p else null
+        dragOrigin = hit?.let { NPoint(it.x, it.y) }
+    }
+
+    private fun textMove(p: NPoint) {
+        val start = dragStart ?: return
+        val origin = dragOrigin ?: return
+        val project = _state.value.project ?: return
+        val id = _state.value.selectedTextId ?: return
+        val nx = (origin.x + p.x - start.x).coerceIn(0f, 1f)
+        val ny = (origin.y + p.y - start.y).coerceIn(0f, 1f)
+        // Live position only: saved once on release.
+        setTexts(project.texts.map { if (it.id == id) it.copy(x = nx, y = ny) else it }, persistNow = false)
+    }
+
+    private fun textUp() {
+        if (dragStart != null) _state.value.project?.let(::persist)
+        dragStart = null
+        dragOrigin = null
+    }
+
+    /** Hit test against the rotated text box (from the rasterized size), with a little slack. */
+    private fun hitsText(t: TextLayer, p: NPoint, aspect: Float): Boolean {
+        val r = _state.value.renderedTexts[t.id] ?: return distance(p, NPoint(t.x, t.y), aspect) < 0.08f
+        val halfW = r.main.width / (2f * r.refWidth) + 0.02f
+        val halfH = r.main.height / (2f * r.refWidth) + 0.02f
+        // Into width units around the center, then undo the rotation.
+        val dx = p.x - t.x
+        val dy = (p.y - t.y) / aspect
+        val a = -Math.toRadians(t.rotation.toDouble())
+        val lx = (dx * kotlin.math.cos(a) - dy * kotlin.math.sin(a)).toFloat()
+        val ly = (dx * kotlin.math.sin(a) + dy * kotlin.math.cos(a)).toFloat()
+        return kotlin.math.abs(lx) <= halfW && kotlin.math.abs(ly) <= halfH
+    }
+
+    // endregion
 
     // region cutout (11d) and tap-to-select (11a), all on the shared segmenter
 
@@ -487,12 +591,17 @@ class EditorViewModel @Inject constructor(
             EditorTool.SKY_REMOVE -> skyTap(p, add = false)
             EditorTool.SUBJECT_ADD -> subjectTap(p, add = true)
             EditorTool.SUBJECT_REMOVE -> subjectTap(p, add = false)
+            EditorTool.TEXT_MOVE -> textDown(p)
             EditorTool.SELECT_FREEZE -> selectRegion(p, SelectionMode.FREEZE)
             EditorTool.SELECT_ANIMATE -> selectRegion(p, SelectionMode.ANIMATE_ONLY)
         }
     }
 
     fun pointerMove(p: NPoint) {
+        if (_state.value.tool == EditorTool.TEXT_MOVE) {
+            textMove(p)
+            return
+        }
         _state.update { s ->
             when {
                 s.liveArrow != null -> s.copy(liveArrow = s.liveArrow.copy(end = p))
@@ -508,6 +617,10 @@ class EditorViewModel @Inject constructor(
     }
 
     fun pointerUp() {
+        if (_state.value.tool == EditorTool.TEXT_MOVE) {
+            textUp()
+            return
+        }
         val s = _state.value
         val project = s.project ?: return
         s.liveArrow?.let { arrow ->
@@ -624,5 +737,8 @@ class EditorViewModel @Inject constructor(
         const val ERASE_RADIUS = 0.04f
         const val MAX_HISTORY = 100
         const val SKY_PHOTO_EDGE = 2048
+
+        /** Text is rasterized against this image width: sharp at 1080p and still small. */
+        const val TEXT_REF_WIDTH = 1440
     }
 }
