@@ -83,7 +83,7 @@ class EditorViewModel @Inject constructor(
     private val projectId: String = checkNotNull(savedState[Routes.ARG_PROJECT_ID])
 
     // Above _state and init: the initial state reads it, and init starts a collector that uses it.
-    private val player = AudioLoopPlayer(audioManager)
+    private val player = AudioLoopPlayer(audioManager).apply { onFocusLost = { setPlaying(false) } }
     private val _state = MutableStateFlow(EditorUiState(audioClock = AudioClock { player.positionSeconds() }))
     val state: StateFlow<EditorUiState> = _state.asStateFlow()
 

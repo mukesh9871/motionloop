@@ -64,6 +64,9 @@ class ExportViewModel @Inject constructor(
     private val _state = MutableStateFlow(ExportUiState(settings = ExportSettings(resolution = settings.state.value.defaultResolution)))
     val state: StateFlow<ExportUiState> = _state.asStateFlow()
     private var job: Job? = null
+    // Above init, which sets them.
+    private var photoAspect = 1f
+    private var resolutionJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -91,9 +94,6 @@ class ExportViewModel @Inject constructor(
         updateSettings { it.copy(aspect = a) }
         refreshResolutions()
     }
-
-    private var photoAspect = 1f
-    private var resolutionJob: Job? = null
 
     /** Offer 4K only where the hardware encoder supports it for the chosen shape. Codec queries are slow. */
     private fun refreshResolutions() {
@@ -161,8 +161,11 @@ class ExportViewModel @Inject constructor(
     fun chooseForWallpaper() {
         // Set before the system picker opens, so its preview already shows this project.
         settings.setWallpaperProject(projectId)
-        // Queued edits reach the file the service reads shortly after.
-        viewModelScope.launch { projects.flush() }
+        // Once queued edits are on disk, a running wallpaper reloads (also when it already shows this project).
+        viewModelScope.launch {
+            projects.flush()
+            settings.bumpWallpaperRevision()
+        }
     }
 
     fun cancel() {

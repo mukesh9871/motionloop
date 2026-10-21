@@ -34,6 +34,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -80,7 +82,8 @@ class LoopWallpaperService : WallpaperService() {
         init {
             // Choosing another project while this wallpaper runs: reload without a new surface.
             scope.launch {
-                settings.state.map { it.wallpaperProjectId }.distinctUntilChanged().drop(1).collect {
+                // The revision also reloads the same project after its edits were saved.
+                settings.state.map { it.wallpaperProjectId to it.wallpaperRevision }.distinctUntilChanged().drop(1).collect {
                     if (egl != null) reload()
                 }
             }
@@ -188,7 +191,7 @@ class LoopWallpaperService : WallpaperService() {
             val p = projects.load(id) ?: return
             val bitmap = projects.loadImage(id, minOf(WALLPAPER_EDGE, GlUtil.maxTextureSize()))
             // Each suspension above may have outlived this context (surface destroyed meanwhile).
-            if (egl !== e) {
+            if (egl !== e || !currentCoroutineContext().isActive) {
                 bitmap.recycle()
                 return
             }
@@ -199,9 +202,27 @@ class LoopWallpaperService : WallpaperService() {
             g.setOverlay(p.overlay)
             applySky(g, p, assets, WALLPAPER_EDGE)
             // A missing depth or subject file should cost that feature, not the whole wallpaper.
-            runCatching { applyParallax(g, p, assets) }.onFailure { Log.w(TAG, "3D skipped", it) }
-            runCatching { applySubject(g, p, assets, WALLPAPER_EDGE) }.onFailure { Log.w(TAG, "Cutout skipped", it) }
-            if (egl !== e) return
+            // Cancellation must still stop the load: a reload keeps the same context, so the egl check misses it.
+            try {
+                applyParallax(g, p, assets)
+            } catch (c: CancellationException) {
+                bitmap.recycle()
+                throw c
+            } catch (t: Exception) {
+                Log.w(TAG, "3D skipped", t)
+            }
+            try {
+                applySubject(g, p, assets, WALLPAPER_EDGE)
+            } catch (c: CancellationException) {
+                bitmap.recycle()
+                throw c
+            } catch (t: Exception) {
+                Log.w(TAG, "Cutout skipped", t)
+            }
+            if (egl !== e || !currentCoroutineContext().isActive) {
+                bitmap.recycle()
+                return
+            }
             texts = renderTexts(p, bitmap.width)
             g.setTexts(texts)
             frame = GlTexture.empty(bitmap.width, bitmap.height, GLES30.GL_RGBA8, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE)

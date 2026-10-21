@@ -20,6 +20,8 @@ data class SettingsState(
     val simulatePro: Boolean = false,
     /** Project shown by the live wallpaper. */
     val wallpaperProjectId: String? = null,
+    /** In memory only: bumped after the chosen project is saved, so a running wallpaper reloads it. */
+    val wallpaperRevision: Int = 0,
 )
 
 /**
@@ -44,6 +46,8 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 
     /** In memory at once (the wallpaper service runs in this process and reads it from here). */
     fun setWallpaperProject(id: String) = edit { it.copy(wallpaperProjectId = id) }
+
+    fun bumpWallpaperRevision() = edit { it.copy(wallpaperRevision = it.wallpaperRevision + 1) }
 
     private fun edit(change: (SettingsState) -> SettingsState) {
         val next = change(_state.value)

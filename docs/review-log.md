@@ -238,3 +238,16 @@ Verdict: NEEDS WORK (3 major, 14 minor). Muxing, loop seams, export shapes and b
 | 15 | minor | Fit rounded the long edge up | Fixed: floored. |
 | 16 | minor | Shape chips overflow narrow screens | Fixed: the row scrolls. |
 | 17 | minor | No audio focus | Fixed: transient focus, pause on loss. |
+
+## Push 7, re-review round 2 (f08f8dc..8773931)
+
+Verdict: NEEDS WORK (1 major, 5 minor). All Push 7 fixes verified, compile, Hilt, init order and unit tests traced by hand.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | major | Wallpaper load swallowed cancellation (runCatching), a stale load could write over a reload | Fixed: cancellation rethrown, active check before touching state, bitmap recycled on every exit. |
+| 2 | minor | Beat clock could read a track the main thread just released | Fixed: guarded read. |
+| 3 | minor | Focus loss paused the sound but not the editor | Fixed: the editor pauses too. |
+| 4 | minor | Re-choosing the current wallpaper project did not reload it, and the service could read before the save | Fixed: an in-memory revision bumps after the save, the service reloads on it. |
+| 5 | minor | Export view model fields declared below init | Fixed: moved above. |
+| 6 | minor | Beat clock ignores output latency | Accepted: tens of ms on the speaker, preview only, exports are exact. |

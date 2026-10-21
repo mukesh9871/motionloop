@@ -13,13 +13,21 @@ import com.motionloop.app.domain.audio.Pcm
  * [positionSeconds] may be read from the render thread: it is the beat clock of the preview.
  */
 class AudioLoopPlayer(private val audioManager: AudioManager) {
+    /** Called on the main thread when another app or a call takes the audio, so the editor can pause too. */
+    var onFocusLost: (() -> Unit)? = null
+
     @Volatile private var track: AudioTrack? = null
     @Volatile private var loaded: Pcm? = null
 
     // Transient focus: other audio pauses or ducks while the preview plays, and a call pauses the preview.
     private val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
         .setAudioAttributes(attributes)
-        .setOnAudioFocusChangeListener { change -> if (change < 0) track?.pause() }
+        .setOnAudioFocusChangeListener { change ->
+            if (change < 0) {
+                track?.pause()
+                onFocusLost?.invoke()
+            }
+        }
         .build()
 
     /** Loads [pcm] (replacing the previous loop). Null stops and frees the track. */
@@ -66,7 +74,8 @@ class AudioLoopPlayer(private val audioManager: AudioManager) {
         val t = track ?: return null
         val pcm = loaded ?: return null
         if (t.playState != AudioTrack.PLAYSTATE_PLAYING) return null
-        return (t.playbackHeadPosition % pcm.frames).toFloat() / pcm.sampleRate
+        // The main thread may release the track between the check and the read.
+        return runCatching { (t.playbackHeadPosition % pcm.frames).toFloat() / pcm.sampleRate }.getOrNull()
     }
 
     fun release() {
