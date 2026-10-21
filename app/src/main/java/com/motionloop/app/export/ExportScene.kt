@@ -21,4 +21,6 @@ internal suspend fun applySky(graph: LoopRenderGraph, project: Project, assets: 
         null
     }
     graph.setSky(sky, mask, photo, replace = true)
+    // Uploaded to the GPU, and the graph only keeps it for an identity check.
+    photo?.recycle()
 }

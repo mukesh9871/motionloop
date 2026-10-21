@@ -69,6 +69,10 @@ class EditorViewModel @Inject constructor(
                 _state.update { it.copy(loading = false, error = "Project not found") }
                 return@launch
             }
+            // Before anything can save a new revision: older mask revisions and sky photos can go,
+            // since undo history starts empty.
+            assets.prune(projectId, MaskKind.SKY, setOf(project.sky.maskRev))
+            assets.pruneImages(projectId, ImageKind.SKY_PHOTO, setOf(project.sky.photoRev))
             val preview = try {
                 projects.loadImage(projectId, PREVIEW_EDGE)
             } catch (e: CancellationException) {
@@ -86,8 +90,6 @@ class EditorViewModel @Inject constructor(
             }
             refreshLut()
             _state.update { it.copy(hasCustomLut = luts.hasCustom(projectId)) }
-            // Undo history starts empty, so older sky mask revisions can go.
-            assets.prune(projectId, MaskKind.SKY, setOf(project.sky.maskRev))
             loadSkyMask(project.sky.maskRev)
             loadSkyPhoto(project.sky.photoRev)
         }
@@ -125,7 +127,11 @@ class EditorViewModel @Inject constructor(
         val combined = when {
             base != null -> withContext(cpu) { base.combine(region, subtract = !add) }
             add -> region
-            else -> return@runModel // nothing to remove from
+            else -> {
+                // No model area yet: only painted strokes exist, which taps do not change.
+                _state.update { it.copy(message = "Use Erase to remove painted sky.") }
+                return@runModel
+            }
         }
         val rev = assets.saveMask(projectId, MaskKind.SKY, combined)
         _state.update { it.copy(skyMask = combined, skyMaskRev = rev) }
@@ -159,9 +165,9 @@ class EditorViewModel @Inject constructor(
     }
 
     private fun loadSkyMask(rev: Int) {
-        if (rev == _state.value.skyMaskRev && (rev == 0 || _state.value.skyMask != null)) return
-        // Fast undo / redo: only the latest request may land.
+        // Fast undo / redo: only the latest request may land, even when this one needs no load.
         skyMaskJob?.cancel()
+        if (rev == _state.value.skyMaskRev && (rev == 0 || _state.value.skyMask != null)) return
         skyMaskJob = viewModelScope.launch {
             val mask = assets.loadMask(projectId, MaskKind.SKY, rev)
             _state.update { it.copy(skyMask = mask, skyMaskRev = rev) }

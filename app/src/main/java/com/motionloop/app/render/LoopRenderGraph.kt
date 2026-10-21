@@ -216,7 +216,8 @@ class LoopRenderGraph(assets: AssetManager) {
             sourcePass.releaseTarget()
             return src.id
         }
-        return sourcePass.render(src, skyMaskTex!!.id, skyPhoto?.id ?: 0, sky, skyReplace, phase, aspect).id
+        val photoAspect = skyPhoto?.let { it.width.toFloat() / it.height } ?: aspect
+        return sourcePass.render(src, skyMaskTex!!.id, skyPhoto?.id ?: 0, photoAspect, sky, skyReplace, phase, aspect).id
     }
 
     private fun bindTarget(fbo: Int, x: Int, y: Int, width: Int, height: Int) {

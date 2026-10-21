@@ -44,6 +44,7 @@ interface ProjectAssetRepository {
 
     /** Deletes revisions of [kind] that are not in [keep]. */
     suspend fun prune(projectId: String, kind: MaskKind, keep: Set<Int>)
+    suspend fun pruneImages(projectId: String, kind: ImageKind, keep: Set<Int>)
 }
 
 enum class ImageKind(val prefix: String) { SKY_PHOTO("sky_photo"), BACKGROUND("background") }

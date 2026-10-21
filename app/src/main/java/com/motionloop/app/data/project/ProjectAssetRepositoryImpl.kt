@@ -79,6 +79,14 @@ class ProjectAssetRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun pruneImages(projectId: String, kind: ImageKind, keep: Set<Int>) = lock.withLock {
+        withContext(io) {
+            dir(projectId).listFiles().orEmpty()
+                .filter { revOf(it.name, kind.prefix, IMAGE_EXT)?.let { rev -> rev !in keep } == true }
+                .forEach { it.delete() }
+        }
+    }
+
     private fun dir(projectId: String) = ProjectRepositoryImpl.projectDir(context, projectId)
 
     private fun nextRev(dir: File, prefix: String, ext: String): Int =

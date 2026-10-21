@@ -108,3 +108,20 @@ Verdict: CLEAN (4 minor). All round-1 fixes verified, margin math checked for ev
 ## Push 3, round 3 (delta a708519)
 
 Verdict: no blocker or major. 1 minor: streak slope ignored the wrap margin stretch of screen y. Fixed (slope / (1 + 2 * rainMargin)), as derived by the reviewer. GLSL validity, coverage, margins and periodicity confirmed.
+
+## Push 4 (Phase 4 sky, :core:ml), round 1
+
+Verdict: NEEDS WORK (1 major, 9 minor). APIs of MediaPipe 0.10.35, LiteRT 1.4.2, ML Kit subject segmentation and the AGP 9 library DSL verified against Maven metadata and source.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | major | `pow(x, 2.0)` with negative x in the aurora band is undefined in GLSL | Fixed: `x * x` (also in the sunset glow). |
+| 2 | minor | `smoothstep` with reversed edges for stars | Fixed. |
+| 3 | minor | Mipmapped sky photo sampled inside a branch, and stretched to the photo aspect | Fixed: `textureLod`, cover fit with the sky photo aspect. |
+| 4 | minor | Mask-load early return skipped cancelling an older load | Fixed: cancel first. |
+| 5 | minor | Prune could delete a revision saved right after the editor opened | Fixed: prune before the preview is published. |
+| 6 | minor | Deflater and Inflater native memory left to the finalizer | Fixed: explicit `end()`. |
+| 7 | minor | Empty SHA-256 pins, no download timeouts | Timeouts and User-Agent added (shared `DownloadAssetsTask` in buildSrc). Pins are filled from the first CI run's `models.txt`. |
+| 8 | minor | MiDaS shipped before Phase 5 uses it, asset merge from a library unverified | Kept: Phase 5 lands next. CI now lists the APK's assets in `apk-assets.txt` to verify the merge. |
+| 9 | minor | Tap to remove did nothing silently on painted-only skies | Fixed: message pointing to Erase. |
+| 10 | minor | Export sky photo not recycled, old sky photos never pruned | Fixed. |

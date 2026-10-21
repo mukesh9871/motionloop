@@ -182,7 +182,7 @@ app/src/test/                     unit tests (flow math reference, loop timing, 
 | Tap-to-select, sky | MediaPipe Interactive Segmenter `magic_touch.tflite` (5.9 MB, Apache 2.0) | No small public model has a sky class: sky detection seeds this model at sky-like points, the user fixes it by tapping and brushing |
 | Auto subject | ML Kit Subject Segmentation (Play services, on device, no model file) | Fallback: interactive segmenter at the image center |
 | Depth | MiDaS v2.1 small `model_opt.tflite` (63 MB, MIT) via LiteRT 1.4.x `Interpreter` | Input 1x256x256x3 float (ImageNet normalized), output 1x256x256 inverse depth |
-| Model delivery | `:core:ml` Gradle task downloads models into generated assets, SHA-256 pinned | Nothing binary in git. CI logs `MODEL_SHA256` lines for pinning |
+| Model and demo photo delivery | `buildSrc` `DownloadAssetsTask` downloads into generated assets, SHA-256 pinned | Nothing binary in git. CI logs `ASSET_SHA256` lines (ci-status `models.txt`) for pinning, and lists the APK assets in `apk-assets.txt` |
 | Ambient sounds | Synthesized in code (rain, waves, wind, fire) | Original, loop exactly |
 | MP4 audio | Own AAC MediaCodec encoder + the existing MediaMuxer | Replaces the earlier Media3 Transformer idea: one pipeline |
 

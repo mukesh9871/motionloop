@@ -6,7 +6,9 @@ import java.io.DataOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.zip.Deflater
 import java.util.zip.DeflaterOutputStream
+import java.util.zip.Inflater
 import java.util.zip.InflaterInputStream
 
 /**
@@ -25,10 +27,16 @@ object MaskCodec {
         data.writeInt(mask.width)
         data.writeInt(mask.height)
         data.flush()
-        val deflater = DeflaterOutputStream(out)
-        deflater.write(mask.data)
-        deflater.finish()
-        out.flush()
+        // Own Deflater so its native memory is freed now, not by the finalizer.
+        val deflater = Deflater()
+        try {
+            val stream = DeflaterOutputStream(out, deflater)
+            stream.write(mask.data)
+            stream.finish()
+            out.flush()
+        } finally {
+            deflater.end()
+        }
     }
 
     fun read(input: InputStream): AlphaMask {
@@ -39,12 +47,17 @@ object MaskCodec {
         val h = data.readInt()
         if (w !in 1..MAX_SIDE || h !in 1..MAX_SIDE) throw IOException("Bad mask size $w x $h")
         val bytes = ByteArray(w * h)
-        val inflater = InflaterInputStream(input)
-        var off = 0
-        while (off < bytes.size) {
-            val n = inflater.read(bytes, off, bytes.size - off)
-            if (n < 0) throw IOException("Mask file is truncated")
-            off += n
+        val inflater = Inflater()
+        try {
+            val stream = InflaterInputStream(input, inflater)
+            var off = 0
+            while (off < bytes.size) {
+                val n = stream.read(bytes, off, bytes.size - off)
+                if (n < 0) throw IOException("Mask file is truncated")
+                off += n
+            }
+        } finally {
+            inflater.end()
         }
         return AlphaMask(w, h, bytes)
     }

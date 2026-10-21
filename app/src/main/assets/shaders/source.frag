@@ -18,6 +18,7 @@ uniform float uDrift;          // 0..1
 uniform float uFeather;        // 0..1
 uniform float uHarmonize;      // 0..1
 uniform float uAspect;         // width / height
+uniform float uSkyPhotoAspect; // width / height of the sky photo
 
 out vec4 fragColor;
 
@@ -72,7 +73,7 @@ float stars(vec2 uv) {
     float d = length(grid - center);
     float m = 1.0 + floor(hash(cell + 1.3) * 3.0);
     float twinkle = 0.55 + 0.45 * sin(TAU * (m * uPhase + h * 10.0));
-    return smoothstep(0.35, 0.0, d) * twinkle;
+    return (1.0 - smoothstep(0.0, 0.35, d)) * twinkle;
 }
 
 vec3 skyColor(vec2 uv) {
@@ -83,7 +84,8 @@ vec3 skyColor(vec2 uv) {
         return mix(grad, vec3(0.97, 0.98, 1.0), c * 0.9);
     } else if (uStyle == 1) {
         vec3 grad = mix(vec3(0.22, 0.16, 0.42), vec3(1.0, 0.52, 0.24), smoothstep(0.05, 0.95, h));
-        float sun = exp(-pow(length(vec2((uv.x - 0.5) * uAspect, (h - 0.85) * 1.6)), 2.0) * 6.0);
+        float sd = length(vec2((uv.x - 0.5) * uAspect, (h - 0.85) * 1.6));
+        float sun = exp(-sd * sd * 6.0);
         grad += vec3(1.0, 0.75, 0.4) * sun * 0.6;
         float c = drifting(uv, 0.5, 2.0);
         vec3 cloud = mix(vec3(0.95, 0.45, 0.45), vec3(1.0, 0.78, 0.55), h);
@@ -100,17 +102,24 @@ vec3 skyColor(vec2 uv) {
     } else if (uStyle == 4) {
         vec3 grad = mix(vec3(0.01, 0.03, 0.08), vec3(0.04, 0.10, 0.18), h);
         float wave = 0.32 + 0.07 * sin(TAU * (uv.x * 1.5 + uPhase)) + 0.03 * sin(TAU * (uv.x * 4.0 - 2.0 * uPhase));
-        float band = exp(-pow((h - wave) * 7.0, 2.0));
+        // x * x, not pow(x, 2.0): pow is undefined for negative x in GLSL.
+        float dw = (h - wave) * 7.0;
+        float band = exp(-dw * dw);
         float rays = 0.6 + 0.4 * noise(vec2(uv.x * uAspect * 30.0, 0.0));
         vec3 aurora = mix(vec3(0.1, 0.95, 0.55), vec3(0.6, 0.3, 0.95), smoothstep(wave - 0.1, wave + 0.15, h));
         return grad + vec3(stars(uv)) * 0.8 + aurora * band * rays * 0.9;
     }
-    // Photo: drift sideways with the crossfade trick, mirrored repeat hides the edges.
+    // Photo: cover-fit (no stretching), drift sideways with the crossfade trick,
+    // mirrored repeat hides the edges. textureLod: this runs inside a per-pixel branch,
+    // where implicit mip selection is undefined.
+    vec2 fit = vec2(1.0);
+    if (uSkyPhotoAspect > uAspect) fit.x = uAspect / uSkyPhotoAspect; else fit.y = uSkyPhotoAspect / uAspect;
+    vec2 st = (vUv - 0.5) * fit + 0.5;
     float p1 = fract(uPhase);
     float p2 = fract(uPhase + 0.5);
     float d = uDrift * 0.3;
-    vec3 a = texture(uSkyPhoto, vec2(vUv.x + d * (p1 - 0.5), vUv.y)).rgb;
-    vec3 b = texture(uSkyPhoto, vec2(vUv.x + d * (p2 - 0.5), vUv.y)).rgb;
+    vec3 a = textureLod(uSkyPhoto, vec2(st.x + d * (p1 - 0.5), st.y), 0.0).rgb;
+    vec3 b = textureLod(uSkyPhoto, vec2(st.x + d * (p2 - 0.5), st.y), 0.0).rgb;
     return mix(a, b, abs(2.0 * p1 - 1.0));
 }
 

@@ -24,6 +24,7 @@ class SourcePass(assets: AssetManager, private val quad: FullscreenQuad) : Rende
         photo: GlTexture,
         skyMaskTex: Int,
         skyPhotoTex: Int,
+        skyPhotoAspect: Float,
         sky: SkySettings,
         replace: Boolean,
         phase: Float,
@@ -44,6 +45,7 @@ class SourcePass(assets: AssetManager, private val quad: FullscreenQuad) : Rende
         program.set1f("uFeather", sky.feather.coerceIn(0f, 1f))
         program.set1f("uHarmonize", sky.harmonize.coerceIn(0f, 1f))
         program.set1f("uAspect", aspect)
+        program.set1f("uSkyPhotoAspect", skyPhotoAspect)
         quad.draw()
         // The warp minifies this texture, mipmaps keep the result from shimmering.
         target.generateMipmaps()

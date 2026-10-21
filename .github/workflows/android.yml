@@ -63,7 +63,12 @@ jobs:
           if [ -f build.log ]; then
             grep -nE "^e: |^w: .*deprecated|error:|What went wrong|FAILED|Exception" -A4 build.log | head -n 400 > "$out/errors.txt" || true
             tail -n 300 build.log > "$out/build-tail.txt"
-            grep -h "MODEL_SHA256" build.log > "$out/models.txt" || true
+            grep -h "ASSET_SHA256" build.log > "$out/models.txt" || true
+          fi
+          # Confirms the downloaded models and demo photos really ship inside the APK.
+          if ls app/build/outputs/apk/debug/*.apk >/dev/null 2>&1; then
+            unzip -l app/build/outputs/apk/debug/*.apk | grep -E "tflite|demos/" > "$out/apk-assets.txt" || true
+            ls -l app/build/outputs/apk/debug/*.apk >> "$out/apk-assets.txt"
           fi
           cd "$out"
           git init -q -b ci-status
