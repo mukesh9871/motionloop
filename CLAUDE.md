@@ -108,51 +108,54 @@ color = mix(c1, c2, w)
 
 ## Package structure
 
-Single `:app` Gradle module for Phase 1, organized by layer and feature. Split into Gradle modules (`:core:gl`, `:core:ml`, `:feature:*`) at the start of Phase 4, when the ML models and native libraries arrive and build times start to matter.
+Two Gradle modules: `:app` (everything app-specific, organized by layer and feature) and `:core:ml`
+(on-device models: segmentation, depth, sky seeds, with the build-time model download). `buildSrc` holds
+the shared pinned-download task.
 
 ```
+core/ml/src/main/java/com/motionloop/ml/   Segmenter (MediaPipe + ML Kit), DepthEstimator (LiteRT), SkySeeds, AlphaMask
 app/src/main/
   assets/shaders/                 *.vert / *.frag (GLSL ES 3.00)
   java/com/motionloop/app/
-    MotionLoopApp.kt              @HiltAndroidApp
-    MainActivity.kt
-    navigation/                   NavHost, routes
+    MotionLoopApp.kt, MainActivity.kt
+    navigation/                   NavHost, routes, guarded back
     core/
-      di/                         Hilt modules (dispatchers, repositories)
-      common/                     DispatcherProvider, Result helpers
-      gl/                         EglCore, GlProgram, GlTexture, Framebuffer, GlUtil, ShaderLoader
-      image/                      BitmapDecoder (EXIF rotation, downsampling)
+      di/                         Hilt modules (dispatchers, repositories, ML singletons, entitlements)
+      common/                     dispatcher qualifiers
+      gl/                         EglCore (pbuffer, window, recordable), GlProgram, GlTexture, GlUtil, FullscreenQuad
+      image/                      BitmapDecoder (EXIF, downsampling)
     domain/
-      model/                      Project, MotionArrow, Anchor, MaskStroke, LoopSettings, ExportSettings
-      repository/                 ProjectRepository, MediaRepository (interfaces)
-                                  (use case classes are added only when a flow has real logic of its own)
+      model/                      Project and every feature's settings, LoopTiming, color grades, cube parser, mask codec, text timing
+      audio/                      AudioSettings, AmbientSynth, BeatDetector, ClipAudio (pure, tested)
+      pro/                        ProFeature, ProPolicy (master switch), Entitlements
+      repository/                 repository interfaces
     data/
-      project/                    ProjectRepositoryImpl, ProjectJson
-      media/                      MediaStoreSaver, ShareHelper, CameraUriProvider
+      project/                    projects (JSON), per-project assets (mask, image and audio revisions)
+      color/                      LUT repository
+      media/                      gallery saving, share and camera intents
+      audio/                      AudioDecoder, AudioEncoder (AAC), AudioLoopPlayer
+      settings/                   AppSettings (SharedPreferences), LocalEntitlements
     render/
-      RenderScene.kt              immutable snapshot the VM sends to the renderer
-      RenderGraph.kt, RenderPass.kt
-      passes/                     FlowFieldPass, MaskPass, LoopWarpPass, PresentPass
-      editor/                     EditorRenderer (GLSurfaceView.Renderer), GlPreview composable
+      LoopRenderGraph.kt          the pass chain shared by editor, exports and wallpaper
+      RenderScene.kt              immutable snapshot the ViewModel sends to the renderer
+      passes/                     Flow, Mask, Source (sky + background), Blur, Warp, Text, Parallax, Overlay, Color
+      text/                       TextRasterizer (Canvas, off the main thread)
+      editor/                     EditorRenderer (GLSurfaceView), GlPreview composable
     export/
-      video/                      VideoExporter, EncoderSurface
-      gif/                        GifExporter, GifEncoder (+ LZW), GifQuantizer
+      video/ gif/ png/            exporters, plus ExportScene (shared scene loading) and OffscreenLoop (GL thread, sizes)
     feature/
-      home/                       HomeScreen, HomeViewModel
-      editor/                     EditorScreen, EditorViewModel, EditorUiState
-        tools/                    ArrowTool, AnchorTool, MaskBrushTool, gesture handling
-        components/               toolbars, sliders, play/pause, loop mode toggle
+      home/                       Home, drawer, samples, share
+      editor/                     EditorScreen, EditorViewModel, EditorUiState, tools/, components/ (one panel per feature)
       export/                     ExportSheet, ExportViewModel
-    ui/
-      theme/                      Color, Type, Theme (own palette)
-      icons/                      own vector icons
-  res/                            strings, drawables, xml/file_paths.xml
-app/src/test/                     unit tests (flow math reference, loop timing, GIF encoder)
+      settings/ help/ pro/        Settings, licenses and credits, Help, Pro page
+      wallpaper/                  LoopWallpaperService
+    ui/                           theme, own icons, shared screen components
+app/src/test, core/ml/src/test    JVM unit tests
 ```
 
 ## Phased roadmap
 
-**Status (2026-10-21):** Phases 1, 2 and 3 are built, pass CI and were tested on a phone. Phases 4 to 6 are in progress (plan below).
+**Status (2026-10-21):** Phases 1 to 3 are built, pass CI and were tested on a phone. Phases 4 to 6 and the app shell (drawer, settings, samples, Pro architecture) are built; device testing of Phases 4 to 6 is pending.
 
 | Phase | Features | Key deliverables |
 |---|---|---|
@@ -196,6 +199,7 @@ source --[LoopWarp (flow, freeze mask = strokes + selection masks)]--> frame
 frame --[Color + overlay]--> [Text layers, subject re-drawn on top]--> [Parallax by depth]--> target
 ```
 Each bracketed stage is skipped when unused. Post stages ping-pong between two offscreen frames, the last active stage draws into the target.
+Final order: Source (sky, background) -> Warp -> Behind text (+ subject redrawn) -> Parallax -> Front text -> Color + overlay.
 
 ### Milestones (each: review loop, push, green CI)
 
