@@ -83,8 +83,9 @@ class EditorViewModel @Inject constructor(
     private val projectId: String = checkNotNull(savedState[Routes.ARG_PROJECT_ID])
 
     // Above _state and init: the initial state reads it, and init starts a collector that uses it.
-    private val player = AudioLoopPlayer(audioManager).apply { onFocusLost = { setPlaying(false) } }
-    private val _state = MutableStateFlow(EditorUiState(audioClock = AudioClock { player.positionSeconds() }))
+    // Explicit types: player and _state refer to each other through lambdas.
+    private val player: AudioLoopPlayer = AudioLoopPlayer(audioManager).apply { onFocusLost = { setPlaying(false) } }
+    private val _state: MutableStateFlow<EditorUiState> = MutableStateFlow(EditorUiState(audioClock = AudioClock { player.positionSeconds() }))
     val state: StateFlow<EditorUiState> = _state.asStateFlow()
 
     private var lutJob: Job? = null
@@ -669,7 +670,9 @@ class EditorViewModel @Inject constructor(
     fun setBrushRadius(r: Float) = _state.update { it.copy(brushRadius = r) }
     fun setBrushHardness(h: Float) = _state.update { it.copy(brushHardness = h) }
     fun togglePlay() = _state.update { it.copy(playing = !it.playing) }
-    fun setPlaying(playing: Boolean) = _state.update { it.copy(playing = playing) }
+    fun setPlaying(playing: Boolean) {
+        _state.update { it.copy(playing = playing) }
+    }
 
     fun setSpeed(speed: Float) = updateLoop { it.copy(speed = speed.coerceIn(LoopSettings.MIN_SPEED, LoopSettings.MAX_SPEED)) }
     fun setLoopMode(mode: LoopMode) = updateLoop { it.copy(mode = mode) }
