@@ -1,6 +1,11 @@
 package com.motionloop.app.feature.export
 
 import android.Manifest
+import android.app.WallpaperManager
+import android.content.ActivityNotFoundException
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -40,6 +45,7 @@ import com.motionloop.app.domain.model.ExportFormat
 import com.motionloop.app.domain.model.ExportResolution
 import com.motionloop.app.domain.pro.ProFeature
 import com.motionloop.app.domain.pro.ProPolicy
+import com.motionloop.app.feature.wallpaper.LoopWallpaperService
 import com.motionloop.app.domain.model.ExportSettings
 import com.motionloop.app.ui.theme.MlColors
 
@@ -165,6 +171,19 @@ fun ExportSheet(onDismiss: () -> Unit, onOpenPro: () -> Unit, vm: ExportViewMode
                     }
                 }
                 else -> {
+                    OutlinedButton(
+                        onClick = {
+                            if (locked(ProFeature.LIVE_WALLPAPER)) {
+                                onDismiss()
+                                onOpenPro()
+                            } else {
+                                vm.chooseForWallpaper()
+                                openWallpaperPicker(context)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Set as live wallpaper") }
+                    Spacer(Modifier.height(8.dp))
                     state.error?.let {
                         Text(it, color = MlColors.Coral, style = MaterialTheme.typography.bodySmall)
                         Spacer(Modifier.height(8.dp))
@@ -176,6 +195,22 @@ fun ExportSheet(onDismiss: () -> Unit, onOpenPro: () -> Unit, vm: ExportViewMode
                     ) { Text("Export ${settings.format.name}") }
                 }
             }
+        }
+    }
+}
+
+/** Opens the system preview for MotionLoop's wallpaper, or the general picker on devices without it. */
+private fun openWallpaperPicker(context: Context) {
+    val component = ComponentName(context, LoopWallpaperService::class.java)
+    val direct = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER)
+        .putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, component)
+    try {
+        context.startActivity(direct)
+    } catch (e: ActivityNotFoundException) {
+        try {
+            context.startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER))
+        } catch (ignored: ActivityNotFoundException) {
+            // No wallpaper picker on this device: nothing more to offer.
         }
     }
 }

@@ -54,7 +54,7 @@ class PngExporter @Inject constructor(
         var success = false
         try {
             out.parentFile?.mkdirs()
-            val e = EglCore(recordable = false).also { egl = it }
+            val e = EglCore(EglCore.Kind.PBUFFER).also { egl = it }
             e.makeCurrentPbuffer()
             val bitmap = projects.loadImage(project.id, minOf(max(w, h), GlUtil.maxTextureSize()))
             val g = LoopRenderGraph(context.assets).also { graph = it }

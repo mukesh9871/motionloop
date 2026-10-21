@@ -62,7 +62,7 @@ class GifExporter @Inject constructor(
             try {
                 out.parentFile?.mkdirs()
                 // Assign before using it, so a failure in makeCurrentPbuffer still releases the context.
-                val e = EglCore(recordable = false).also { egl = it }
+                val e = EglCore(EglCore.Kind.PBUFFER).also { egl = it }
                 e.makeCurrentPbuffer()
                 val bitmap = projects.loadImage(project.id, minOf(max(w, h) * 2, GlUtil.maxTextureSize()))
                 val g = LoopRenderGraph(context.assets).also { graph = it }

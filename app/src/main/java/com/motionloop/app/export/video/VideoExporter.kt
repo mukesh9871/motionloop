@@ -72,7 +72,7 @@ class VideoExporter @Inject constructor(
                 c.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
                 val surface = c.createInputSurface().also { inputSurface = it }
                 c.start()
-                val e = EglCore(recordable = true).also { egl = it }
+                val e = EglCore(EglCore.Kind.RECORDABLE).also { egl = it }
                 e.makeCurrentWindow(surface)
 
                 // Decode near output size: sharper than GPU minification and far less memory.

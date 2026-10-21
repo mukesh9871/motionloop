@@ -52,7 +52,7 @@ class ExportViewModel @Inject constructor(
     private val pngExporter: PngExporter,
     @DefaultDispatcher private val cpu: CoroutineDispatcher,
     entitlements: Entitlements,
-    settings: AppSettings,
+    private val settings: AppSettings,
 ) : ViewModel() {
 
     val isPro: StateFlow<Boolean> = entitlements.isPro
@@ -129,6 +129,15 @@ class ExportViewModel @Inject constructor(
             } finally {
                 withContext(NonCancellable + cpu) { file.delete() }
             }
+        }
+    }
+
+    /** Remembers this project for the live wallpaper. The screen then opens the system picker. */
+    fun chooseForWallpaper() {
+        viewModelScope.launch {
+            // Latest edits on disk first: the wallpaper service reads the project file.
+            projects.flush()
+            settings.setWallpaperProject(projectId)
         }
     }
 

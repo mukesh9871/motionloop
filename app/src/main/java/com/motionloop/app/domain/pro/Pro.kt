@@ -14,7 +14,7 @@ enum class ProFeature(val title: String, val description: String, val available:
     CUSTOM_LUT("Custom color grades", "Import your own .cube color grades.", available = true),
     BACKGROUND_PHOTO("Background photos", "Replace the background with any photo.", available = true),
     MUSIC("Your own music", "Add your own audio and sync motion to the beat.", available = false),
-    LIVE_WALLPAPER("Live wallpaper", "Set any loop as your home or lock screen wallpaper.", available = false),
+    LIVE_WALLPAPER("Live wallpaper", "Set any loop as your home or lock screen wallpaper.", available = true),
 }
 
 object ProPolicy {

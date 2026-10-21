@@ -18,6 +18,8 @@ data class SettingsState(
     val keepScreenOn: Boolean = true,
     /** Debug builds only: pretend to own Pro to test locked features. */
     val simulatePro: Boolean = false,
+    /** Project shown by the live wallpaper. */
+    val wallpaperProjectId: String? = null,
 )
 
 /**
@@ -40,6 +42,12 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
     fun setKeepScreenOn(on: Boolean) = edit { it.copy(keepScreenOn = on) }
     fun setSimulatePro(on: Boolean) = edit { it.copy(simulatePro = on && BuildConfig.DEBUG) }
 
+    /** Uses commit, not apply: the wallpaper service may read it right after, in another component. */
+    fun setWallpaperProject(id: String) {
+        _state.value = _state.value.copy(wallpaperProjectId = id)
+        prefs.edit().putString(KEY_WALLPAPER, id).commit()
+    }
+
     private fun edit(change: (SettingsState) -> SettingsState) {
         val next = change(_state.value)
         _state.value = next
@@ -60,12 +68,14 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
             ?: ExportResolution.FULL_HD,
         keepScreenOn = prefs.getBoolean(KEY_SCREEN_ON, true),
         simulatePro = BuildConfig.DEBUG && prefs.getBoolean(KEY_SIMULATE_PRO, false),
+        wallpaperProjectId = prefs.getString(KEY_WALLPAPER, null),
     )
 
     private companion object {
         const val KEY_RESOLUTION = "default_resolution"
         const val KEY_SCREEN_ON = "keep_screen_on"
         const val KEY_SIMULATE_PRO = "simulate_pro"
+        const val KEY_WALLPAPER = "wallpaper_project"
     }
 }
 

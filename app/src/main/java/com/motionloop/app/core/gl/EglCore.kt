@@ -9,13 +9,27 @@ import android.opengl.EGLSurface
 import android.view.Surface
 
 /**
- * Minimal EGL 1.4 wrapper for off-screen work (export). The editor uses GLSurfaceView instead.
+ * Minimal EGL 1.4 wrapper for export and the live wallpaper. The editor uses GLSurfaceView instead.
  * Must be created, used and released on one thread.
  *
- * @param recordable true for rendering into a MediaCodec input surface (window surface),
- *   false for pbuffer-only work. Asking only for what is needed finds a config on more devices.
+ * Asking only for the surface type that is needed finds a config on more devices.
  */
-class EglCore(private val recordable: Boolean) {
+class EglCore(private val kind: Kind) {
+
+    enum class Kind {
+        /** Offscreen work into FBOs (GIF, PNG). */
+        PBUFFER,
+
+        /** An on-screen window (live wallpaper). */
+        WINDOW,
+
+        /** A MediaCodec input surface (MP4). */
+        RECORDABLE,
+    }
+
+    private val recordable = kind == Kind.RECORDABLE
+    private val window = kind != Kind.PBUFFER
+
     private val display: EGLDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
     private val config: EGLConfig
     private val context: EGLContext
@@ -32,12 +46,12 @@ class EglCore(private val recordable: Boolean) {
             EGL14.EGL_BLUE_SIZE, 8,
             EGL14.EGL_ALPHA_SIZE, 8,
             EGL14.EGL_RENDERABLE_TYPE, EGLExt.EGL_OPENGL_ES3_BIT_KHR,
-            EGL14.EGL_SURFACE_TYPE, if (recordable) EGL14.EGL_WINDOW_BIT else EGL14.EGL_PBUFFER_BIT,
+            EGL14.EGL_SURFACE_TYPE, if (window) EGL14.EGL_WINDOW_BIT else EGL14.EGL_PBUFFER_BIT,
         ) + (if (recordable) intArrayOf(EGL_RECORDABLE_ANDROID, 1) else IntArray(0)) + EGL14.EGL_NONE
         val configs = arrayOfNulls<EGLConfig>(1)
         val count = IntArray(1)
         check(EGL14.eglChooseConfig(display, attribs, 0, configs, 0, 1, count, 0) && count[0] > 0) {
-            if (recordable) "No recordable GLES3 EGL config" else "No GLES3 pbuffer EGL config"
+            "No GLES3 EGL config for $kind"
         }
         config = configs[0]!!
 
@@ -48,9 +62,9 @@ class EglCore(private val recordable: Boolean) {
         check(context != EGL14.EGL_NO_CONTEXT) { "eglCreateContext failed" }
     }
 
-    /** Renders into an encoder input surface. */
+    /** Renders into a window: an encoder input surface or the wallpaper surface. */
     fun makeCurrentWindow(target: Surface) {
-        check(recordable) { "Created for pbuffer use only" }
+        check(window) { "Created for pbuffer use only" }
         releaseSurface()
         surface = EGL14.eglCreateWindowSurface(display, config, target, intArrayOf(EGL14.EGL_NONE), 0)
         check(surface != EGL14.EGL_NO_SURFACE) { "eglCreateWindowSurface failed" }
@@ -59,7 +73,7 @@ class EglCore(private val recordable: Boolean) {
 
     /** Tiny pbuffer, used when all drawing goes to FBOs (GIF export). */
     fun makeCurrentPbuffer() {
-        check(!recordable) { "Created for window surfaces only" }
+        check(!window) { "Created for window surfaces only" }
         releaseSurface()
         surface = EGL14.eglCreatePbufferSurface(
             display, config, intArrayOf(EGL14.EGL_WIDTH, 1, EGL14.EGL_HEIGHT, 1, EGL14.EGL_NONE), 0,

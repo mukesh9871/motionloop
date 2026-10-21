@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MotionLoop</string>
+    <string name="wallpaper_description">Plays one of your MotionLoop loops on the home and lock screen.</string>
 </resources>
