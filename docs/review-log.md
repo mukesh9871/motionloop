@@ -125,3 +125,8 @@ Verdict: NEEDS WORK (1 major, 9 minor). APIs of MediaPipe 0.10.35, LiteRT 1.4.2,
 | 8 | minor | MiDaS shipped before Phase 5 uses it, asset merge from a library unverified | Kept: Phase 5 lands next. CI now lists the APK's assets in `apk-assets.txt` to verify the merge. |
 | 9 | minor | Tap to remove did nothing silently on painted-only skies | Fixed: message pointing to Erase. |
 | 10 | minor | Export sky photo not recycled, old sky photos never pruned | Fixed. |
+
+## Push 4, round 2
+
+Verdict: CLEAN (3 minor). All round-1 fixes verified, buildSrc and redirect handling confirmed.
+Minors 1 (tap while the stored mask still loads) and 2 (photo load ordering) are fixed in the next milestone. Minor 3 (sky photo sampled at level 0) accepted: the photo is loaded at the preview's size, so there is little minification.
