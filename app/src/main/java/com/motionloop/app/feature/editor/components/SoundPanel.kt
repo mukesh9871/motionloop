@@ -1,5 +1,6 @@
 package com.motionloop.app.feature.editor.components
 
+import androidx.compose.ui.semantics.Role
 import com.motionloop.app.ui.components.TileRow
 import com.motionloop.app.ui.components.EffectTile
 import androidx.compose.foundation.background
@@ -48,7 +49,15 @@ fun SoundPanel(
                 })
             }
             val fileActive = audio.source == AudioSource.FILE && audio.fileRev != 0
-            EffectTile(if (fileActive) "Change" else "Your audio", selected = fileActive, enabled = !busy, preview = PickPreview, onClick = onPickFile)
+            EffectTile(
+                if (fileActive) "Change" else "Your audio",
+                selected = fileActive,
+                enabled = !busy,
+                role = Role.Button,
+                description = if (fileActive) "Change your audio file" else "Pick your own audio",
+                preview = PickPreview,
+                onClick = onPickFile,
+            )
         }
         Spacer(Modifier.height(6.dp))
         Text(

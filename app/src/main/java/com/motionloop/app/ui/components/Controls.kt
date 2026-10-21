@@ -112,6 +112,30 @@ fun Modifier.lazyScrollBar(state: LazyListState): Modifier {
     }
 }
 
+/** Horizontal lazy row variant of [lazyScrollBar]: a thin bar along the bottom. */
+@Composable
+fun Modifier.lazyScrollBarHorizontal(state: LazyListState): Modifier {
+    val thumb = MlColors.TextSecondary.copy(alpha = 0.7f)
+    val track = MlColors.TextSecondary.copy(alpha = 0.15f)
+    return drawWithContent {
+        drawContent()
+        val info = state.layoutInfo
+        val total = info.totalItemsCount
+        val visible = info.visibleItemsInfo
+        if (total == 0 || visible.isEmpty() || (!state.canScrollForward && !state.canScrollBackward)) return@drawWithContent
+        val first = visible.first()
+        val firstFraction = if (first.size > 0) (-first.offset).toFloat() / first.size else 0f
+        val position = (first.index + firstFraction.coerceIn(0f, 1f)) / total
+        val viewport = size.width
+        val thickness = 3.dp.toPx()
+        val length = minOf(maxOf(viewport * visible.size / total, 28.dp.toPx()), viewport)
+        val start = (position * viewport).coerceIn(0f, viewport - length)
+        val y = size.height - thickness
+        drawRoundRect(track, Offset(0f, y), Size(viewport, thickness), CornerRadius(thickness / 2))
+        drawRoundRect(thumb, Offset(start, y), Size(length, thickness), CornerRadius(thickness / 2))
+    }.padding(bottom = 6.dp)
+}
+
 private fun DrawScope.drawBar(state: ScrollState, vertical: Boolean, thumb: Color, track: Color) {
     val max = state.maxValue
     // Int.MAX_VALUE until the first measure.

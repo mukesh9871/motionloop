@@ -378,3 +378,22 @@ Verdict: CLEAN (0 blocker, 0 major, 1 minor). Column counts checked at 320 to 84
 | 1 | minor | A cancel landing in the few microseconds between the check and the handover can still drop one audio track | Accepted: rare, bounded, freed by the collector. |
 
 CI after the full review: three failures the reviewers missed, all compile errors (nullable `videoCapabilities`, `bitrateRange` on the wrong capabilities class, a test naming a Pro feature that does not exist). Green on 85ef5f4, with R8 running on every push from now on.
+
+## Effect tiles round 1 (b8b3b32)
+
+Verdict: NEEDS WORK (1 major, 11 minor). Compile, exhaustive whens, alpha ranges and brace balance verified.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | major | Labels cut to one 64 dp line ("Transpar...", "Import .c...") | Fixed: 76 dp wide labels on two lines, equal height. |
+| 2 | minor | Sky tile not shown as chosen before a sky area exists | Fixed. |
+| 3 | minor | Action tiles announced as radio buttons | Fixed: button role for add and pick tiles. |
+| 4 | minor | Tile rows not a selectable group | Fixed. |
+| 5 | minor | "Change" spoken without an object | Fixed: full spoken names. |
+| 6 | minor | Raw pixel sizes in previews | Fixed: sizes in tile units. |
+| 7 | minor | Fire tile drew the sticker background | Fixed: shared flame drawing. |
+| 8 | minor | Negative bar width in the typewriter preview | Fixed. |
+| 9 | minor | Selected tile recomposed every frame | Fixed: time read in the draw block. |
+| 10 | minor | Parameter order | Fixed. |
+| 11 | minor | Grade row without a scroll bar | Fixed. |
+| 12 | minor | Indentation in the Cutout tiles | Fixed. |

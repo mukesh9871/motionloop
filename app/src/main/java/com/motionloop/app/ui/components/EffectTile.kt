@@ -20,11 +20,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -36,10 +37,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.motionloop.app.ui.theme.MlColors
 
 /** Draws a tile preview at loop time [t] in 0..1. Plain drawing, no composable calls. */
@@ -53,30 +57,34 @@ typealias TilePreview = DrawScope.(t: Float) -> Unit
 fun EffectTile(
     label: String,
     selected: Boolean,
-    enabled: Boolean = true,
-    modifier: Modifier = Modifier,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    /** Button for one-tap actions (add a sticker, pick a file), radio button for a choice. */
+    role: Role = Role.RadioButton,
+    /** Spoken name when the short label alone is unclear ("Change" becomes "Change sky photo"). */
+    description: String? = null,
     preview: TilePreview,
 ) {
     val shape = RoundedCornerShape(14.dp)
     // Only the selected tile animates: a row of always-running previews costs battery for nothing.
-    val t = if (selected) {
-        val transition = rememberInfiniteTransition(label = "tile")
-        val value by transition.animateFloat(
+    // The value is read in the draw block, so the tile redraws without recomposing.
+    val time: State<Float>? = if (selected) {
+        rememberInfiniteTransition(label = "tile").animateFloat(
             initialValue = 0f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing), RepeatMode.Restart),
             label = "t",
         )
-        value
     } else {
-        STILL_T
+        null
     }
     Column(
         modifier
-            .width(TILE_SIZE)
+            .width(TILE_WIDTH)
             .alpha(if (enabled) 1f else 0.4f)
-            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick),
+            .selectable(selected = selected, enabled = enabled, role = role, onClick = onClick)
+            .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
@@ -86,7 +94,7 @@ fun EffectTile(
                 .background(MlColors.SurfaceHigh)
                 .border(if (selected) 2.5.dp else 1.dp, if (selected) MlColors.Violet else MlColors.SurfaceHigh, shape),
         ) {
-            Canvas(Modifier.size(TILE_SIZE)) { preview(t) }
+            Canvas(Modifier.size(TILE_SIZE)) { preview(time?.value ?: STILL_T) }
         }
         Spacer(Modifier.height(4.dp))
         Text(
@@ -94,9 +102,12 @@ fun EffectTile(
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = if (selected) MlColors.TextPrimary else MlColors.TextSecondary,
-            maxLines = 1,
+            // Two lines, the same height on every tile, so "Transparent" or "Import .cube" fit.
+            minLines = 2,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
+            lineHeight = 14.sp,
         )
     }
 }
@@ -106,6 +117,7 @@ fun EffectTile(
 fun TileRow(content: @Composable () -> Unit) {
     Row(
         Modifier
+            .selectableGroup()
             .horizontalScrollWithBar(rememberScrollState())
             .padding(top = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -113,6 +125,9 @@ fun TileRow(content: @Composable () -> Unit) {
 }
 
 val TILE_SIZE = 64.dp
+
+/** Wider than the picture, so labels have room. */
+private val TILE_WIDTH = 76.dp
 
 /** Where an unselected preview stands still: mid-motion, so it still shows what it does. */
 private const val STILL_T = 0.35f

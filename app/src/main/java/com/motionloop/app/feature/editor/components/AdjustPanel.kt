@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.ui.components.lazyScrollBarHorizontal
+import androidx.compose.foundation.lazy.rememberLazyListState
 import com.motionloop.app.ui.components.EffectTile
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -56,8 +58,14 @@ fun AdjustPanel(
     // Read here: the swatch lambdas below are not composable.
     val mint = MlColors.Mint
     val high = MlColors.SurfaceHigh
+    val gradeList = rememberLazyListState()
     Column(modifier.fillMaxWidth()) {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        // The same scroll bar as every other tile row.
+        LazyRow(
+            state = gradeList,
+            modifier = Modifier.lazyScrollBarHorizontal(gradeList),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             item {
                 GradeChip("None", selected = adjustments.gradeId == null, onClick = { onSelectGrade(null) }) {
                     swatchSamples.map { it.toColor() }

@@ -90,14 +90,22 @@ fun SkyPanel(
             SkyStyle.entries.forEach { style ->
                 val isPhoto = style == SkyStyle.PHOTO
                 val label = if (isPhoto && sky.photoRev != 0 && sky.style == SkyStyle.PHOTO) "Change" else style.label()
-                EffectTile(label, selected = sky.style == style && sky.enabled, enabled = !busy, preview = skyPreview(style), onClick = {
+                // Shown as chosen even before a sky area exists, so a tap visibly does something.
+                EffectTile(
+                    label,
+                    selected = sky.style == style,
+                    enabled = !busy,
+                    description = if (isPhoto) (if (label == "Change") "Change sky photo" else "Your own sky photo") else null,
+                    preview = skyPreview(style),
+                    onClick = {
                     // The photo style needs a photo first. Tapping it again picks a different one.
                     if (isPhoto && (sky.photoRev == 0 || sky.style == SkyStyle.PHOTO)) {
                         onPickPhoto()
                     } else {
-                        onChange { it.copy(style = style, enabled = it.hasArea) }
-                    }
-                })
+                            onChange { it.copy(style = style, enabled = it.hasArea) }
+                        }
+                    },
+                )
             }
         }
         LabeledSlider("Drift", sky.drift, 0f..1f, { v -> onChange { it.copy(drift = v) } })

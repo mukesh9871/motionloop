@@ -1,5 +1,6 @@
 package com.motionloop.app.feature.editor.components
 
+import androidx.compose.ui.semantics.Role
 import com.motionloop.app.ui.components.TileRow
 import com.motionloop.app.ui.components.EffectTile
 import androidx.compose.foundation.clickable
@@ -50,7 +51,14 @@ fun EffectsPanel(
         // Each tap adds one more sticker of that kind.
         TileRow {
             StickerKind.entries.forEach { kind ->
-                EffectTile(kind.label, selected = false, preview = stickerPreview(kind), onClick = { onAddSticker(kind) })
+                EffectTile(
+                    kind.label,
+                    selected = false,
+                    role = Role.Button,
+                    description = "Add ${kind.label.lowercase()} sticker",
+                    preview = stickerPreview(kind),
+                    onClick = { onAddSticker(kind) },
+                )
             }
         }
         if (effects.stickers.isNotEmpty()) {
