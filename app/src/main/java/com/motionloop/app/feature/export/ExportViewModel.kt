@@ -138,7 +138,8 @@ class ExportViewModel @Inject constructor(
         // Before the encoder check finishes, the list holds only what every phone can do.
         val chosen = _state.value.settings
         val settings = if (chosen.resolution in _state.value.resolutions) chosen else chosen.copy(resolution = ExportResolution.FULL_HD)
-        _state.update { it.copy(running = true, progress = 0f, resultUri = null, error = null) }
+        // Shown as chosen, so the sheet matches the file even after a fallback.
+        _state.update { it.copy(settings = settings, running = true, progress = 0f, resultUri = null, error = null) }
         job = viewModelScope.launch {
             val (mime, ext) = when (settings.format) {
                 ExportFormat.MP4 -> "video/mp4" to ".mp4"

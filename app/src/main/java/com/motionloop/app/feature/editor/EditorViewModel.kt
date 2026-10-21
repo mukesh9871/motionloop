@@ -609,8 +609,8 @@ class EditorViewModel @Inject constructor(
 
     fun setPanel(panel: EditorPanel) =
         _state.update {
-            // A message that belongs to the panel being opened (a result that arrived meanwhile) stays.
-            val keep = it.messagePanel == panel
+            // Leaving a panel clears its own messages. A result that belongs to another panel waits there.
+            val keep = it.messagePanel != null && it.messagePanel != it.panel
             it.copy(
                 panel = panel,
                 tool = panel.defaultTool,

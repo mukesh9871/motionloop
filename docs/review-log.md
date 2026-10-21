@@ -274,3 +274,13 @@ Verdict: NEEDS WORK (1 blocker, 1 major, 6 minor). All 111 theme color uses, Pil
 | 6 | minor | 4K default ignored Pro and could start before the encoder check | Fixed: locked 4K maps to 1080p, start falls back to 1080p until 4K is confirmed. |
 | 7 | minor | Help animated every card, listed assets on the main thread per card | Fixed: lazy list with a scroll bar, assets listed once off the main thread. |
 | 8 | minor | White small text on violet under 4.5:1 | Fixed: violet darkened to #6B4EFF. |
+
+## Push 8, device test fixes round 2 (7a72c87)
+
+Verdict: CLEAN (0 blocker, 0 major, 3 minor). All round 1 fixes verified, 115 theme color uses in composable scope.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | minor | Lazy scroll bar clamp could throw on a viewport shorter than the minimum thumb | Fixed: thumb capped at the viewport. |
+| 2 | minor | A result for another panel was dropped by any unrelated panel switch | Fixed: leaving a panel clears only its own messages. |
+| 3 | minor | Export fallback to 1080p was not shown in the sheet | Fixed: the sheet shows the settings actually used. |

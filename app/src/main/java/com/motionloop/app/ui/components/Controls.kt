@@ -91,7 +91,8 @@ fun Modifier.lazyScrollBar(state: LazyListState): Modifier {
         val position = (first.index + firstFraction.coerceIn(0f, 1f)) / total
         val viewport = size.height
         val thickness = 3.dp.toPx()
-        val length = maxOf(viewport * visible.size / total, 28.dp.toPx())
+        // Never longer than the viewport, so the clamp range below stays valid.
+        val length = minOf(maxOf(viewport * visible.size / total, 28.dp.toPx()), viewport)
         val start = (position * viewport).coerceIn(0f, viewport - length)
         val x = size.width - thickness
         drawRoundRect(track, Offset(x, 0f), Size(thickness, viewport), CornerRadius(thickness / 2))
