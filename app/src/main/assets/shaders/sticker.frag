@@ -50,7 +50,9 @@ vec4 flame(vec2 p) {
     float core = (1.0 - smoothstep(0.2, 0.6, d)) * smoothstep(-0.95, -0.3, y);
     vec3 col = mix(vec3(1.0, 0.35, 0.05), vec3(1.0, 0.8, 0.25), core);
     col = mix(col, vec3(1.0, 0.97, 0.85), core * smoothstep(-0.5, -0.1, y));
-    float glow = 0.25 * exp(-dot(q - vec2(0.0, 0.1), q - vec2(0.0, 0.1)) * 3.0);
+    // Faded out before the quad edge, so no faint square shows around the flame.
+    float glow = 0.25 * exp(-dot(q - vec2(0.0, 0.1), q - vec2(0.0, 0.1)) * 3.0)
+        * (1.0 - smoothstep(0.7, 1.0, max(abs(p.x), abs(p.y))));
     float a = clamp(inside + glow, 0.0, 1.0);
     return vec4(col * a, a);
 }

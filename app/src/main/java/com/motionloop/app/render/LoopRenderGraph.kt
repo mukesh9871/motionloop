@@ -170,6 +170,8 @@ class LoopRenderGraph(assets: AssetManager) {
         private var phase = 0f
         private var holeId = 0
 
+        // Holes show a blur of the original photo, not of a replaced sky or background: a blur of
+        // the source per frame would cost too much for a soft fill.
         // The blur may render (its own FBOs and viewport) on a cache miss: do it here, before the
         // stage target is bound, never inside draw().
         override fun prepare(phase: Float, width: Int, height: Int) {

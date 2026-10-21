@@ -905,8 +905,9 @@ class EditorViewModel @Inject constructor(
             // Effect areas are settings, like the rest of their panel: not part of undo.
             // At the cap, refuse new strokes rather than silently dropping the first (often the main) ones.
             val full = (if (s.isEffectBrush) project.effects.dispersion.strokes.size else project.overlay.areaStrokes.size) >= MAX_AREA_STROKES
-            if ((s.isEffectBrush || s.isOverlayBrush) && full) {
-                _state.update { it.copy(messagePanel = it.panel, message = "That area has as many strokes as it can hold. Clear it to paint again.") }
+            // Erasing always works, so a full area can still be trimmed.
+            if ((s.isEffectBrush || s.isOverlayBrush) && full && stroke.mode == MaskMode.FREEZE) {
+                _state.update { it.copy(messagePanel = it.panel, message = "That area holds as many strokes as it can. Erase or start over to paint more.") }
                 return
             }
             if (s.isEffectBrush) {
@@ -1021,7 +1022,7 @@ class EditorViewModel @Inject constructor(
         const val MIN_STROKE_STEP = 0.003f
         const val MIN_PATH_STEP = 0.006f
 
-        /** Brush strokes kept per effect area: older ones drop off, so the area stays cheap to draw. */
+        /** Paint strokes an effect area accepts, so it stays cheap to draw. Erase strokes are always taken. */
         const val MAX_AREA_STROKES = 60
         const val ERASE_RADIUS = 0.04f
         const val MAX_HISTORY = 100

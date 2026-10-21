@@ -301,3 +301,15 @@ Verdict: NEEDS WORK (3 blocker, 1 major, 6 minor). Exhaustive whens, uniform nam
 | 8 | minor | Bubble and heart wrap margin too small on wide photos | Fixed: scaled by aspect. |
 | 9 | minor | Animate Clear shown with only water regions | Fixed. |
 | 10 | minor | Area stroke cap dropped the oldest strokes silently | Fixed: refuses new strokes with a message. |
+
+## Push 9, effects round 2 (4846c2c)
+
+Verdict: CLEAN (0 blocker, 0 major, 5 minor). All round 1 fixes verified, cross-stage uniform precision checked for every program.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | minor | Stroke cap also refused erasing, message named a missing button | Fixed: erase always works, neutral message. |
+| 2 | minor | Stale comment on the cap | Fixed. |
+| 3 | minor | Faint square around the flame glow | Fixed: glow faded before the quad edge. |
+| 4 | minor | Dispersion holes blur the original photo, not a replaced sky | Accepted and documented: a per-frame blur costs too much for a soft fill. |
+| 5 | minor | No softness slider for effect brushes | Fixed. |

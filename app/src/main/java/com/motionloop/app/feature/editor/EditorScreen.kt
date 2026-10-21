@@ -291,6 +291,7 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                             )
                             if (state.isOverlayBrush && project.overlay.particles != ParticleType.NONE) {
                                 LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
+                                LabeledSlider("Softness", 1f - state.brushHardness, 0.05f..1f, { vm.setBrushHardness(1f - it) })
                             }
                         }
                     } else if (state.panel == EditorPanel.EFFECTS) {
@@ -312,6 +313,7 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                             )
                             if (state.isEffectBrush) {
                                 LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
+                                LabeledSlider("Softness", 1f - state.brushHardness, 0.05f..1f, { vm.setBrushHardness(1f - it) })
                             }
                         }
                     } else if (state.panel == EditorPanel.ADJUST) {
