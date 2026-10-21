@@ -149,3 +149,23 @@ Verdict: NEEDS WORK (3 major, 9 minor). Compile, Hilt, Gradle and photo licenses
 | 10 | minor | A stored 4K default could bypass encoder checks | Fixed: defaults limited to HD and Full HD. |
 | 11 | minor | Locked chip opened Pro under the export sheet | Fixed: sheet closes first. |
 | 12 | minor | Accessibility of switches, chips, sample images and tiles | Fixed: toggleable rows, selectable chips, no duplicate image labels, tile labels. |
+
+## Push 6 (Phase 5 parallax), round 1
+
+Verdict: NEEDS WORK (2 major, 9 minor). GLSL, ping-pong, orientation, MiDaS input normalization and buffer sizes verified.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | major | Paused editor showed the zoomed, shifted image while touches mapped to the plain photo | Fixed: parallax only while playing or in the 3D panel. |
+| 2 | major | Parallax after the overlay warped particles by depth | Fixed: parallax is the first post stage, then color and overlay. |
+| 3 | minor | Every path cropped as much as the circle path | Fixed: per-path reserve computed in Kotlin (`ParallaxSettings.reserve`), passed as a uniform. |
+| 4 | minor | Fixed-point iteration oscillates at sharp depth edges | Fixed: damped steps (6 x 0.5). |
+| 5 | minor | Zoom path used the output point, not the source point | Fixed. |
+| 6 | minor | Large unwrapped phase in sin and cos | Fixed: `fract(uPhase)`. |
+| 7 | minor | Depth input assumed square | Fixed: separate height and width. |
+| 8 | minor | Missing depth file left a dead 3D panel | Fixed: reset with a message. |
+| 9 | minor | Export silently dropped 3D when the depth file was missing | Fixed: readable export error. |
+| 10 | minor | Turning 3D off was Pro-gated | Fixed: only turning on is gated. |
+| 11 | minor | Margin test was a tautology | Fixed: tests the real reserve function per path and aspect. |
+
+This push also carries Phase 6 milestone 3 (cutout, tap-to-select, PNG) and the shell round-2 minors (download retry on network errors, drawer action after a cancelled close, dead parameter, import order, selectable group, sample photo pins).

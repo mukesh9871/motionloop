@@ -27,17 +27,30 @@ class ParallaxTest {
     }
 
     @Test
-    fun zoomMarginCoversTheLargestShift() {
-        // Mirrors parallax.frag: the reserve kept at each edge must exceed the largest shift.
+    fun reserveCoversTheLargestShiftPerPath() {
         for (aspect in listOf(0.4f, 0.75f, 1f, 1.78f, 2.4f, 3.5f)) {
-            val offset = ParallaxSettings.MAX_OFFSET
-            val wanted = 1.1f * offset * max(1f, aspect)
-            assertTrue("reserve must stay below half the frame", wanted < 0.5f)
-            val margin = wanted / (1f - 2f * wanted)
-            val reserve = margin / (1f + 2f * margin)
-            val largestShift = offset * max(1f, aspect)
-            assertTrue("aspect $aspect: reserve $reserve < shift $largestShift", reserve >= largestShift)
+            for (path in CameraPath.entries) {
+                val p = ParallaxSettings(path = path, amount = 1f)
+                val reserve = p.reserve(aspect)
+                // Largest shift of each path in uv units (see parallax.frag).
+                val largest = when (path) {
+                    CameraPath.CIRCLE -> p.offset * max(1f, aspect)
+                    CameraPath.SWAY -> p.offset
+                    CameraPath.ZOOM -> p.offset // (uv - 0.5) * 2 * offset at the edge
+                }
+                assertTrue("$path at $aspect", reserve >= largest)
+                // The shader divides by 1 - 2 * reserve: it must stay well below half the frame.
+                assertTrue("$path at $aspect", reserve < 0.4f)
+            }
         }
+    }
+
+    @Test
+    fun swayAndZoomCropLessThanCircleOnWidePhotos() {
+        val wide = 21f / 9f
+        val circle = ParallaxSettings(path = CameraPath.CIRCLE).reserve(wide)
+        assertTrue(ParallaxSettings(path = CameraPath.SWAY).reserve(wide) < circle)
+        assertTrue(ParallaxSettings(path = CameraPath.ZOOM).reserve(wide) < circle)
     }
 
     @Test

@@ -23,6 +23,19 @@ data class ParallaxSettings(
 ) {
     val isActive: Boolean get() = enabled && depthRev != 0 && amount > 0f
 
+    /** Camera offset in image widths. */
+    val offset: Float get() = amount.coerceIn(0f, 1f) * MAX_OFFSET
+
+    /**
+     * How much of the frame (in uv units, per edge) the shader keeps in reserve so shifted pixels
+     * never sample past the photo edge: 1.1x the largest shift of this path. Only the circle path
+     * moves vertically by offset * aspect (offsets are in widths), sway and zoom move at most offset.
+     */
+    fun reserve(aspect: Float): Float {
+        val largest = if (path == CameraPath.CIRCLE) offset * maxOf(1f, aspect) else offset
+        return 1.1f * largest
+    }
+
     companion object {
         /** Largest camera offset in image widths at amount 1. Also the auto zoom margin. */
         const val MAX_OFFSET = 0.05f

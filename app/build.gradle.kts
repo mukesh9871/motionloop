@@ -60,17 +60,17 @@ kotlin {
 // never committed. Same pinned-download task as the ML models (buildSrc).
 val downloadDemos = tasks.register<DownloadAssetsTask>("downloadDemos") {
     urls.put("demos/waterfall.jpg", "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Frothy_waterfall_in_Iceland_%28Unsplash%29.jpg/1920px-Frothy_waterfall_in_Iceland_%28Unsplash%29.jpg")
-    sha256.put("demos/waterfall.jpg", "")
+    sha256.put("demos/waterfall.jpg", "3153efbef02bfd9eab1ce210cab72c1990b4a201d1784b1ecaf2d506e12193c6")
     urls.put("demos/ocean.jpg", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Ocean_waves_rippling_%28Unsplash%29.jpg/1920px-Ocean_waves_rippling_%28Unsplash%29.jpg")
-    sha256.put("demos/ocean.jpg", "")
+    sha256.put("demos/ocean.jpg", "a8a35eb2a06be1db2d40005697cb12035c8be5283cac6f65803d102dc6de020a")
     urls.put("demos/mountains.jpg", "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Cloudy_Skies_Over_Mountains_%28Unsplash%29.jpg/1920px-Cloudy_Skies_Over_Mountains_%28Unsplash%29.jpg")
-    sha256.put("demos/mountains.jpg", "")
+    sha256.put("demos/mountains.jpg", "55713397f25b6dec0ed9f22b1a9129737cac0b6d7e155062b3b3ef82d39a9a5e")
     urls.put("demos/lake.jpg", "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Clouds_mirrored_in_a_mountain_lake_%28Unsplash%29.jpg/1920px-Clouds_mirrored_in_a_mountain_lake_%28Unsplash%29.jpg")
-    sha256.put("demos/lake.jpg", "")
+    sha256.put("demos/lake.jpg", "8621e1ad31ba5b5e0bc7559bad7b27cbbb3dc3ab861e091654e80b826453fe45")
     urls.put("demos/campfire.jpg", "https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/Campfire_Cooking_%28Unsplash%29.jpg/1920px-Campfire_Cooking_%28Unsplash%29.jpg")
-    sha256.put("demos/campfire.jpg", "")
+    sha256.put("demos/campfire.jpg", "6c5a584d02c78cf2c6901cbbae363ecaaf4aa968b12132433decd0c9550d4977")
     urls.put("demos/falls_portrait.jpg", "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Narrow_waterfall_in_Alaska_%28Unsplash%29.jpg/1920px-Narrow_waterfall_in_Alaska_%28Unsplash%29.jpg")
-    sha256.put("demos/falls_portrait.jpg", "")
+    sha256.put("demos/falls_portrait.jpg", "71d26ae0e433400c296044db8b9d806c6e09763488f24bbecd21a47ef364802c")
     outputDir.set(layout.buildDirectory.dir("generated/demos"))
 }
 

@@ -6,7 +6,10 @@ import com.motionloop.app.domain.model.LutData
 import com.motionloop.app.domain.model.MaskStroke
 import com.motionloop.app.domain.model.MotionArrow
 import com.motionloop.app.domain.model.Project
+import com.motionloop.app.domain.model.BackgroundMode
+import com.motionloop.app.domain.model.SelectionRegion
 import com.motionloop.app.render.RenderScene
+import com.motionloop.app.render.SelectionLayer
 import com.motionloop.ml.AlphaMask
 
 enum class EditorTool {
@@ -14,6 +17,12 @@ enum class EditorTool {
 
     /** Sky panel: tap to add or remove an area with the segmenter, or paint and erase by hand. */
     SKY_ADD, SKY_REMOVE, SKY_PAINT, SKY_ERASE,
+
+    /** Animate panel: tap an object to freeze it, or to make it the only thing that moves (11a). */
+    SELECT_FREEZE, SELECT_ANIMATE,
+
+    /** Cutout panel: tap to add or remove subject areas, or restore and erase by hand (11d). */
+    SUBJECT_ADD, SUBJECT_REMOVE, SUBJECT_RESTORE, SUBJECT_ERASE,
 }
 
 /** Bottom panel: motion tools, sky, color adjustments or overlays. */
@@ -21,6 +30,7 @@ enum class EditorPanel(val label: String, val defaultTool: EditorTool) {
     ANIMATE("Animate", EditorTool.ARROW),
     SKY("Sky", EditorTool.SKY_ADD),
     DEPTH("3D", EditorTool.ARROW),
+    CUTOUT("Cutout", EditorTool.SUBJECT_ADD),
     ADJUST("Adjust", EditorTool.ARROW),
     OVERLAY("Overlay", EditorTool.ARROW),
 }
@@ -33,6 +43,10 @@ data class Geometry(
     /** Sky area: model mask revision plus brush refinements. */
     val skyMaskRev: Int = 0,
     val skyStrokes: List<MaskStroke> = emptyList(),
+    /** Subject area: model mask revision plus brush refinements. */
+    val subjectMaskRev: Int = 0,
+    val subjectStrokes: List<MaskStroke> = emptyList(),
+    val selections: List<SelectionRegion> = emptyList(),
 )
 
 data class EditorUiState(
@@ -66,9 +80,22 @@ data class EditorUiState(
     val skyPhotoRev: Int = 0,
     val depth: AlphaMask? = null,
     val depthRev: Int = 0,
+    val subjectMask: AlphaMask? = null,
+    val subjectMaskRev: Int = 0,
+    val backgroundPhoto: Bitmap? = null,
+    val backgroundPhotoRev: Int = 0,
+    /** Loaded tap-to-select masks by revision. */
+    val selectionMasks: Map<Int, AlphaMask> = emptyMap(),
 ) {
     val isSkyBrush: Boolean get() = tool == EditorTool.SKY_PAINT || tool == EditorTool.SKY_ERASE
-    val isBrush: Boolean get() = tool == EditorTool.FREEZE || tool == EditorTool.UNFREEZE || isSkyBrush
+    val isSubjectBrush: Boolean get() = tool == EditorTool.SUBJECT_RESTORE || tool == EditorTool.SUBJECT_ERASE
+    val isBrush: Boolean
+        get() = tool == EditorTool.FREEZE || tool == EditorTool.UNFREEZE || isSkyBrush || isSubjectBrush
+
+    /** Tools whose result is the freeze mask, so the editor tints frozen areas while they are active. */
+    private val showsFreezeMask: Boolean
+        get() = tool == EditorTool.FREEZE || tool == EditorTool.UNFREEZE ||
+            tool == EditorTool.SELECT_FREEZE || tool == EditorTool.SELECT_ANIMATE
 
     val visibleArrows: List<MotionArrow>
         get() = project?.arrows.orEmpty() + listOfNotNull(liveArrow)
@@ -80,10 +107,10 @@ data class EditorUiState(
                 image = preview,
                 arrows = visibleArrows,
                 anchors = p.anchors,
-                strokes = if (isSkyBrush) p.strokes else p.strokes + listOfNotNull(liveStroke),
+                strokes = if (isSkyBrush || isSubjectBrush) p.strokes else p.strokes + listOfNotNull(liveStroke),
                 loop = p.loop,
                 playing = playing,
-                showMask = !playing && panel == EditorPanel.ANIMATE && (isBrush || liveStroke != null),
+                showMask = !playing && panel == EditorPanel.ANIMATE && (showsFreezeMask || liveStroke != null),
                 adjustments = p.adjustments,
                 lut = lut.takeIf { lutGradeId != null && lutGradeId == p.adjustments.gradeId },
                 overlay = p.overlay,
@@ -92,8 +119,21 @@ data class EditorUiState(
                 skyPhoto = skyPhoto.takeIf { skyPhotoRev == p.sky.photoRev },
                 // In the sky panel, show the area as a tint while painting or before replacing is on.
                 skyReplace = !(panel == EditorPanel.SKY && !playing && (liveStroke != null || !p.sky.enabled)),
-                parallax = p.parallax,
+                // While editing, the preview must show the photo where touches land: no zoom, no shift.
+                parallax = if (playing || panel == EditorPanel.DEPTH) p.parallax else p.parallax.copy(enabled = false),
                 depth = depth.takeIf { depthRev == p.parallax.depthRev },
+                selections = p.selections.mapNotNull { r -> selectionMasks[r.rev]?.let { SelectionLayer(it, r.mode) } },
+                subject = if (isSubjectBrush && liveStroke != null) {
+                    p.subject.copy(strokes = p.subject.strokes + liveStroke)
+                } else {
+                    p.subject
+                },
+                subjectMask = subjectMask.takeIf { subjectMaskRev == p.subject.maskRev },
+                background = p.background,
+                backgroundPhoto = backgroundPhoto.takeIf { backgroundPhotoRev == p.background.photoRev },
+                // In the cutout panel, show the subject as a tint while painting or before a background is chosen.
+                subjectTintOnly = panel == EditorPanel.CUTOUT && !playing &&
+                    (liveStroke != null || p.background.mode == BackgroundMode.NONE),
             )
         }
 }

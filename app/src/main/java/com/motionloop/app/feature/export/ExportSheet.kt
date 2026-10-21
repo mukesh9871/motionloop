@@ -96,7 +96,7 @@ fun ExportSheet(onDismiss: () -> Unit, onOpenPro: () -> Unit, vm: ExportViewMode
                 }
             }
             val lengths = if (settings.format == ExportFormat.GIF) ExportSettings.GIF_LENGTHS else ExportSettings.VIDEO_LENGTHS
-            Section("Length") {
+            if (settings.format != ExportFormat.PNG) Section("Length") {
                 lengths.forEach { s ->
                     val lock = s == ExportSettings.VIDEO_LENGTHS.last() && locked(ProFeature.LONG_EXPORT)
                     Chip(if (lock) "${s}s (Pro)" else "${s}s", selected = settings.lengthSeconds == s, enabled = !state.running) {
@@ -123,6 +123,12 @@ fun ExportSheet(onDismiss: () -> Unit, onOpenPro: () -> Unit, vm: ExportViewMode
                         }
                     }
                 }
+            } else if (settings.format == ExportFormat.PNG) {
+                Text(
+                    "A still image. With a transparent background in Cutout, the PNG keeps the transparency.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MlColors.TextSecondary,
+                )
             } else {
                 Text(
                     "GIF is ${ExportSettings.GIF_LONG_EDGE} px on the long edge to keep files small.",

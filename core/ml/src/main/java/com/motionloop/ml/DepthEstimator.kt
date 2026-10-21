@@ -22,11 +22,12 @@ class DepthEstimator(private val context: Context) {
     suspend fun estimate(image: Bitmap): AlphaMask = lock.withLock {
         val tflite = interpreter()
         val inShape = tflite.getInputTensor(0).shape() // [1, H, W, 3]
-        val size = inShape[1]
-        val input = ByteBuffer.allocateDirect(size * size * 3 * 4).order(ByteOrder.nativeOrder())
-        val scaled = Bitmap.createScaledBitmap(image, size, size, true)
-        val pixels = IntArray(size * size)
-        scaled.getPixels(pixels, 0, size, 0, 0, size, size)
+        val inH = inShape[1]
+        val inW = inShape[2]
+        val input = ByteBuffer.allocateDirect(inH * inW * 3 * 4).order(ByteOrder.nativeOrder())
+        val scaled = Bitmap.createScaledBitmap(image, inW, inH, true)
+        val pixels = IntArray(inH * inW)
+        scaled.getPixels(pixels, 0, inW, 0, 0, inW, inH)
         if (scaled !== image) scaled.recycle()
         for (c in pixels) {
             input.putFloat(((c shr 16 and 255) / 255f - MEAN[0]) / STD[0])

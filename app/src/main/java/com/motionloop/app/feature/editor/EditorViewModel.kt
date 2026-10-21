@@ -28,7 +28,11 @@ import com.motionloop.app.domain.repository.ProjectAssetRepository
 import com.motionloop.app.domain.repository.ProjectRepository
 import com.motionloop.app.navigation.Routes
 import com.motionloop.app.render.passes.FlowFieldPass
+import com.motionloop.app.domain.model.BackgroundMode
+import com.motionloop.app.domain.model.BackgroundSettings
 import com.motionloop.app.domain.model.ParallaxSettings
+import com.motionloop.app.domain.model.SelectionMode
+import com.motionloop.app.domain.model.SelectionRegion
 import com.motionloop.ml.DepthEstimator
 import com.motionloop.ml.Segmenter
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -69,6 +73,8 @@ class EditorViewModel @Inject constructor(
     private var lutJob: Job? = null
     private var skyMaskJob: Job? = null
     private var skyPhotoJob: Job? = null
+    private var subjectMaskJob: Job? = null
+    private var backgroundPhotoJob: Job? = null
     private val undoStack = ArrayDeque<Geometry>()
     private val redoStack = ArrayDeque<Geometry>()
 
@@ -86,6 +92,9 @@ class EditorViewModel @Inject constructor(
             assets.prune(projectId, MaskKind.SKY, setOf(project.sky.maskRev))
             assets.pruneImages(projectId, ImageKind.SKY_PHOTO, setOf(project.sky.photoRev))
             assets.prune(projectId, MaskKind.DEPTH, setOf(project.parallax.depthRev))
+            assets.prune(projectId, MaskKind.SUBJECT, setOf(project.subject.maskRev))
+            assets.prune(projectId, MaskKind.SELECTION, project.selections.map { it.rev }.toSet())
+            assets.pruneImages(projectId, ImageKind.BACKGROUND, setOf(project.background.photoRev))
             val preview = try {
                 projects.loadImage(projectId, PREVIEW_EDGE)
             } catch (e: CancellationException) {
@@ -106,8 +115,120 @@ class EditorViewModel @Inject constructor(
             loadSkyMask(project.sky.maskRev)
             loadSkyPhoto(project.sky.photoRev)
             loadDepth(project.parallax.depthRev)
+            loadSubjectMask(project.subject.maskRev)
+            loadBackgroundPhoto(project.background.photoRev)
+            loadSelections(project.selections)
         }
     }
+
+    // region cutout (11d) and tap-to-select (11a), all on the shared segmenter
+
+    /** Background settings, not part of undo. */
+    fun setBackground(change: (BackgroundSettings) -> BackgroundSettings) {
+        val p = _state.value.project ?: return
+        val updated = p.copy(background = change(p.background))
+        _state.update { it.copy(project = updated) }
+        persist(updated)
+    }
+
+    fun setSubjectFeather(feather: Float) {
+        val p = _state.value.project ?: return
+        val updated = p.copy(subject = p.subject.copy(feather = feather))
+        _state.update { it.copy(project = updated) }
+        persist(updated)
+    }
+
+    /** Finds the main subject automatically (ML Kit, with the interactive model as fallback). */
+    fun detectSubject() = runModel("Finding the subject") { preview ->
+        val mask = withContext(cpu) { segmenter.segmentSubject(preview) }
+        if (mask.coverage() < 0.005f) {
+            _state.update { it.copy(message = "No clear subject found. Tap the subject to select it.") }
+            return@runModel
+        }
+        val rev = assets.saveMask(projectId, MaskKind.SUBJECT, mask)
+        _state.update { it.copy(subjectMask = mask, subjectMaskRev = rev) }
+        val project = _state.value.project ?: return@runModel
+        commit(current(project).copy(subjectMaskRev = rev))
+    }
+
+    private fun subjectTap(p: NPoint, add: Boolean) =
+        runModel(if (add) "Adding to the subject" else "Removing from the subject") { preview ->
+            val region = withContext(cpu) { segmenter.segmentAt(preview, p.x, p.y) }
+            val s = _state.value
+            val subject = s.project?.subject ?: return@runModel
+            val base = when {
+                subject.maskRev == 0 -> null
+                s.subjectMaskRev == subject.maskRev && s.subjectMask != null -> s.subjectMask
+                else -> assets.loadMask(projectId, MaskKind.SUBJECT, subject.maskRev)
+            }
+            val combined = when {
+                base != null -> withContext(cpu) { base.combine(region, subtract = !add) }
+                add -> region
+                else -> {
+                    val hint = if (subject.strokes.isNotEmpty()) "Use Erase to remove painted areas." else "There is no subject to remove from yet."
+                    _state.update { it.copy(message = hint) }
+                    return@runModel
+                }
+            }
+            val rev = assets.saveMask(projectId, MaskKind.SUBJECT, combined)
+            _state.update { it.copy(subjectMask = combined, subjectMaskRev = rev) }
+            val project = _state.value.project ?: return@runModel
+            commit(current(project).copy(subjectMaskRev = rev))
+        }
+
+    /** Tap-to-select: the object under [p] becomes a freeze region or the only moving region. */
+    private fun selectRegion(p: NPoint, mode: SelectionMode) =
+        runModel(if (mode == SelectionMode.FREEZE) "Freezing the object" else "Selecting the object") { preview ->
+            val region = withContext(cpu) { segmenter.segmentAt(preview, p.x, p.y) }
+            val rev = assets.saveMask(projectId, MaskKind.SELECTION, region)
+            _state.update { it.copy(selectionMasks = it.selectionMasks + (rev to region)) }
+            val project = _state.value.project ?: return@runModel
+            val g = current(project)
+            commit(g.copy(selections = g.selections + SelectionRegion(rev, mode)))
+        }
+
+    /** Removes all tap-to-select regions (undoable). */
+    fun clearSelections() {
+        val project = _state.value.project ?: return
+        val g = current(project)
+        if (g.selections.isNotEmpty()) commit(g.copy(selections = emptyList()))
+    }
+
+    fun importBackgroundPhoto(uri: Uri) = runModel("Loading the photo") {
+        val rev = assets.importImage(projectId, ImageKind.BACKGROUND, uri)
+        setBackground { it.copy(mode = BackgroundMode.PHOTO, photoRev = rev) }
+        loadBackgroundPhoto(rev)
+    }
+
+    private fun loadSubjectMask(rev: Int) {
+        subjectMaskJob?.cancel()
+        if (rev == _state.value.subjectMaskRev && (rev == 0 || _state.value.subjectMask != null)) return
+        subjectMaskJob = viewModelScope.launch {
+            val mask = assets.loadMask(projectId, MaskKind.SUBJECT, rev)
+            _state.update { it.copy(subjectMask = mask, subjectMaskRev = rev) }
+        }
+    }
+
+    private fun loadBackgroundPhoto(rev: Int) {
+        if (rev == 0) return
+        backgroundPhotoJob?.cancel()
+        backgroundPhotoJob = viewModelScope.launch {
+            val photo = assets.loadImage(projectId, ImageKind.BACKGROUND, rev, SKY_PHOTO_EDGE)
+            _state.update { it.copy(backgroundPhoto = photo, backgroundPhotoRev = rev) }
+        }
+    }
+
+    /** Loads masks for regions not loaded yet (also after undo or redo brings one back). */
+    private fun loadSelections(regions: List<SelectionRegion>) {
+        val missing = regions.map { it.rev }.filter { it !in _state.value.selectionMasks }
+        if (missing.isEmpty()) return
+        viewModelScope.launch {
+            val loaded = missing.mapNotNull { rev -> assets.loadMask(projectId, MaskKind.SELECTION, rev)?.let { rev to it } }
+            _state.update { it.copy(selectionMasks = it.selectionMasks + loaded) }
+        }
+    }
+
+    // endregion
 
     // region 3D
 
@@ -131,6 +252,12 @@ class EditorViewModel @Inject constructor(
         if (rev == 0) return
         viewModelScope.launch {
             val depth = assets.loadMask(projectId, MaskKind.DEPTH, rev)
+            if (depth == null) {
+                // The file is gone or damaged: offer to create it again instead of a dead 3D panel.
+                setParallax { it.copy(depthRev = 0, enabled = false) }
+                _state.update { it.copy(message = "The depth map is missing. Create it again in the 3D panel.") }
+                return@launch
+            }
             _state.update { it.copy(depth = depth, depthRev = rev) }
         }
     }
@@ -340,9 +467,11 @@ class EditorViewModel @Inject constructor(
                 )
             }
 
-            EditorTool.FREEZE, EditorTool.UNFREEZE, EditorTool.SKY_PAINT, EditorTool.SKY_ERASE -> _state.update {
-                // Freeze and sky paint add to their mask, unfreeze and sky erase remove from it.
-                val adds = s.tool == EditorTool.FREEZE || s.tool == EditorTool.SKY_PAINT
+            EditorTool.FREEZE, EditorTool.UNFREEZE, EditorTool.SKY_PAINT, EditorTool.SKY_ERASE,
+            EditorTool.SUBJECT_RESTORE, EditorTool.SUBJECT_ERASE,
+            -> _state.update {
+                // Freeze, sky paint and subject restore add to their mask, the others remove from it.
+                val adds = s.tool == EditorTool.FREEZE || s.tool == EditorTool.SKY_PAINT || s.tool == EditorTool.SUBJECT_RESTORE
                 it.copy(
                     liveStroke = MaskStroke(
                         points = listOf(p),
@@ -356,6 +485,10 @@ class EditorViewModel @Inject constructor(
             EditorTool.ERASE -> eraseNear(project, p)
             EditorTool.SKY_ADD -> skyTap(p, add = true)
             EditorTool.SKY_REMOVE -> skyTap(p, add = false)
+            EditorTool.SUBJECT_ADD -> subjectTap(p, add = true)
+            EditorTool.SUBJECT_REMOVE -> subjectTap(p, add = false)
+            EditorTool.SELECT_FREEZE -> selectRegion(p, SelectionMode.FREEZE)
+            EditorTool.SELECT_ANIMATE -> selectRegion(p, SelectionMode.ANIMATE_ONLY)
         }
     }
 
@@ -387,7 +520,13 @@ class EditorViewModel @Inject constructor(
         s.liveStroke?.let { stroke ->
             _state.update { it.copy(liveStroke = null) }
             val g = current(project)
-            commit(if (s.isSkyBrush) g.copy(skyStrokes = g.skyStrokes + stroke) else g.copy(strokes = g.strokes + stroke))
+            commit(
+                when {
+                    s.isSkyBrush -> g.copy(skyStrokes = g.skyStrokes + stroke)
+                    s.isSubjectBrush -> g.copy(subjectStrokes = g.subjectStrokes + stroke)
+                    else -> g.copy(strokes = g.strokes + stroke)
+                },
+            )
         }
     }
 
@@ -441,15 +580,21 @@ class EditorViewModel @Inject constructor(
             anchors = g.anchors,
             strokes = g.strokes,
             sky = project.sky.copy(maskRev = g.skyMaskRev, strokes = g.skyStrokes),
+            subject = project.subject.copy(maskRev = g.subjectMaskRev, strokes = g.subjectStrokes),
+            selections = g.selections,
         )
         loadSkyMask(g.skyMaskRev)
+        loadSubjectMask(g.subjectMaskRev)
+        loadSelections(g.selections)
         _state.update {
             it.copy(project = updated, canUndo = undoStack.isNotEmpty(), canRedo = redoStack.isNotEmpty())
         }
         persist(updated)
     }
 
-    private fun current(p: Project) = Geometry(p.arrows, p.anchors, p.strokes, p.sky.maskRev, p.sky.strokes)
+    private fun current(p: Project) = Geometry(
+        p.arrows, p.anchors, p.strokes, p.sky.maskRev, p.sky.strokes, p.subject.maskRev, p.subject.strokes, p.selections,
+    )
 
     // endregion
 

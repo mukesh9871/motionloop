@@ -1,8 +1,8 @@
 #version 300 es
 precision highp float;
 
-// Builds the warp's source image: the photo with its sky replaced.
-// Runs before the warp, so motion arrows and overlays act on the new sky too.
+// Builds the warp's source image: the photo with its sky and/or background replaced.
+// Runs before the warp, so motion arrows and overlays act on the new sky and background too.
 // Every animated term is seamless in uPhase: drift uses the same two-copy crossfade as the
 // warp, twinkle and aurora waves use integer frequencies.
 
@@ -12,6 +12,7 @@ uniform sampler2D uPhoto;
 uniform sampler2D uSkyMask;    // 1 = sky (model mask + brush strokes)
 uniform sampler2D uSkyPhoto;   // SkyStyle.PHOTO, mirrored-repeat wrap
 uniform int uStyle;            // SkyStyle ordinal: clear, sunset, night, storm, aurora, photo
+uniform int uSkyOn;            // 1 = sky stage active
 uniform int uReplace;          // 1 = replace the sky, 0 = only tint the mask (editing)
 uniform float uPhase;
 uniform float uDrift;          // 0..1
@@ -19,6 +20,19 @@ uniform float uFeather;        // 0..1
 uniform float uHarmonize;      // 0..1
 uniform float uAspect;         // width / height
 uniform float uSkyPhotoAspect; // width / height of the sky photo
+
+// Background replacement (11d). uBgMode: -1 off, 0 tint the subject (editing view),
+// otherwise BackgroundMode ordinal: 1 transparent, 2 solid, 3 gradient, 4 blur, 5 photo.
+uniform int uBgMode;
+uniform sampler2D uSubjectMask;  // 1 = subject (model mask + brush strokes)
+uniform sampler2D uBlurred;      // blurred photo for mode 4
+uniform sampler2D uBgPhoto;      // replacement photo for mode 5
+uniform float uBgPhotoAspect;
+uniform vec3 uBgColor1;
+uniform vec3 uBgColor2;
+uniform float uBgBlur;           // 0..1
+uniform float uSubjectFeather;   // 0..1
+uniform int uChecker;            // 1: draw transparent areas as a checkerboard (editor), 0: black (video)
 
 out vec4 fragColor;
 
@@ -133,20 +147,53 @@ vec3 styleTint() {
     return vec3(1.0);
 }
 
+vec2 coverFit(vec2 uv, float imageAspect) {
+    vec2 fit = vec2(1.0);
+    if (imageAspect > uAspect) fit.x = uAspect / imageAspect; else fit.y = imageAspect / uAspect;
+    return (uv - 0.5) * fit + 0.5;
+}
+
+vec3 background(vec3 photo) {
+    if (uBgMode == 1) {
+        if (uChecker == 0) return vec3(0.0);
+        vec2 cell = floor(vec2(vUv.x * uAspect, vUv.y) * 24.0);
+        return vec3(mix(0.62, 0.78, mod(cell.x + cell.y, 2.0)));
+    }
+    if (uBgMode == 2) return uBgColor1;
+    if (uBgMode == 3) return mix(uBgColor1, uBgColor2, vUv.y);
+    if (uBgMode == 4) return mix(photo, texture(uBlurred, vUv).rgb, uBgBlur);
+    return texture(uBgPhoto, coverFit(vUv, uBgPhotoAspect)).rgb;
+}
+
 void main() {
     vec3 photo = texture(uPhoto, vUv).rgb;
-    float raw = texture(uSkyMask, vUv).r;
-    float f = 0.04 + 0.4 * uFeather;
-    float m = smoothstep(0.5 - f, 0.5 + f, raw);
+    vec3 c = photo;
 
-    if (uReplace == 0) {
-        // Editing view: show the detected sky as a blue tint over the photo.
-        fragColor = vec4(mix(photo, vec3(0.2, 0.55, 1.0), m * 0.45), 1.0);
-        return;
+    if (uSkyOn == 1) {
+        float raw = texture(uSkyMask, vUv).r;
+        float f = 0.04 + 0.4 * uFeather;
+        float m = smoothstep(0.5 - f, 0.5 + f, raw);
+        if (uReplace == 0) {
+            // Editing view: show the detected sky as a blue tint over the photo.
+            c = mix(photo, vec3(0.2, 0.55, 1.0), m * 0.45);
+        } else {
+            vec3 fg = mix(photo, photo * styleTint(), uHarmonize * (1.0 - m));
+            // Skip the sky math where there is no sky, it is the expensive part.
+            vec3 sky = m > 0.002 ? skyColor(vUv) : vec3(0.0);
+            c = mix(fg, clamp(sky, 0.0, 1.0), m);
+        }
     }
 
-    vec3 fg = mix(photo, photo * styleTint(), uHarmonize * (1.0 - m));
-    // Skip the sky math where there is no sky, it is the expensive part.
-    vec3 sky = m > 0.002 ? skyColor(vUv) : vec3(0.0);
-    fragColor = vec4(mix(fg, clamp(sky, 0.0, 1.0), m), 1.0);
+    if (uBgMode >= 0) {
+        float fs = 0.04 + 0.4 * uSubjectFeather;
+        float s = smoothstep(0.5 - fs, 0.5 + fs, texture(uSubjectMask, vUv).r);
+        if (uBgMode == 0) {
+            // Editing view: show the subject as a violet tint.
+            c = mix(c, vec3(0.49, 0.36, 1.0), s * 0.45);
+        } else {
+            // Uniform branches only (uBgMode), so the texture lookups in background() are well defined.
+            c = mix(background(photo), c, s);
+        }
+    }
+    fragColor = vec4(c, 1.0);
 }

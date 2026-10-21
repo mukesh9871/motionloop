@@ -7,6 +7,7 @@ import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
 import java.security.MessageDigest
@@ -74,19 +75,25 @@ abstract class DownloadAssetsTask : DefaultTask() {
             connection.instanceFollowRedirects = true
             connection.connectTimeout = 30_000
             connection.readTimeout = 120_000
+            val last = attempt == MAX_ATTEMPTS - 1
+            var wait = delayMs
             try {
                 val code = connection.responseCode
                 if (code in 200..299) return connection.inputStream.use { it.readBytes() }
                 val retryable = code == 429 || code >= 500
-                if (!retryable || attempt == MAX_ATTEMPTS - 1) throw GradleException("Download failed ($code): $url")
+                if (!retryable || last) throw GradleException("Download failed ($code): $url")
                 // Honour Retry-After (seconds) when the server sends it.
-                val wait = connection.getHeaderField("Retry-After")?.toLongOrNull()?.times(1_000) ?: delayMs
+                wait = connection.getHeaderField("Retry-After")?.toLongOrNull()?.times(1_000) ?: delayMs
                 logger.lifecycle("Got $code for $url, retrying in ${wait / 1000} s")
-                Thread.sleep(wait.coerceAtMost(60_000))
-                delayMs *= 2
+            } catch (e: IOException) {
+                // Timeouts and dropped connections are worth another try too.
+                if (last) throw GradleException("Download failed: $url (${e.message})", e)
+                logger.lifecycle("Network error for $url (${e.message}), retrying in ${wait / 1000} s")
             } finally {
                 connection.disconnect()
             }
+            Thread.sleep(wait.coerceAtMost(60_000))
+            delayMs *= 2
         }
         throw GradleException("Download failed: $url")
     }

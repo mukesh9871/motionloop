@@ -2,6 +2,8 @@ package com.motionloop.app.feature.editor.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,11 +42,14 @@ private val tools = listOf(
     ToolSpec(EditorTool.FREEZE, "Freeze", MlIcons.Freeze),
     ToolSpec(EditorTool.UNFREEZE, "Unfreeze", MlIcons.Unfreeze),
     ToolSpec(EditorTool.ERASE, "Erase", MlIcons.Delete),
+    ToolSpec(EditorTool.SELECT_FREEZE, "Hold", MlIcons.Select),
+    ToolSpec(EditorTool.SELECT_ANIMATE, "Only this", MlIcons.Focus),
 )
 
 @Composable
 fun ToolBar(selected: EditorTool, onSelect: (EditorTool) -> Unit, modifier: Modifier = Modifier) {
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+    // Seven tools do not fit narrow phones: let the row scroll.
+    Row(modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         tools.forEach { spec ->
             val active = spec.tool == selected
             Column(

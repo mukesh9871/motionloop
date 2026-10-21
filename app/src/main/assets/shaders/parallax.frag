@@ -11,6 +11,7 @@ uniform sampler2D uDepth;   // R8, 1 = near
 uniform int uPath;          // CameraPath ordinal: circle, sway, zoom
 uniform float uPhase;
 uniform float uOffset;      // camera offset in image widths (amount * MAX_OFFSET)
+uniform float uReserve;     // per-edge reserve in uv, from ParallaxSettings.reserve (unit tested there)
 uniform float uFocus;       // depth that does not move
 uniform float uAspect;      // width / height
 
@@ -20,7 +21,8 @@ const float TAU = 6.28318530718;
 
 vec2 shiftFor(vec2 uv, float depth) {
     float k = depth - uFocus;
-    float a = TAU * uPhase;
+    // fract keeps the sin and cos arguments small after long editor sessions, and stays periodic.
+    float a = TAU * fract(uPhase);
     if (uPath == 0) {
         // Offsets in widths, so scale y by aspect to keep the circle round on screen.
         return uOffset * k * vec2(cos(a), sin(a) * uAspect);
@@ -34,20 +36,18 @@ vec2 shiftFor(vec2 uv, float depth) {
 }
 
 void main() {
-    // Zoom in a little so shifted pixels never sample past the frame edge. |k| <= 1, so the
-    // largest shift is uOffset in x and uOffset * aspect in y (circle path). Zooming by
-    // (1 + 2 * margin) keeps margin / (1 + 2 * margin) of the frame in reserve at each edge:
-    // solve that for a reserve of 1.1x the largest shift.
-    float reserve = 1.1 * uOffset * max(1.0, uAspect);
-    float margin = reserve / (1.0 - 2.0 * reserve);
+    // Zoom in a little so shifted pixels never sample past the frame edge. Zooming by
+    // (1 + 2 * margin) keeps margin / (1 + 2 * margin) of the frame in reserve at each edge,
+    // solved here for the reserve the path needs.
+    float margin = uReserve / (1.0 - 2.0 * uReserve);
     vec2 uv = (vUv - 0.5) / (1.0 + 2.0 * margin) + 0.5;
 
     // Backward mapping needs the depth at the source point, which depends on the shift.
-    // A few fixed-point steps converge well for smooth depth maps.
+    // Damped fixed-point steps: plain steps oscillate at sharp depth edges and leave a halo.
     vec2 src = uv;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 6; i++) {
         float d = texture(uDepth, src).r;
-        src = uv - shiftFor(uv, d);
+        src = mix(src, uv - shiftFor(src, d), 0.5);
     }
     fragColor = vec4(texture(uFrame, clamp(src, 0.0, 1.0)).rgb, 1.0);
 }

@@ -5,6 +5,8 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +44,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.motionloop.app.domain.pro.ProFeature
 import com.motionloop.app.domain.pro.ProPolicy
 import com.motionloop.app.feature.editor.components.AdjustPanel
+import com.motionloop.app.feature.editor.components.CutoutPanel
 import com.motionloop.app.feature.editor.components.DepthPanel
 import com.motionloop.app.feature.editor.components.LabeledSlider
 import com.motionloop.app.feature.editor.components.OverlayPanel
@@ -76,7 +79,10 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
     val pickSkyPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let(vm::importSkyPhoto)
     }
-    val touchPanel = state.panel == EditorPanel.ANIMATE || state.panel == EditorPanel.SKY
+    val touchPanel = state.panel == EditorPanel.ANIMATE || state.panel == EditorPanel.SKY || state.panel == EditorPanel.CUTOUT
+    val pickBackgroundPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        uri?.let(vm::importBackgroundPhoto)
+    }
 
     Column(
         Modifier
@@ -149,13 +155,37 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                         .padding(vertical = 4.dp),
                 )
             }
-            if (state.panel == EditorPanel.DEPTH) {
+            if (state.panel == EditorPanel.CUTOUT) {
+                if (project != null) {
+                    CutoutPanel(
+                        subject = project.subject,
+                        background = project.background,
+                        tool = state.tool,
+                        busy = state.busy != null,
+                        onDetect = vm::detectSubject,
+                        onTool = vm::setTool,
+                        onBackground = vm::setBackground,
+                        onFeather = vm::setSubjectFeather,
+                        onPickPhoto = {
+                            gated(ProFeature.BACKGROUND_PHOTO) {
+                                pickBackgroundPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            }
+                        },
+                    )
+                    if (state.isSubjectBrush) {
+                        LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
+                    }
+                }
+            } else if (state.panel == EditorPanel.DEPTH) {
                 if (project != null) {
                     DepthPanel(
                         settings = project.parallax,
                         busy = state.busy != null,
                         onCreateDepth = { gated(ProFeature.PARALLAX) { vm.createDepth() } },
-                        onChange = { change -> gated(ProFeature.PARALLAX) { vm.setParallax(change) } },
+                        // Only turning 3D on (or changing it while on) is Pro. Turning it off always works.
+                        onChange = { change ->
+                            if (change(project.parallax).enabled) gated(ProFeature.PARALLAX) { vm.setParallax(change) } else vm.setParallax(change)
+                        },
                     )
                 }
             } else if (state.panel == EditorPanel.SKY) {
@@ -196,12 +226,26 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                 LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
                 LabeledSlider("Softness", 1f - state.brushHardness, 0.05f..1f, { vm.setBrushHardness(1f - it) })
             } else {
-                Text(
-                    hintFor(state.tool),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MlColors.TextSecondary,
-                    modifier = Modifier.padding(vertical = 6.dp),
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        hintFor(state.tool),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MlColors.TextSecondary,
+                        modifier = Modifier.weight(1f).padding(vertical = 6.dp),
+                    )
+                    val selecting = state.tool == EditorTool.SELECT_FREEZE || state.tool == EditorTool.SELECT_ANIMATE
+                    if (selecting && project?.selections?.isNotEmpty() == true) {
+                        Text(
+                            "Clear",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MlColors.Mint,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable(onClick = vm::clearSelections)
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                        )
+                    }
+                }
             }
             if (project != null) {
                 PlaybackBar(
@@ -227,11 +271,13 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
 
 @Composable
 private fun PanelTabs(selected: EditorPanel, onSelect: (EditorPanel) -> Unit) {
+    // Six panels do not fit narrow phones at a readable size: the row scrolls.
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(MlColors.SurfaceHigh),
+            .background(MlColors.SurfaceHigh)
+            .horizontalScroll(rememberScrollState()),
     ) {
         EditorPanel.entries.forEach { panel ->
             val active = panel == selected
@@ -241,11 +287,10 @@ private fun PanelTabs(selected: EditorPanel, onSelect: (EditorPanel) -> Unit) {
                 color = if (active) MlColors.TextPrimary else MlColors.TextSecondary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
-                    .weight(1f)
                     .clip(RoundedCornerShape(12.dp))
                     .background(if (active) MlColors.Violet else Color.Transparent)
                     .clickable { onSelect(panel) }
-                    .padding(vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }
     }
@@ -271,6 +316,8 @@ private fun hintFor(tool: EditorTool) = when (tool) {
     EditorTool.ARROW -> "Drag to draw arrows. Longer arrows move faster."
     EditorTool.ANCHOR -> "Tap to pin points that must stay still."
     EditorTool.ERASE -> "Tap an arrow or anchor to remove it."
+    EditorTool.SELECT_FREEZE -> "Tap an object to hold it still."
+    EditorTool.SELECT_ANIMATE -> "Tap an object: only it will move, everything else holds still."
     else -> ""
 }
 

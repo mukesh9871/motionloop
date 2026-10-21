@@ -65,7 +65,6 @@ fun MenuRow(
     subtitle: String? = null,
     icon: ImageVector? = null,
     onClick: (() -> Unit)? = null,
-    trailing: @Composable (() -> Unit)? = null,
 ) {
     Row(
         Modifier
@@ -85,6 +84,5 @@ fun MenuRow(
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MlColors.TextSecondary)
             }
         }
-        trailing?.invoke()
     }
 }

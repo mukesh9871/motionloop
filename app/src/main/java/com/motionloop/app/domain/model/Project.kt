@@ -62,6 +62,10 @@ data class Project(
     val overlay: OverlaySettings = OverlaySettings(),
     val sky: SkySettings = SkySettings(),
     val parallax: ParallaxSettings = ParallaxSettings(),
+    val subject: SubjectSettings = SubjectSettings(),
+    val background: BackgroundSettings = BackgroundSettings(),
+    /** Tap-to-select regions on the freeze mask (11a). */
+    val selections: List<SelectionRegion> = emptyList(),
 ) {
     val aspect: Float get() = imageWidth.toFloat() / imageHeight
 }

@@ -4,8 +4,13 @@ import android.content.res.AssetManager
 import android.graphics.Bitmap
 import android.opengl.GLES30
 import com.motionloop.app.core.gl.FullscreenQuad
+import com.motionloop.app.core.gl.GlProgram
 import com.motionloop.app.core.gl.GlTexture
 import com.motionloop.app.domain.model.Adjustments
+import com.motionloop.app.domain.model.BackgroundMode
+import com.motionloop.app.domain.model.BackgroundSettings
+import com.motionloop.app.domain.model.SelectionMode
+import com.motionloop.app.domain.model.SubjectSettings
 import com.motionloop.app.domain.model.Anchor
 import com.motionloop.app.domain.model.LoopMode
 import com.motionloop.app.domain.model.LutData
@@ -15,6 +20,7 @@ import com.motionloop.app.domain.model.OverlaySettings
 import com.motionloop.app.domain.model.ParallaxSettings
 import com.motionloop.app.domain.model.SkySettings
 import com.motionloop.app.domain.model.SkyStyle
+import com.motionloop.app.render.passes.BlurPass
 import com.motionloop.app.render.passes.ColorPass
 import com.motionloop.app.render.passes.FlowFieldPass
 import com.motionloop.app.render.passes.LoopWarpPass
@@ -27,7 +33,7 @@ import com.motionloop.ml.AlphaMask
 /**
  * The pass chain shared by the editor preview, the exporters and the live wallpaper.
  *
- * photo -> [Source: sky replace] -> LoopWarp (flow, freeze mask) -> [Color + overlay] -> [Parallax] -> target
+ * photo -> [Source: sky, background] -> LoopWarp (flow, freeze mask) -> [Parallax] -> [Color + overlay] -> target
  *
  * Post stages (color + overlay so far) ping-pong between two offscreen frames, and the last one
  * draws into the target. Every bracketed or post stage is skipped when it has nothing to do.
@@ -45,6 +51,9 @@ class LoopRenderGraph(assets: AssetManager) {
     private val flowPass = FlowFieldPass(assets, quad)
     private val maskPass = MaskPass(assets, quad)
     private val skyMaskPass = MaskPass(assets, quad)
+    private val subjectMaskPass = MaskPass(assets, quad)
+    private val blurPass = BlurPass(assets, quad)
+    private val maskCopy = GlProgram.fromAssets(assets, "fullscreen.vert", "mask_layer.frag")
     private val sourcePass = SourcePass(assets, quad)
     private val warpPass = LoopWarpPass(assets, quad)
     private val colorPass = ColorPass(assets, quad)
@@ -67,9 +76,24 @@ class LoopRenderGraph(assets: AssetManager) {
     private val skyMask = MaskTexture()
     private var skyPhoto: GlTexture? = null
 
+    private var skyPhotoBitmap: Bitmap? = null
+
     private var parallax = ParallaxSettings()
     private val depthMask = MaskTexture()
-    private var skyPhotoBitmap: Bitmap? = null
+
+    // Subject (11d background, 11e text) and tap-to-select regions (11a).
+    private var subject = SubjectSettings()
+    private val subjectMask = MaskTexture()
+    private var background = BackgroundSettings()
+    private var subjectTintOnly = false
+    private var checker = true
+    private var bgPhoto: GlTexture? = null
+    private var bgPhotoBitmap: Bitmap? = null
+    private var lastSubjectStrokes: List<MaskStroke>? = null
+    private var lastSubjectMask: AlphaMask? = null
+    private var subjectMaskBuilt = false
+    private val selectionTextures = ArrayList<MaskTexture>()
+    private var lastSelections: List<SelectionLayer>? = null
 
     // Last inputs, so flow and masks are only rebuilt when they actually change.
     private var lastArrows: List<MotionArrow>? = null
@@ -96,7 +120,7 @@ class LoopRenderGraph(assets: AssetManager) {
         override fun draw(inputTex: Int, flipY: Boolean) = colorPass.draw(inputTex, adjustments, overlayTex, overlay, flipY)
     }
 
-    // Last post stage: 3D camera move by depth. Always last, so it moves everything drawn before it.
+    // First post stage: 3D camera move by depth, applied to the warped photo only.
     private val parallaxStage = object : PostStage {
         private var phase = 0f
 
@@ -120,20 +144,92 @@ class LoopRenderGraph(assets: AssetManager) {
         lastArrows = null
         lastStrokes = null
         skyMaskBuilt = false
+        subjectMaskBuilt = false
     }
 
-    fun setGeometry(arrows: List<MotionArrow>, anchors: List<Anchor>, strokes: List<MaskStroke>) {
+    /**
+     * Motion inputs. The freeze mask is the tap-to-select [selections] (model masks) with the
+     * brush [strokes] on top, so strokes can refine a selected region.
+     */
+    fun setGeometry(
+        arrows: List<MotionArrow>,
+        anchors: List<Anchor>,
+        strokes: List<MaskStroke>,
+        selections: List<SelectionLayer> = emptyList(),
+    ) {
         if (photo == null) return
         if (arrows != lastArrows || anchors != lastAnchors) {
             flowPass.render(aspect, arrows, anchors)
             lastArrows = arrows
             lastAnchors = anchors
         }
-        if (strokes != lastStrokes) {
-            maskPass.render(aspect, strokes)
+        // SelectionLayer equality compares masks by object, so this is cheap.
+        if (strokes != lastStrokes || selections != lastSelections) {
+            while (selectionTextures.size < selections.size) selectionTextures += MaskTexture()
+            while (selectionTextures.size > selections.size) selectionTextures.removeAt(selectionTextures.lastIndex).release()
+            val layers = selections.mapIndexed { i, sel ->
+                selectionTextures[i].set(sel.mask)
+                val mode = if (sel.mode == SelectionMode.FREEZE) MaskPass.LayerMode.ADD else MaskPass.LayerMode.ADD_INVERTED
+                MaskPass.Layer(selectionTextures[i].id, mode)
+            }
+            maskPass.render(aspect, strokes, layers)
             lastStrokes = strokes
+            lastSelections = selections
         }
     }
+
+    /**
+     * Subject and background inputs. [mask] is the model mask for [subject].maskRev (null if none or
+     * not loaded), [bgPhoto] the photo for [BackgroundMode.PHOTO]. [tintOnly] shows the subject as a
+     * tint (background panel, editing view). [checker] draws transparency as a checkerboard (editor).
+     */
+    fun setSubject(
+        subject: SubjectSettings,
+        mask: AlphaMask?,
+        background: BackgroundSettings,
+        bgPhoto: Bitmap?,
+        tintOnly: Boolean,
+        checker: Boolean,
+    ) {
+        if (photo == null) return
+        this.subject = subject
+        this.background = background
+        this.subjectTintOnly = tintOnly
+        this.checker = checker
+        subjectMask.set(mask)
+        if (bgPhoto !== bgPhotoBitmap) {
+            this.bgPhoto?.release()
+            this.bgPhoto = bgPhoto?.let(GlTexture::fromBitmap)
+            bgPhotoBitmap = bgPhoto
+        }
+        if (!subjectMaskBuilt || subject.strokes != lastSubjectStrokes || mask !== lastSubjectMask) {
+            val maskId = subjectMask.id
+            val layers = if (maskId != 0) listOf(MaskPass.Layer(maskId, MaskPass.LayerMode.ADD)) else emptyList()
+            subjectMaskPass.render(aspect, subject.strokes, layers)
+            lastSubjectStrokes = subject.strokes
+            lastSubjectMask = mask
+            subjectMaskBuilt = true
+        }
+    }
+
+    /** Draws the refined subject mask (red channel, row 0 = image top) into [fbo], for PNG cutouts. */
+    fun drawSubjectMask(fbo: Int, width: Int, height: Int) {
+        bindTarget(fbo, 0, 0, width, height)
+        GLES30.glDisable(GLES30.GL_BLEND)
+        GLES30.glClearColor(0f, 0f, 0f, 1f)
+        GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+        val id = subjectMaskTextureId
+        if (id == 0) return
+        maskCopy.use()
+        maskCopy.set1f("uFlipY", 0f)
+        maskCopy.bindTexture("uMask", 0, id)
+        maskCopy.set1f("uInvert", 0f)
+        quad.draw()
+    }
+
+    /** Refined subject mask (model + strokes), for text behind the subject. 0 when there is none. */
+    val subjectMaskTextureId: Int
+        get() = if (subject.hasArea) subjectMaskPass.texture?.id ?: 0 else 0
 
     /** Color settings for following frames. [lut] must match [adjustments].gradeId (null for none). */
     fun setColor(adjustments: Adjustments, lut: LutData?) {
@@ -198,8 +294,9 @@ class LoopRenderGraph(assets: AssetManager) {
         val warpInput = sourceTexture(src, phase)
 
         val stages = ArrayList<PostStage>(2)
-        if (!adjustments.isIdentity || overlay.isActive) stages += colorStage
+        // Parallax first: it moves the photo, while color is per pixel and overlays stay in screen space.
         if (parallax.isActive && depthMask.id != 0) stages += parallaxStage
+        if (!adjustments.isIdentity || overlay.isActive) stages += colorStage
         if (!overlay.isActive) overlayPass.releaseLayer()
 
         if (stages.isEmpty()) {
@@ -233,16 +330,34 @@ class LoopRenderGraph(assets: AssetManager) {
         }
     }
 
-    /** The photo, or the photo with its sky replaced when the sky stage is active. */
+    /** The photo, or the photo with its sky and/or background replaced when those stages are active. */
     private fun sourceTexture(src: GlTexture, phase: Float): Int {
         val skyMaskTex = skyMaskPass.texture
-        val showSky = sky.hasArea && skyMaskTex != null && (skyReplace && sky.isActive || !skyReplace)
-        if (!showSky) {
+        val skyInput = if (sky.hasArea && skyMaskTex != null && (!skyReplace || sky.isActive)) {
+            val photoAspect = skyPhoto?.let { it.width.toFloat() / it.height } ?: aspect
+            SourcePass.SkyInput(skyMaskTex.id, skyPhoto?.id ?: 0, photoAspect, sky, skyReplace)
+        } else {
+            null
+        }
+
+        val subjectTex = subjectMaskPass.texture
+        val bgOn = subject.hasArea && subjectTex != null && (subjectTintOnly || background.isActive(subject))
+        val bgInput = if (bgOn) {
+            val blurred = if (!subjectTintOnly && background.mode == BackgroundMode.BLUR) blurPass.texture(src).id else 0
+            val bgAspect = bgPhoto?.let { it.width.toFloat() / it.height } ?: aspect
+            SourcePass.BackgroundInput(
+                subjectTex!!.id, background, subject.feather, subjectTintOnly,
+                blurred, bgPhoto?.id ?: 0, bgAspect, checker,
+            )
+        } else {
+            null
+        }
+
+        if (skyInput == null && bgInput == null) {
             sourcePass.releaseTarget()
             return src.id
         }
-        val photoAspect = skyPhoto?.let { it.width.toFloat() / it.height } ?: aspect
-        return sourcePass.render(src, skyMaskTex!!.id, skyPhoto?.id ?: 0, photoAspect, sky, skyReplace, phase, aspect).id
+        return sourcePass.render(src, skyInput, bgInput, phase, aspect).id
     }
 
     private fun bindTarget(fbo: Int, x: Int, y: Int, width: Int, height: Int) {
@@ -274,10 +389,19 @@ class LoopRenderGraph(assets: AssetManager) {
         skyPhotoBitmap = null
         skyMask.release()
         depthMask.release()
+        subjectMask.release()
+        selectionTextures.forEach { it.release() }
+        selectionTextures.clear()
+        bgPhoto?.release()
+        bgPhoto = null
+        bgPhotoBitmap = null
         releaseFrames()
         flowPass.release()
         maskPass.release()
         skyMaskPass.release()
+        subjectMaskPass.release()
+        blurPass.release()
+        maskCopy.release()
         sourcePass.release()
         warpPass.release()
         colorPass.release()

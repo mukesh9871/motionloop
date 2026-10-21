@@ -13,6 +13,7 @@ import com.motionloop.app.domain.pro.Entitlements
 import com.motionloop.app.domain.repository.MediaRepository
 import com.motionloop.app.domain.repository.ProjectRepository
 import com.motionloop.app.export.gif.GifExporter
+import com.motionloop.app.export.png.PngExporter
 import com.motionloop.app.export.video.VideoExporter
 import com.motionloop.app.navigation.Routes
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -48,6 +49,7 @@ class ExportViewModel @Inject constructor(
     private val media: MediaRepository,
     private val videoExporter: VideoExporter,
     private val gifExporter: GifExporter,
+    private val pngExporter: PngExporter,
     @DefaultDispatcher private val cpu: CoroutineDispatcher,
     entitlements: Entitlements,
     settings: AppSettings,
@@ -100,20 +102,22 @@ class ExportViewModel @Inject constructor(
         val settings = _state.value.settings
         _state.update { it.copy(running = true, progress = 0f, resultUri = null, error = null) }
         job = viewModelScope.launch {
-            val isGif = settings.format == ExportFormat.GIF
-            val mime = if (isGif) "image/gif" else "video/mp4"
-            val name = "MotionLoop_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) +
-                if (isGif) ".gif" else ".mp4"
+            val (mime, ext) = when (settings.format) {
+                ExportFormat.MP4 -> "video/mp4" to ".mp4"
+                ExportFormat.GIF -> "image/gif" to ".gif"
+                ExportFormat.PNG -> "image/png" to ".png"
+            }
+            val name = "MotionLoop_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) + ext
             val file = media.exportTempFile(name)
             try {
                 // Wait for the editor's queued saves, then read the latest state from disk.
                 projects.flush()
                 val project = projects.load(projectId) ?: error("Project not found")
                 val onProgress: (Float) -> Unit = { p -> _state.update { it.copy(progress = p) } }
-                if (isGif) {
-                    gifExporter.export(project, settings, file, onProgress)
-                } else {
-                    videoExporter.export(project, settings, file, onProgress)
+                when (settings.format) {
+                    ExportFormat.MP4 -> videoExporter.export(project, settings, file, onProgress)
+                    ExportFormat.GIF -> gifExporter.export(project, settings, file, onProgress)
+                    ExportFormat.PNG -> pngExporter.export(project, file, onProgress)
                 }
                 val uri = media.saveToGallery(file, mime, name)
                 _state.update { it.copy(running = false, progress = 1f, resultUri = uri, resultMime = mime) }

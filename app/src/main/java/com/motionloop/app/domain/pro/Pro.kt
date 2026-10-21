@@ -12,7 +12,7 @@ enum class ProFeature(val title: String, val description: String, val available:
     SKY_PHOTO("Your own skies", "Use any photo as the new sky.", available = true),
     PARALLAX("3D camera", "Depth-based 3D camera motion.", available = true),
     CUSTOM_LUT("Custom color grades", "Import your own .cube color grades.", available = true),
-    BACKGROUND_PHOTO("Background photos", "Replace the background with any photo.", available = false),
+    BACKGROUND_PHOTO("Background photos", "Replace the background with any photo.", available = true),
     MUSIC("Your own music", "Add your own audio and sync motion to the beat.", available = false),
     LIVE_WALLPAPER("Live wallpaper", "Set any loop as your home or lock screen wallpaper.", available = false),
 }

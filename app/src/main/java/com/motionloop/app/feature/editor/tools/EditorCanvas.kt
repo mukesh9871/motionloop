@@ -76,7 +76,8 @@ fun EditorCanvas(
         }
         val c = cursor
         val brush = tool == EditorTool.FREEZE || tool == EditorTool.UNFREEZE ||
-            tool == EditorTool.SKY_PAINT || tool == EditorTool.SKY_ERASE
+            tool == EditorTool.SKY_PAINT || tool == EditorTool.SKY_ERASE ||
+            tool == EditorTool.SUBJECT_RESTORE || tool == EditorTool.SUBJECT_ERASE
         if (c != null && brush) {
             drawCircle(Color.White, radius = brushRadius * size.width, center = c, style = Stroke(width = 2f))
         }

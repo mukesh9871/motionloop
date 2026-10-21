@@ -168,6 +168,28 @@ object MlIcons {
         }
     }
 
+    /** Tap-to-select: a frame with a tap point. */
+    val Select by lazy {
+        icon("Select") {
+            moveTo(4f, 9f); lineTo(4f, 4f); lineTo(9f, 4f)
+            moveTo(15f, 4f); lineTo(20f, 4f); lineTo(20f, 9f)
+            moveTo(20f, 15f); lineTo(20f, 20f); lineTo(15f, 20f)
+            moveTo(9f, 20f); lineTo(4f, 20f); lineTo(4f, 15f)
+            circle(12f, 12f, 2.5f)
+        }
+    }
+
+    /** Animate only this: a frame with a motion stroke inside. */
+    val Focus by lazy {
+        icon("Focus") {
+            moveTo(4f, 9f); lineTo(4f, 4f); lineTo(9f, 4f)
+            moveTo(15f, 4f); lineTo(20f, 4f); lineTo(20f, 9f)
+            moveTo(20f, 15f); lineTo(20f, 20f); lineTo(15f, 20f)
+            moveTo(9f, 20f); lineTo(4f, 20f); lineTo(4f, 15f)
+            moveTo(8f, 15f); curveTo(10f, 10f, 12f, 14f, 16f, 9f)
+        }
+    }
+
     val Menu by lazy {
         icon("Menu") {
             moveTo(4f, 7f); lineTo(20f, 7f)

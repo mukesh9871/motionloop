@@ -2,7 +2,8 @@ package com.motionloop.app.domain.model
 
 import android.net.Uri
 
-enum class ExportFormat { MP4, GIF }
+/** PNG is a still image: with a transparent background it is the cutout (11d). */
+enum class ExportFormat { MP4, GIF, PNG }
 
 /** Target short edge in pixels. The long edge follows the photo aspect ratio. */
 enum class ExportResolution(val shortEdge: Int, val label: String) {
