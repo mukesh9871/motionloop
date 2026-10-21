@@ -209,7 +209,7 @@ class EditorViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 loadedSound = null
-                _state.update { it.copy(messagePanel = messageOrigin(), message = "Could not play that sound: ${e.message}") }
+                _state.update { it.copy(messagePanel = it.panel, message = "Could not play that sound: ${e.message}") }
             }
         }
     }
@@ -226,7 +226,7 @@ class EditorViewModel @Inject constructor(
     fun addText() {
         val p = _state.value.project ?: return
         if (p.texts.size >= TextLayer.MAX_LAYERS) {
-            _state.update { it.copy(messagePanel = messageOrigin(), message = "Up to ${TextLayer.MAX_LAYERS} text layers.") }
+            _state.update { it.copy(messagePanel = it.panel, message = "Up to ${TextLayer.MAX_LAYERS} text layers.") }
             return
         }
         // Behind the subject by default. Without a subject it simply draws over the photo until
@@ -238,7 +238,8 @@ class EditorViewModel @Inject constructor(
         )
         setTexts(p.texts + layer)
         _state.update { it.copy(selectedTextId = layer.id) }
-        if (!p.subject.hasArea) detectSubject()
+        // Only for the first text: later ones would repeat a failed search on photos without a subject.
+        if (!p.subject.hasArea && p.texts.isEmpty()) detectSubject()
     }
 
     fun selectText(id: String?) = _state.update { it.copy(selectedTextId = id) }
@@ -257,6 +258,8 @@ class EditorViewModel @Inject constructor(
         textJobKeys.remove(id)
         setTexts(p.texts.filterNot { it.id == id })
         _state.update { it.copy(selectedTextId = null, renderedTexts = it.renderedTexts - id) }
+        // The subject tools live in the text list: with no text left, go back to moving texts.
+        if (_state.value.project?.texts.isNullOrEmpty()) _state.update { it.copy(tool = EditorTool.TEXT_MOVE) }
     }
 
     private fun setTexts(texts: List<TextLayer>, persistNow: Boolean = true) {
@@ -429,7 +432,7 @@ class EditorViewModel @Inject constructor(
                 val p = _state.value.project ?: return@launch
                 if (p.subject.maskRev == rev) {
                     val updated = p.copy(subject = p.subject.copy(maskRev = 0))
-                    _state.update { it.copy(project = updated, messagePanel = messageOrigin(), message = "The subject mask is missing. Find the subject again in Cutout.") }
+                    _state.update { it.copy(project = updated, messagePanel = it.panel, message = "The subject mask is missing. Find the subject again in Cutout.") }
                     persist(updated)
                 }
                 return@launch
@@ -459,7 +462,7 @@ class EditorViewModel @Inject constructor(
                 // Regions whose files are gone cannot be shown: remove them rather than keep invisible ones.
                 val p = _state.value.project ?: return@launch
                 val updated = p.copy(selections = p.selections.filterNot { it.rev in lost })
-                _state.update { it.copy(project = updated, messagePanel = messageOrigin(), message = "Some selected objects could not be loaded and were removed.") }
+                _state.update { it.copy(project = updated, messagePanel = it.panel, message = "Some selected objects could not be loaded and were removed.") }
                 persist(updated)
             }
         }
@@ -492,7 +495,7 @@ class EditorViewModel @Inject constructor(
             if (depth == null) {
                 // The file is gone or damaged: offer to create it again instead of a dead 3D panel.
                 setParallax { it.copy(depthRev = 0, enabled = false) }
-                _state.update { it.copy(messagePanel = messageOrigin(), message = "The depth map is missing. Create it again in the 3D panel.") }
+                _state.update { it.copy(messagePanel = it.panel, message = "The depth map is missing. Create it again in the 3D panel.") }
                 return@launch
             }
             _state.update { it.copy(depth = depth, depthRev = rev) }
@@ -606,7 +609,16 @@ class EditorViewModel @Inject constructor(
 
     fun setPanel(panel: EditorPanel) =
         _state.update {
-            it.copy(panel = panel, tool = panel.defaultTool, liveArrow = null, liveStroke = null, message = null, messagePanel = null)
+            // A message that belongs to the panel being opened (a result that arrived meanwhile) stays.
+            val keep = it.messagePanel == panel
+            it.copy(
+                panel = panel,
+                tool = panel.defaultTool,
+                liveArrow = null,
+                liveStroke = null,
+                message = it.message.takeIf { keep },
+                messagePanel = it.messagePanel.takeIf { keep },
+            )
         }
 
     /** Slider changes. Not part of undo history: they are cheap to drag back and reset. */
@@ -645,7 +657,7 @@ class EditorViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.update { it.copy(messagePanel = messageOrigin(), message = e.message ?: "Could not import that file") }
+                _state.update { it.copy(messagePanel = it.panel, message = e.message ?: "Could not import that file") }
             }
         }
     }
@@ -671,7 +683,7 @@ class EditorViewModel @Inject constructor(
             val lut = luts.resolve(projectId, p.adjustments)
             _state.update { it.copy(lut = lut, lutGradeId = if (lut != null) gradeId else null) }
             if (lut == null && gradeId == Adjustments.CUSTOM_LUT_ID) {
-                _state.update { it.copy(messagePanel = messageOrigin(), message = "The imported LUT file is missing. Import it again.") }
+                _state.update { it.copy(messagePanel = it.panel, message = "The imported LUT file is missing. Import it again.") }
             }
         }
     }

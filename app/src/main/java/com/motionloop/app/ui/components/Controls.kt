@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -69,6 +70,33 @@ fun Modifier.horizontalScrollWithBar(state: ScrollState): Modifier {
     }
         .horizontalScroll(state)
         .padding(bottom = 6.dp)
+}
+
+/**
+ * Scroll bar for a lazy list. Item heights vary, so the thumb is an estimate from the visible
+ * share of items, which is enough to show where you are and that there is more.
+ */
+@Composable
+fun Modifier.lazyScrollBar(state: LazyListState): Modifier {
+    val thumb = MlColors.TextSecondary.copy(alpha = 0.7f)
+    val track = MlColors.TextSecondary.copy(alpha = 0.15f)
+    return drawWithContent {
+        drawContent()
+        val info = state.layoutInfo
+        val total = info.totalItemsCount
+        val visible = info.visibleItemsInfo
+        if (total == 0 || visible.isEmpty() || (visible.size >= total && !state.canScrollForward && !state.canScrollBackward)) return@drawWithContent
+        val first = visible.first()
+        val firstFraction = if (first.size > 0) (-first.offset).toFloat() / first.size else 0f
+        val position = (first.index + firstFraction.coerceIn(0f, 1f)) / total
+        val viewport = size.height
+        val thickness = 3.dp.toPx()
+        val length = maxOf(viewport * visible.size / total, 28.dp.toPx())
+        val start = (position * viewport).coerceIn(0f, viewport - length)
+        val x = size.width - thickness
+        drawRoundRect(track, Offset(x, 0f), Size(thickness, viewport), CornerRadius(thickness / 2))
+        drawRoundRect(thumb, Offset(x, start), Size(thickness, length), CornerRadius(thickness / 2))
+    }
 }
 
 private fun DrawScope.drawBar(state: ScrollState, vertical: Boolean, thumb: Color, track: Color) {

@@ -11,6 +11,8 @@ import com.motionloop.app.domain.model.ExportResolution
 import com.motionloop.app.domain.model.ExportSettings
 import com.motionloop.app.data.settings.AppSettings
 import com.motionloop.app.domain.pro.Entitlements
+import com.motionloop.app.domain.pro.ProFeature
+import com.motionloop.app.domain.pro.ProPolicy
 import com.motionloop.app.domain.repository.MediaRepository
 import com.motionloop.app.domain.repository.ProjectRepository
 import com.motionloop.app.export.gif.GifExporter
@@ -61,7 +63,16 @@ class ExportViewModel @Inject constructor(
     val isPro: StateFlow<Boolean> = entitlements.isPro
 
     private val projectId: String = checkNotNull(savedState[Routes.ARG_PROJECT_ID])
-    private val _state = MutableStateFlow(ExportUiState(settings = ExportSettings(resolution = settings.state.value.defaultResolution)))
+    // A 4K default only for those who may use it. Whether the encoder can is checked in start().
+    private val _state = MutableStateFlow(
+        ExportUiState(
+            settings = ExportSettings(
+                resolution = settings.state.value.defaultResolution.takeUnless {
+                    it == ExportResolution.UHD && ProPolicy.isLocked(ProFeature.EXPORT_4K, entitlements.isPro.value)
+                } ?: ExportResolution.FULL_HD,
+            ),
+        ),
+    )
     val state: StateFlow<ExportUiState> = _state.asStateFlow()
     private var job: Job? = null
     // Above init, which sets them.
@@ -124,7 +135,9 @@ class ExportViewModel @Inject constructor(
 
     fun start() {
         if (_state.value.running) return
-        val settings = _state.value.settings
+        // Before the encoder check finishes, the list holds only what every phone can do.
+        val chosen = _state.value.settings
+        val settings = if (chosen.resolution in _state.value.resolutions) chosen else chosen.copy(resolution = ExportResolution.FULL_HD)
         _state.update { it.copy(running = true, progress = 0f, resultUri = null, error = null) }
         job = viewModelScope.launch {
             val (mime, ext) = when (settings.format) {

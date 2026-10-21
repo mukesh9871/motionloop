@@ -259,3 +259,18 @@ Verdict: CLEAN (0 blocker, 0 major, 1 minor). All round 2 fixes verified.
 | # | Sev | Finding | Outcome |
 |---|---|---|---|
 | 1 | minor | Wallpaper bitmap not recycled when an earlier load step threw | Fixed: one try/finally around the scene load. |
+
+## Push 8, device test fixes round 1 (d721815)
+
+Verdict: NEEDS WORK (1 blocker, 1 major, 6 minor). All 111 theme color uses, Pill call sites, new APIs, GLSL budget, loop seam with advection and MotionPathsTest verified.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | blocker | Theme colors read inside non-composable swatch lambdas (Adjust panel) | Fixed: read once in the composable, passed in. |
+| 2 | major | Switching panels cleared a model result before the user could see it | Fixed: a message stays when its own panel is opened. |
+| 3 | minor | Unrelated messages took the running model's panel | Fixed: only model results use the model's panel. |
+| 4 | minor | Every new text re-ran subject search | Fixed: only for the first text. |
+| 5 | minor | Subject tool could stay active with its row hidden | Fixed: row shown whenever there is text, tool reset when the last text goes. |
+| 6 | minor | 4K default ignored Pro and could start before the encoder check | Fixed: locked 4K maps to 1080p, start falls back to 1080p until 4K is confirmed. |
+| 7 | minor | Help animated every card, listed assets on the main thread per card | Fixed: lazy list with a scroll bar, assets listed once off the main thread. |
+| 8 | minor | White small text on violet under 4.5:1 | Fixed: violet darkened to #6B4EFF. |

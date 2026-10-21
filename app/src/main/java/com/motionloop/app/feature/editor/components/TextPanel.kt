@@ -63,7 +63,7 @@ fun TextPanel(
             }
         }
         // Text behind the subject needs a good subject outline: fix it right here, no trip to Cutout.
-        if (texts.any { it.behindSubject }) {
+        if (texts.isNotEmpty()) {
             Label("Subject")
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Pill(if (hasSubject) "Find again" else "Find subject", active = false, enabled = !busy, onClick = onFindSubject)

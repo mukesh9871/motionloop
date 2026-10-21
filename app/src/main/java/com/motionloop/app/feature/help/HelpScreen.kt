@@ -9,7 +9,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -17,12 +23,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,7 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.motionloop.app.ui.components.SectionTitle
-import com.motionloop.app.ui.components.SimpleScreen
+import com.motionloop.app.ui.components.lazyScrollBar
 import com.motionloop.app.ui.icons.MlIcons
 import com.motionloop.app.ui.theme.MlColors
 import kotlinx.coroutines.Dispatchers
@@ -106,27 +112,57 @@ private val groups = listOf(
 
 @Composable
 fun HelpScreen(onBack: () -> Unit, onContact: () -> Unit) {
-    SimpleScreen("Help", onBack) {
-        groups.forEach { group ->
-            SectionTitle(group.title)
-            group.topics.forEach { TopicCard(it) }
+    val context = LocalContext.current
+    // Recorded demos, listed once off the main thread.
+    val recorded by produceState(emptySet<String>()) {
+        value = withContext(Dispatchers.IO) { runCatching { context.assets.list("help")?.toSet() }.getOrNull().orEmpty() }
+    }
+    val listState = rememberLazyListState()
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .safeDrawingPadding(),
+    ) {
+        Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(MlIcons.Back, contentDescription = "Back", tint = MlColors.TextPrimary) }
+            Text("Help", style = MaterialTheme.typography.titleMedium, color = MlColors.TextPrimary)
         }
-        SectionTitle("Still stuck?")
-        Text(
-            "Tell us what you tried. Screenshots help.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MlColors.TextSecondary,
-        )
-        Button(
-            onClick = onContact,
-            colors = ButtonDefaults.buttonColors(containerColor = MlColors.Violet),
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("Contact us") }
+        // Lazy: only the cards on screen are composed, so only their pictures animate.
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().lazyScrollBar(listState),
+            contentPadding = PaddingValues(start = 20.dp, end = 26.dp, top = 8.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            groups.forEach { group ->
+                item(key = "title_${group.title}") { SectionTitle(group.title) }
+                items(group.topics, key = { it.id }) { topic ->
+                    val demo = listOf("${topic.id}.gif", "${topic.id}.webp").firstOrNull { it in recorded }?.let { "help/$it" }
+                    TopicCard(topic, demo)
+                }
+            }
+            item(key = "contact") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionTitle("Still stuck?")
+                    Text(
+                        "Tell us what you tried. Screenshots help.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MlColors.TextSecondary,
+                    )
+                    Button(
+                        onClick = onContact,
+                        colors = ButtonDefaults.buttonColors(containerColor = MlColors.Violet),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Contact us") }
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun TopicCard(topic: Topic) {
+private fun TopicCard(topic: Topic, recorded: String?) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -137,7 +173,6 @@ private fun TopicCard(topic: Topic) {
             .fillMaxWidth()
             .aspectRatio(16f / 9f)
             .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
-        val recorded = rememberRecordedDemo(topic.id)
         if (recorded != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             RecordedDemo(recorded, pictureModifier)
         } else {
@@ -154,16 +189,6 @@ private fun TopicCard(topic: Topic) {
                 Text(topic.body, style = MaterialTheme.typography.bodyMedium, color = MlColors.TextSecondary)
             }
         }
-    }
-}
-
-/** Asset path of a recorded demo for [id], if one was added to `assets/help`. */
-@Composable
-private fun rememberRecordedDemo(id: String): String? {
-    val context = LocalContext.current
-    return remember(id) {
-        val files = runCatching { context.assets.list("help")?.toSet() }.getOrNull().orEmpty()
-        listOf("$id.gif", "$id.webp").firstOrNull { it in files }?.let { "help/$it" }
     }
 }
 

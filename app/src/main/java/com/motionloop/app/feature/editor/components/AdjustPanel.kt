@@ -52,6 +52,9 @@ fun AdjustPanel(
     onReset: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Read here: the swatch lambdas below are not composable.
+    val mint = MlColors.Mint
+    val high = MlColors.SurfaceHigh
     Column(modifier.fillMaxWidth()) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
@@ -70,13 +73,13 @@ fun AdjustPanel(
                         "Custom",
                         selected = adjustments.gradeId == Adjustments.CUSTOM_LUT_ID,
                         onClick = { onSelectGrade(Adjustments.CUSTOM_LUT_ID) },
-                    ) { listOf(MlColors.Violet, MlColors.Mint, MlColors.Mint, MlColors.Violet) }
+                    ) { listOf(MlColors.Violet, mint, mint, MlColors.Violet) }
                 }
             }
             item {
                 // Importing again replaces the project's custom grade.
                 GradeChip(if (hasCustom) "Replace .cube" else "Import .cube", selected = false, onClick = onImportCube) {
-                    listOf(MlColors.SurfaceHigh, MlColors.Violet, MlColors.Mint, MlColors.SurfaceHigh)
+                    listOf(high, MlColors.Violet, mint, high)
                 }
             }
         }
@@ -106,7 +109,8 @@ private fun swatchColors(grade: ColorGrade): List<Color> = swatchSamples.map { g
 
 @Composable
 private fun GradeChip(label: String, selected: Boolean, onClick: () -> Unit, colors: () -> List<Color>) {
-    val swatch = remember(label) { colors() }
+    // Keyed on the colors too, so a theme switch refreshes the theme-colored swatches.
+    val swatch = remember(label, colors) { colors() }
     Column(
         Modifier
             .clip(RoundedCornerShape(12.dp))

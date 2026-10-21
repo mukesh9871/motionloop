@@ -63,7 +63,7 @@ object MlColors {
     val Coral: Color @Composable @ReadOnlyComposable get() = LocalMlPalette.current.coral
 
     /** Same in both themes: white text reads well on it. */
-    val Violet = Color(0xFF7C5CFF)
+    val Violet = Color(0xFF6B4EFF)
 
     /** Near-black, for text on bright accents. */
     val Ink = Color(0xFF0E0F1A)
