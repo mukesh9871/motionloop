@@ -33,6 +33,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // ML models from :core:ml are memory-mapped, so they must stay uncompressed in the APK.
+    androidResources {
+        noCompress += "tflite"
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -46,6 +51,7 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":core:ml"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)

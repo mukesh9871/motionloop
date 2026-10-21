@@ -152,15 +152,15 @@ app/src/test/                     unit tests (flow math reference, loop timing, 
 
 ## Phased roadmap
 
-**Status (2026-10-21):** Phases 1, 2 and 3 are built and pass CI. Phases 4 to 6 need on-device ML models and wait for a go-ahead.
+**Status (2026-10-21):** Phases 1, 2 and 3 are built, pass CI and were tested on a phone. Phases 4 to 6 are in progress (plan below).
 
 | Phase | Features | Key deliverables |
 |---|---|---|
 | **1 MVP** | 1 to 6 | Import, arrows, anchors, freeze brush, seamless loop, boomerang, speed, MP4 + GIF export, share |
 | 2 | 7 + projects | Adjustments (brightness, contrast, saturation), 3D LUT grades (`.cube` -> 2D strip texture), saved projects gallery |
 | 3 | 8 | Overlay system: GPU particles (sparkles, snow, rain) via instanced quads, light leak videos/textures, blend modes |
-| 4 | 9 | `:core:ml` module, LiteRT runtime, sky segmentation (needs a model with a sky class, for example ADE20K-trained), sky replacement + animated skies |
-| 5 | 10 | Monocular depth (small depth model via LiteRT), parallax camera pass with depth-based displacement and inpainting of edges |
+| 4 | 9 | `:core:ml` module, build-time model download, sky detection (interactive segmenter seeded at sky-like points), sky replacement with procedural animated skies or a photo |
+| 5 | 10 | MiDaS v2.1 small depth via LiteRT, parallax camera pass (circle, sway, zoom) with depth-based displacement |
 | 6 | 11a to 11e | See below |
 
 ### Phase 1 steps (each ends with a green Gradle build)
@@ -175,19 +175,36 @@ app/src/test/                     unit tests (flow math reference, loop timing, 
 8. GIF export.
 9. Polish: original icons and launcher icon, empty states, error handling, rotation/process-death state restore.
 
-### Phase 6 (final) plan
+### Phases 4 to 6: models and decisions
 
-Build order matters: the shared segmentation module comes first.
+| Need | Choice | Notes |
+|---|---|---|
+| Tap-to-select, sky | MediaPipe Interactive Segmenter `magic_touch.tflite` (5.9 MB, Apache 2.0) | No small public model has a sky class: sky detection seeds this model at sky-like points, the user fixes it by tapping and brushing |
+| Auto subject | ML Kit Subject Segmentation (Play services, on device, no model file) | Fallback: interactive segmenter at the image center |
+| Depth | MiDaS v2.1 small `model_opt.tflite` (63 MB, MIT) via LiteRT 1.4.x `Interpreter` | Input 1x256x256x3 float (ImageNet normalized), output 1x256x256 inverse depth |
+| Model delivery | `:core:ml` Gradle task downloads models into generated assets, SHA-256 pinned | Nothing binary in git. CI logs `MODEL_SHA256` lines for pinning |
+| Ambient sounds | Synthesized in code (rain, waves, wind, fire) | Original, loop exactly |
+| MP4 audio | Own AAC MediaCodec encoder + the existing MediaMuxer | Replaces the earlier Media3 Transformer idea: one pipeline |
 
-1. **`SubjectSegmentation` module** (shared by 11a, 11d, 11e). One interface, two modes:
-   - `segmentSubject(bitmap)` automatic salient subject mask (11d, 11e)
-   - `segmentAt(bitmap, point)` tap-to-select mask (11a, MediaPipe Interactive Segmenter)
-   Output is a soft alpha mask uploaded as an R8 texture. Results cached per project.
-2. **11a Tap-to-select masking:** tap -> mask -> apply as freeze or animate region, then refine with the existing brush (mask strokes layer on top of the ML mask).
-3. **11d Background remover:** auto subject mask, erase/restore soft brush, backgrounds: transparent (PNG export), solid, gradient, blurred original, replacement photo. BackgroundPass sits before the warp so arrows and overlays act on the new background.
-4. **11e Text behind subject:** layer stack background -> text -> subject. Text rendered to textures (Canvas -> texture on a background thread, re-rasterized only when text properties change). Multiple layers, fonts, color, size, rotation, letter spacing, shadow, outline, drag to position. Animations (slide in, fade, typewriter, glow pulse) are driven by loop time so they loop and export correctly.
-5. **11b Live wallpaper:** `WallpaperService` with its own EGL context reusing RenderGraph, renders a saved project, pauses on `onVisibilityChanged(false)`.
-6. **11c Sound and music:** built-in ambient sounds (own or properly licensed recordings), user audio import, beat-sync (onset/energy detection on a background thread, mapped to a speed envelope), MP4 with audio via Media3 Transformer, aspect ratios 1:1, 4:5, 9:16 (crop/fit chosen in the export sheet).
+All ML inference runs on `@DefaultDispatcher`, behind a `Mutex` (MediaPipe tasks are not thread safe). Results are saved as PNG masks in the project folder (`sky_mask.png`, `subject_mask.png`, `depth.png`, `selection_<id>.png`) so they are computed once.
+
+### Render chain from Phase 4
+
+```
+photo --[SourcePass: sky replace, background replace (pre-warp, so arrows and overlays act on it)]--> source
+source --[LoopWarp (flow, freeze mask = strokes + selection masks)]--> frame
+frame --[Color + overlay]--> [Text layers, subject re-drawn on top]--> [Parallax by depth]--> target
+```
+Each bracketed stage is skipped when unused. Post stages ping-pong between two offscreen frames, the last active stage draws into the target.
+
+### Milestones (each: review loop, push, green CI)
+
+1. `:core:ml` module, model download, segmentation and mask storage. Sky replacement (Phase 4).
+2. Depth estimation and parallax (Phase 5).
+3. Subject segmentation, background remover with erase/restore brush, tap-to-select freeze/animate regions, PNG export (11a, 11d).
+4. Text layers behind the subject with animations (11e).
+5. Live wallpaper (11b).
+6. Sound: ambient synth, user audio, beat sync, MP4 with AAC, export aspect ratios 1:1, 4:5, 9:16 (11c).
 
 ## Build, CI and workflow
 

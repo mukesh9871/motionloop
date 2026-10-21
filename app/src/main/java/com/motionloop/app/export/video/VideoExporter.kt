@@ -15,6 +15,8 @@ import com.motionloop.app.domain.model.ExportSettings
 import com.motionloop.app.domain.model.LoopTiming
 import com.motionloop.app.domain.model.Project
 import com.motionloop.app.domain.repository.LutRepository
+import com.motionloop.app.domain.repository.ProjectAssetRepository
+import com.motionloop.app.export.applySky
 import com.motionloop.app.domain.repository.ProjectRepository
 import com.motionloop.app.export.OffscreenLoop
 import com.motionloop.app.render.LoopRenderGraph
@@ -33,6 +35,7 @@ class VideoExporter @Inject constructor(
     @ApplicationContext private val context: Context,
     private val projects: ProjectRepository,
     private val luts: LutRepository,
+    private val assets: ProjectAssetRepository,
 ) {
 
     suspend fun export(project: Project, settings: ExportSettings, out: File, onProgress: (Float) -> Unit) =
@@ -73,6 +76,7 @@ class VideoExporter @Inject constructor(
                 g.setGeometry(project.arrows, project.anchors, project.strokes)
                 g.setColor(project.adjustments, luts.resolve(project.id, project.adjustments))
                 g.setOverlay(project.overlay)
+                applySky(g, project, assets, max(w, h))
                 bitmap.recycle() // uploaded to the GPU, the CPU copy is no longer needed
 
                 val m = MediaMuxer(out.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4).also { muxer = it }

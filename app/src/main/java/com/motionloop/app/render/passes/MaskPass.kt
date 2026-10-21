@@ -2,6 +2,7 @@ package com.motionloop.app.render.passes
 
 import android.content.res.AssetManager
 import android.opengl.GLES30
+import com.motionloop.app.core.gl.FullscreenQuad
 import com.motionloop.app.core.gl.GlProgram
 import com.motionloop.app.core.gl.GlTexture
 import com.motionloop.app.core.gl.GlUtil
@@ -18,9 +19,15 @@ import kotlin.math.roundToInt
  * Replays brush strokes into an R8 freeze mask (1 = frozen).
  * Each stroke becomes a row of soft circular stamps drawn with instancing.
  */
-class MaskPass(assets: AssetManager) : RenderPass {
+class MaskPass(assets: AssetManager, private val quad: FullscreenQuad) : RenderPass {
+
+    /** A model mask drawn under the strokes. */
+    data class Layer(val textureId: Int, val mode: LayerMode)
+
+    enum class LayerMode { ADD, SUBTRACT, ADD_INVERTED }
 
     private val program = GlProgram.fromAssets(assets, "mask_stamp.vert", "mask_stamp.frag")
+    private val layerProgram = GlProgram.fromAssets(assets, "fullscreen.vert", "mask_layer.frag")
     private val vao = IntArray(1)
     private val cornerVbo = IntArray(1)
     private val stampVbo = IntArray(1)
@@ -49,11 +56,13 @@ class MaskPass(assets: AssetManager) : RenderPass {
         GLES30.glBindVertexArray(0)
     }
 
-    fun render(aspect: Float, strokes: List<MaskStroke>) {
+    /** Model mask [layers] first, in order, then the brush [strokes] on top so they refine the model. */
+    fun render(aspect: Float, strokes: List<MaskStroke>, layers: List<Layer> = emptyList()) {
         val target = ensureTarget(aspect)
         target.bindAsTarget()
         GLES30.glClearColor(0f, 0f, 0f, 0f)
         GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+        if (layers.isNotEmpty()) drawLayers(layers)
         if (strokes.isEmpty()) return
 
         program.use()
@@ -79,6 +88,25 @@ class MaskPass(assets: AssetManager) : RenderPass {
         GLES30.glBlendEquation(GLES30.GL_FUNC_ADD)
         GLES30.glDisable(GLES30.GL_BLEND)
         GlUtil.checkError("MaskPass")
+    }
+
+    private fun drawLayers(layers: List<Layer>) {
+        layerProgram.use()
+        layerProgram.set1f("uFlipY", 0f)
+        GLES30.glEnable(GLES30.GL_BLEND)
+        for (layer in layers) {
+            layerProgram.bindTexture("uMask", 0, layer.textureId)
+            layerProgram.set1f("uInvert", if (layer.mode == LayerMode.ADD_INVERTED) 1f else 0f)
+            if (layer.mode == LayerMode.SUBTRACT) {
+                GLES30.glBlendEquation(GLES30.GL_FUNC_ADD)
+                GLES30.glBlendFunc(GLES30.GL_ZERO, GLES30.GL_ONE_MINUS_SRC_COLOR)
+            } else {
+                GLES30.glBlendEquation(GLES30.GL_MAX)
+            }
+            quad.draw()
+        }
+        GLES30.glBlendEquation(GLES30.GL_FUNC_ADD)
+        GLES30.glDisable(GLES30.GL_BLEND)
     }
 
     /** Stamps every quarter radius along the stroke. Distances in aspect space so spacing is even. */
@@ -141,6 +169,7 @@ class MaskPass(assets: AssetManager) : RenderPass {
         GLES30.glDeleteBuffers(2, intArrayOf(cornerVbo[0], stampVbo[0]), 0)
         GLES30.glDeleteVertexArrays(1, vao, 0)
         program.release()
+        layerProgram.release()
     }
 
     private companion object {

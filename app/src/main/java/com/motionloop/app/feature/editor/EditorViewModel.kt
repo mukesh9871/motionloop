@@ -1,40 +1,53 @@
 package com.motionloop.app.feature.editor
 
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.motionloop.app.core.common.DefaultDispatcher
 import com.motionloop.app.domain.model.Adjustments
 import com.motionloop.app.domain.model.Anchor
 import com.motionloop.app.domain.model.LoopMode
 import com.motionloop.app.domain.model.LoopSettings
+import com.motionloop.app.domain.model.MaskKind
 import com.motionloop.app.domain.model.MaskMode
 import com.motionloop.app.domain.model.MaskStroke
 import com.motionloop.app.domain.model.MotionArrow
 import com.motionloop.app.domain.model.NPoint
 import com.motionloop.app.domain.model.OverlaySettings
 import com.motionloop.app.domain.model.Project
+import com.motionloop.app.domain.model.SkySettings
+import com.motionloop.app.domain.model.SkyStyle
+import com.motionloop.app.domain.repository.ImageKind
 import com.motionloop.app.domain.repository.LutRepository
+import com.motionloop.app.domain.repository.ProjectAssetRepository
 import com.motionloop.app.domain.repository.ProjectRepository
 import com.motionloop.app.navigation.Routes
 import com.motionloop.app.render.passes.FlowFieldPass
+import com.motionloop.ml.Segmenter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
 import kotlin.math.hypot
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @HiltViewModel
 class EditorViewModel @Inject constructor(
     savedState: SavedStateHandle,
     private val projects: ProjectRepository,
     private val luts: LutRepository,
+    private val assets: ProjectAssetRepository,
+    private val segmenter: Segmenter,
+    @DefaultDispatcher private val cpu: CoroutineDispatcher,
 ) : ViewModel() {
 
     private val projectId: String = checkNotNull(savedState[Routes.ARG_PROJECT_ID])
@@ -43,6 +56,7 @@ class EditorViewModel @Inject constructor(
     val state: StateFlow<EditorUiState> = _state.asStateFlow()
 
     private var lutJob: Job? = null
+    private var skyMaskJob: Job? = null
     private val undoStack = ArrayDeque<Geometry>()
     private val redoStack = ArrayDeque<Geometry>()
 
@@ -72,12 +86,102 @@ class EditorViewModel @Inject constructor(
             }
             refreshLut()
             _state.update { it.copy(hasCustomLut = luts.hasCustom(projectId)) }
+            // Undo history starts empty, so older sky mask revisions can go.
+            assets.prune(projectId, MaskKind.SKY, setOf(project.sky.maskRev))
+            loadSkyMask(project.sky.maskRev)
+            loadSkyPhoto(project.sky.photoRev)
         }
     }
 
+    // region sky
+
+    /** Settings that are not part of undo (style, drift, edge, blend, on/off). */
+    fun setSky(change: (SkySettings) -> SkySettings) {
+        val p = _state.value.project ?: return
+        val updated = p.copy(sky = change(p.sky))
+        _state.update { it.copy(project = updated) }
+        persist(updated)
+    }
+
+    /** Runs the segmenter from automatic sky seeds and replaces the sky area with the result. */
+    fun detectSky() = runModel("Finding the sky") { preview ->
+        val mask = withContext(cpu) { segmenter.segmentSky(preview) }
+        if (mask == null) {
+            _state.update { it.copy(message = "No clear sky found. Tap the sky to select it.") }
+            return@runModel
+        }
+        val rev = assets.saveMask(projectId, MaskKind.SKY, mask)
+        _state.update { it.copy(skyMask = mask, skyMaskRev = rev) }
+        val project = _state.value.project ?: return@runModel
+        commit(current(project).copy(skyMaskRev = rev))
+        setSky { it.copy(enabled = true) }
+    }
+
+    /** Adds or removes the region under [p] (the segmenter picks the object there). */
+    private fun skyTap(p: NPoint, add: Boolean) = runModel(if (add) "Adding to the sky" else "Removing from the sky") { preview ->
+        val region = withContext(cpu) { segmenter.segmentAt(preview, p.x, p.y) }
+        val s = _state.value
+        val base = s.skyMask.takeIf { s.skyMaskRev == s.project?.sky?.maskRev && s.skyMaskRev != 0 }
+        val combined = when {
+            base != null -> withContext(cpu) { base.combine(region, subtract = !add) }
+            add -> region
+            else -> return@runModel // nothing to remove from
+        }
+        val rev = assets.saveMask(projectId, MaskKind.SKY, combined)
+        _state.update { it.copy(skyMask = combined, skyMaskRev = rev) }
+        val project = _state.value.project ?: return@runModel
+        commit(current(project).copy(skyMaskRev = rev))
+    }
+
+    fun importSkyPhoto(uri: Uri) = runModel("Loading the photo") {
+        val rev = assets.importImage(projectId, ImageKind.SKY_PHOTO, uri)
+        setSky { it.copy(style = SkyStyle.PHOTO, photoRev = rev, enabled = true) }
+        loadSkyPhoto(rev)
+    }
+
+    /** Model and file work, one at a time, with a busy label and a readable error. */
+    private fun runModel(label: String, block: suspend (preview: Bitmap) -> Unit) {
+        val preview = _state.value.preview ?: return
+        if (_state.value.busy != null) return
+        _state.update { it.copy(busy = label, playing = false) }
+        viewModelScope.launch {
+            try {
+                block(preview)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val reason = e.message ?: e.javaClass.simpleName
+                _state.update { it.copy(message = "That did not work: $reason") }
+            } finally {
+                _state.update { it.copy(busy = null) }
+            }
+        }
+    }
+
+    private fun loadSkyMask(rev: Int) {
+        if (rev == _state.value.skyMaskRev && (rev == 0 || _state.value.skyMask != null)) return
+        // Fast undo / redo: only the latest request may land.
+        skyMaskJob?.cancel()
+        skyMaskJob = viewModelScope.launch {
+            val mask = assets.loadMask(projectId, MaskKind.SKY, rev)
+            _state.update { it.copy(skyMask = mask, skyMaskRev = rev) }
+        }
+    }
+
+    private fun loadSkyPhoto(rev: Int) {
+        if (rev == 0) return
+        viewModelScope.launch {
+            val photo = assets.loadImage(projectId, ImageKind.SKY_PHOTO, rev, SKY_PHOTO_EDGE)
+            _state.update { it.copy(skyPhoto = photo, skyPhotoRev = rev) }
+        }
+    }
+
+    // endregion
+
     // region color
 
-    fun setPanel(panel: EditorPanel) = _state.update { it.copy(panel = panel, liveArrow = null, liveStroke = null) }
+    fun setPanel(panel: EditorPanel) =
+        _state.update { it.copy(panel = panel, tool = panel.defaultTool, liveArrow = null, liveStroke = null) }
 
     /** Slider changes. Not part of undo history: they are cheap to drag back and reset. */
     fun setAdjustments(change: (Adjustments) -> Adjustments) {
@@ -179,18 +283,22 @@ class EditorViewModel @Inject constructor(
                 )
             }
 
-            EditorTool.FREEZE, EditorTool.UNFREEZE -> _state.update {
+            EditorTool.FREEZE, EditorTool.UNFREEZE, EditorTool.SKY_PAINT, EditorTool.SKY_ERASE -> _state.update {
+                // Freeze and sky paint add to their mask, unfreeze and sky erase remove from it.
+                val adds = s.tool == EditorTool.FREEZE || s.tool == EditorTool.SKY_PAINT
                 it.copy(
                     liveStroke = MaskStroke(
                         points = listOf(p),
                         radius = s.brushRadius,
                         hardness = s.brushHardness,
-                        mode = if (s.tool == EditorTool.FREEZE) MaskMode.FREEZE else MaskMode.UNFREEZE,
+                        mode = if (adds) MaskMode.FREEZE else MaskMode.UNFREEZE,
                     ),
                 )
             }
 
             EditorTool.ERASE -> eraseNear(project, p)
+            EditorTool.SKY_ADD -> skyTap(p, add = true)
+            EditorTool.SKY_REMOVE -> skyTap(p, add = false)
         }
     }
 
@@ -221,7 +329,8 @@ class EditorViewModel @Inject constructor(
         }
         s.liveStroke?.let { stroke ->
             _state.update { it.copy(liveStroke = null) }
-            commit(current(project).let { it.copy(strokes = it.strokes + stroke) })
+            val g = current(project)
+            commit(if (s.isSkyBrush) g.copy(skyStrokes = g.skyStrokes + stroke) else g.copy(strokes = g.strokes + stroke))
         }
     }
 
@@ -270,14 +379,20 @@ class EditorViewModel @Inject constructor(
     }
 
     private fun apply(project: Project, g: Geometry) {
-        val updated = project.copy(arrows = g.arrows, anchors = g.anchors, strokes = g.strokes)
+        val updated = project.copy(
+            arrows = g.arrows,
+            anchors = g.anchors,
+            strokes = g.strokes,
+            sky = project.sky.copy(maskRev = g.skyMaskRev, strokes = g.skyStrokes),
+        )
+        loadSkyMask(g.skyMaskRev)
         _state.update {
             it.copy(project = updated, canUndo = undoStack.isNotEmpty(), canRedo = redoStack.isNotEmpty())
         }
         persist(updated)
     }
 
-    private fun current(p: Project) = Geometry(p.arrows, p.anchors, p.strokes)
+    private fun current(p: Project) = Geometry(p.arrows, p.anchors, p.strokes, p.sky.maskRev, p.sky.strokes)
 
     // endregion
 
@@ -306,5 +421,6 @@ class EditorViewModel @Inject constructor(
         const val MIN_STROKE_STEP = 0.003f
         const val ERASE_RADIUS = 0.04f
         const val MAX_HISTORY = 100
+        const val SKY_PHOTO_EDGE = 2048
     }
 }

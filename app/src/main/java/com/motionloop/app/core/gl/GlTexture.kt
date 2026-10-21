@@ -3,6 +3,8 @@ package com.motionloop.app.core.gl
 import android.graphics.Bitmap
 import android.opengl.GLES30
 import android.opengl.GLUtils
+import com.motionloop.ml.AlphaMask
+import java.nio.ByteBuffer
 
 /** A 2D texture, optionally with a framebuffer so passes can render into it. */
 class GlTexture private constructor(val id: Int, val width: Int, val height: Int) {
@@ -29,6 +31,24 @@ class GlTexture private constructor(val id: Int, val width: Int, val height: Int
         GLES30.glViewport(0, 0, width, height)
     }
 
+    /** For example GL_MIRRORED_REPEAT, so a sky photo can drift past its edges. */
+    fun setWrap(mode: Int) {
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, id)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, mode)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_T, mode)
+    }
+
+    /** Rebuilds the mip chain after rendering into level 0 (needs a mipmapped min filter). */
+    fun generateMipmaps() {
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, id)
+        GLES30.glGenerateMipmap(GLES30.GL_TEXTURE_2D)
+    }
+
+    fun setMinFilter(filter: Int) {
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, id)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MIN_FILTER, filter)
+    }
+
     fun release() {
         if (fbo != 0) GLES30.glDeleteFramebuffers(1, intArrayOf(fbo), 0)
         GLES30.glDeleteTextures(1, intArrayOf(id), 0)
@@ -43,6 +63,21 @@ class GlTexture private constructor(val id: Int, val width: Int, val height: Int
             GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_LINEAR_MIPMAP_LINEAR)
             GlUtil.checkError("texImage2D bitmap")
             return GlTexture(id, bitmap.width, bitmap.height)
+        }
+
+        /** Single-channel R8 texture from a model mask (sky, subject, depth, selection). */
+        fun fromMask(mask: AlphaMask): GlTexture {
+            val id = newTextureId(GLES30.GL_LINEAR)
+            // Rows are width bytes, usually not a multiple of 4.
+            GLES30.glPixelStorei(GLES30.GL_UNPACK_ALIGNMENT, 1)
+            GLES30.glTexImage2D(
+                GLES30.GL_TEXTURE_2D, 0, GLES30.GL_R8, mask.width, mask.height, 0,
+                GLES30.GL_RED, GLES30.GL_UNSIGNED_BYTE,
+                ByteBuffer.allocateDirect(mask.data.size).put(mask.data).position(0),
+            )
+            GLES30.glPixelStorei(GLES30.GL_UNPACK_ALIGNMENT, 4)
+            GlUtil.checkError("texImage2D mask")
+            return GlTexture(id, mask.width, mask.height)
         }
 
         fun empty(width: Int, height: Int, internalFormat: Int, format: Int, type: Int): GlTexture {

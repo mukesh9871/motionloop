@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "MotionLoop"
 include(":app")
+include(":core:ml")

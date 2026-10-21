@@ -7,17 +7,31 @@ import com.motionloop.app.domain.model.MaskStroke
 import com.motionloop.app.domain.model.MotionArrow
 import com.motionloop.app.domain.model.Project
 import com.motionloop.app.render.RenderScene
+import com.motionloop.ml.AlphaMask
 
-enum class EditorTool { ARROW, ANCHOR, FREEZE, UNFREEZE, ERASE }
+enum class EditorTool {
+    ARROW, ANCHOR, FREEZE, UNFREEZE, ERASE,
 
-/** Bottom panel: motion tools, color adjustments or overlays. */
-enum class EditorPanel(val label: String) { ANIMATE("Animate"), ADJUST("Adjust"), OVERLAY("Overlay") }
+    /** Sky panel: tap to add or remove an area with the segmenter, or paint and erase by hand. */
+    SKY_ADD, SKY_REMOVE, SKY_PAINT, SKY_ERASE,
+}
+
+/** Bottom panel: motion tools, sky, color adjustments or overlays. */
+enum class EditorPanel(val label: String, val defaultTool: EditorTool) {
+    ANIMATE("Animate", EditorTool.ARROW),
+    SKY("Sky", EditorTool.SKY_ADD),
+    ADJUST("Adjust", EditorTool.ARROW),
+    OVERLAY("Overlay", EditorTool.ARROW),
+}
 
 /** Everything undo/redo covers. */
 data class Geometry(
     val arrows: List<MotionArrow> = emptyList(),
     val anchors: List<Anchor> = emptyList(),
     val strokes: List<MaskStroke> = emptyList(),
+    /** Sky area: model mask revision plus brush refinements. */
+    val skyMaskRev: Int = 0,
+    val skyStrokes: List<MaskStroke> = emptyList(),
 )
 
 data class EditorUiState(
@@ -42,8 +56,16 @@ data class EditorUiState(
     val hasCustomLut: Boolean = false,
     /** One-off message (for example a rejected .cube file). */
     val message: String? = null,
+    /** Model work in progress, shown over the preview ("Finding the sky"). */
+    val busy: String? = null,
+    /** Loaded sky mask and the revision it belongs to. Only used while it matches the project. */
+    val skyMask: AlphaMask? = null,
+    val skyMaskRev: Int = 0,
+    val skyPhoto: Bitmap? = null,
+    val skyPhotoRev: Int = 0,
 ) {
-    val isBrush: Boolean get() = tool == EditorTool.FREEZE || tool == EditorTool.UNFREEZE
+    val isSkyBrush: Boolean get() = tool == EditorTool.SKY_PAINT || tool == EditorTool.SKY_ERASE
+    val isBrush: Boolean get() = tool == EditorTool.FREEZE || tool == EditorTool.UNFREEZE || isSkyBrush
 
     val visibleArrows: List<MotionArrow>
         get() = project?.arrows.orEmpty() + listOfNotNull(liveArrow)
@@ -55,13 +77,18 @@ data class EditorUiState(
                 image = preview,
                 arrows = visibleArrows,
                 anchors = p.anchors,
-                strokes = p.strokes + listOfNotNull(liveStroke),
+                strokes = if (isSkyBrush) p.strokes else p.strokes + listOfNotNull(liveStroke),
                 loop = p.loop,
                 playing = playing,
                 showMask = !playing && panel == EditorPanel.ANIMATE && (isBrush || liveStroke != null),
                 adjustments = p.adjustments,
                 lut = lut.takeIf { lutGradeId != null && lutGradeId == p.adjustments.gradeId },
                 overlay = p.overlay,
+                sky = if (isSkyBrush && liveStroke != null) p.sky.copy(strokes = p.sky.strokes + liveStroke) else p.sky,
+                skyMask = skyMask.takeIf { skyMaskRev == p.sky.maskRev },
+                skyPhoto = skyPhoto.takeIf { skyPhotoRev == p.sky.photoRev },
+                // In the sky panel, show the area as a tint while painting or before replacing is on.
+                skyReplace = !(panel == EditorPanel.SKY && !playing && (liveStroke != null || !p.sky.enabled)),
             )
         }
 }

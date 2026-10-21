@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import android.net.Uri
 import com.motionloop.app.domain.model.Adjustments
 import com.motionloop.app.domain.model.LutData
+import com.motionloop.app.domain.model.MaskKind
+import com.motionloop.ml.AlphaMask
 import com.motionloop.app.domain.model.Project
 import java.io.File
 
@@ -30,6 +32,21 @@ interface ProjectRepository {
     /** Deletes the project folder. Waits for queued saves so a late save cannot recreate it. */
     suspend fun delete(id: String)
 }
+
+/** Per-project masks and extra images, stored as numbered revisions so undo can go back to an older one. */
+interface ProjectAssetRepository {
+    suspend fun saveMask(projectId: String, kind: MaskKind, mask: AlphaMask): Int
+    suspend fun loadMask(projectId: String, kind: MaskKind, rev: Int): AlphaMask?
+
+    /** Copies an image (for example a sky photo) into the project, returns its revision. */
+    suspend fun importImage(projectId: String, kind: ImageKind, source: Uri): Int
+    suspend fun loadImage(projectId: String, kind: ImageKind, rev: Int, maxEdge: Int): Bitmap?
+
+    /** Deletes revisions of [kind] that are not in [keep]. */
+    suspend fun prune(projectId: String, kind: MaskKind, keep: Set<Int>)
+}
+
+enum class ImageKind(val prefix: String) { SKY_PHOTO("sky_photo"), BACKGROUND("background") }
 
 interface LutRepository {
     /** Baked LUT for the project grade, or null when no grade is set or the file is missing. */

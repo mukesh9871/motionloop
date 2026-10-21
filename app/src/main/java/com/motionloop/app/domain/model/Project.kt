@@ -60,6 +60,7 @@ data class Project(
     val loop: LoopSettings = LoopSettings(),
     val adjustments: Adjustments = Adjustments(),
     val overlay: OverlaySettings = OverlaySettings(),
+    val sky: SkySettings = SkySettings(),
 ) {
     val aspect: Float get() = imageWidth.toFloat() / imageHeight
 }

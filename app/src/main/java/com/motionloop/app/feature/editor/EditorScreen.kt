@@ -1,6 +1,7 @@
 package com.motionloop.app.feature.editor
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,6 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.motionloop.app.feature.editor.components.AdjustPanel
 import com.motionloop.app.feature.editor.components.LabeledSlider
 import com.motionloop.app.feature.editor.components.OverlayPanel
+import com.motionloop.app.feature.editor.components.SkyPanel
 import com.motionloop.app.feature.editor.components.PlaybackBar
 import com.motionloop.app.feature.editor.components.ToolBar
 import com.motionloop.app.feature.editor.tools.EditorCanvas
@@ -55,6 +57,10 @@ fun EditorScreen(onBack: () -> Unit, vm: EditorViewModel = hiltViewModel()) {
     val pickCube = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(vm::importCube)
     }
+    val pickSkyPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        uri?.let(vm::importSkyPhoto)
+    }
+    val touchPanel = state.panel == EditorPanel.ANIMATE || state.panel == EditorPanel.SKY
 
     Column(
         Modifier
@@ -95,13 +101,14 @@ fun EditorScreen(onBack: () -> Unit, vm: EditorViewModel = hiltViewModel()) {
                         arrows = state.visibleArrows,
                         anchors = project.anchors,
                         showGuides = !state.playing && state.panel == EditorPanel.ANIMATE,
-                        enabled = state.panel == EditorPanel.ANIMATE,
+                        enabled = touchPanel && state.busy == null,
                         brushRadius = state.brushRadius,
                         onDown = vm::pointerDown,
                         onMove = vm::pointerMove,
                         onUp = vm::pointerUp,
                         modifier = Modifier.fillMaxSize(),
                     )
+                    state.busy?.let { label -> BusyBadge(label, Modifier.align(Alignment.BottomCenter)) }
                 }
             }
         }
@@ -126,7 +133,24 @@ fun EditorScreen(onBack: () -> Unit, vm: EditorViewModel = hiltViewModel()) {
                         .padding(vertical = 4.dp),
                 )
             }
-            if (state.panel == EditorPanel.OVERLAY) {
+            if (state.panel == EditorPanel.SKY) {
+                if (project != null) {
+                    SkyPanel(
+                        sky = project.sky,
+                        tool = state.tool,
+                        busy = state.busy != null,
+                        onDetect = vm::detectSky,
+                        onTool = vm::setTool,
+                        onChange = vm::setSky,
+                        onPickPhoto = {
+                            pickSkyPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        },
+                    )
+                    if (state.isSkyBrush) {
+                        LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
+                    }
+                }
+            } else if (state.panel == EditorPanel.OVERLAY) {
                 if (project != null) {
                     OverlayPanel(settings = project.overlay, onChange = vm::setOverlay)
                 }
@@ -197,6 +221,22 @@ private fun PanelTabs(selected: EditorPanel, onSelect: (EditorPanel) -> Unit) {
                     .padding(vertical = 8.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun BusyBadge(label: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .padding(12.dp)
+            .clip(RoundedCornerShape(50))
+            .background(MlColors.Background.copy(alpha = 0.8f))
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MlColors.Mint)
+        Spacer(Modifier.width(8.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MlColors.TextPrimary)
     }
 }
 
