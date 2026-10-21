@@ -10,8 +10,10 @@ object MediaIntents {
 
     /** Temp file Uri the camera app writes the photo into. Old captures are cleared by [pruneCaptures]. */
     fun newCameraUri(context: Context): Uri {
-        // The folder is made by pruneCaptures (off the main thread) when Home opens.
-        val file = File(File(context.cacheDir, "camera"), "capture_${System.currentTimeMillis()}.jpg")
+        // Normally made by pruneCaptures when Home opens. One stat here covers a cache cleared meanwhile.
+        val dir = File(context.cacheDir, "camera")
+        if (!dir.isDirectory) dir.mkdirs()
+        val file = File(dir, "capture_${System.currentTimeMillis()}.jpg")
         return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     }
 

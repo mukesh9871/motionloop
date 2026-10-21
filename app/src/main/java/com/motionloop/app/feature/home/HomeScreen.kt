@@ -156,8 +156,8 @@ fun HomeScreen(
         ) {
             // One scrolling grid for the whole page, two columns, so samples and projects scroll together.
             LazyVerticalGrid(
-                // Two columns on phones, more on tablets and unfolded foldables.
-                columns = GridCells.Adaptive(minSize = 160.dp),
+                // Two columns down to 320 dp phones, more on tablets and unfolded foldables.
+                columns = GridCells.Adaptive(minSize = 136.dp),
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),

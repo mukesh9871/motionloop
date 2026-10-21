@@ -64,6 +64,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -209,7 +210,16 @@ class EditorViewModel @Inject constructor(
                 }
                 val envelope = withContext(cpu) { BeatDetector.envelope(BeatDetector.beats(pcm), pcm.seconds) }
                 // The track is filled off the main thread, then handed over at once (no suspension between).
-                val track = withContext(cpu) { player.build(pcm) }
+                val track = withContext(cpu) {
+                    val t = player.build(pcm)
+                    // Cancelled meanwhile (another sound chosen): the filled track would leak.
+                    if (!isActive) {
+                        t?.release()
+                        null
+                    } else {
+                        t
+                    }
+                }
                 player.setLoop(pcm, track)
                 player.setVolume(_state.value.project?.audio?.volume ?: 1f)
                 if (_state.value.playing) player.play()

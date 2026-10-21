@@ -104,7 +104,7 @@ class ExportViewModel @Inject constructor(
     /** Called each time the sheet opens, so a finished export from before does not hide the Export button. */
     fun reset() {
         if (_state.value.running) return
-        _state.update { it.copy(progress = 0f, resultUri = null, resultMime = null, error = null) }
+        _state.update { it.copy(progress = 0f, resultUri = null, resultMime = null, error = null, storageDenied = false) }
         refreshProject()
     }
 

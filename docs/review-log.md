@@ -357,3 +357,14 @@ Verdicts: UI diff NEEDS WORK (1 blocker), engine diff NEEDS WORK (2 major, 5 min
 | android/skills | minor | Previews, baseline profile, ViewModel tests, Gradle wrapper, release smoke test for narrower keep rules | Accepted for now: need a machine with the SDK or a release build. |
 | android-ninja | minor | Debug id suffix, parallel Gradle, ML Kit timeout, export cleanup in the repository, camera folder off main, audio track filled off main, log stripping | Fixed. |
 | android-ninja | minor | Prefs warm-up, roles on every chip, theme shapes, lint, previews, lifecycle effect style | Accepted for now. |
+
+## Full review round 3 (9537e9d)
+
+Verdict: NEEDS WORK (1 major, 3 minor). All round 2 fixes verified.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | major | Adaptive grid gave one column on 360 dp phones | Fixed: minimum 136 dp keeps two columns down to 320 dp. |
+| 2 | minor | Audio track built under a cancelled job leaked | Fixed: released when cancelled. |
+| 3 | minor | Camera folder could be gone after a cache clear | Fixed: made on demand. |
+| 4 | minor | Settings button stayed after the sheet reopened | Fixed. |
