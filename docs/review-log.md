@@ -169,3 +169,18 @@ Verdict: NEEDS WORK (2 major, 9 minor). GLSL, ping-pong, orientation, MiDaS inpu
 | 11 | minor | Margin test was a tautology | Fixed: tests the real reserve function per path and aspect. |
 
 This push also carries Phase 6 milestone 3 (cutout, tap-to-select, PNG) and the shell round-2 minors (download retry on network errors, drawer action after a cancelled close, dead parameter, import order, selectable group, sample photo pins).
+
+## Push 6, round 2 (Phase 5 fixes + Phase 6 cutout, select, PNG)
+
+Verdict: NEEDS WORK (2 major, 6 minor). All 11 parallax fixes verified, compile and GLSL clean.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | major | Several "Only this" regions froze everything (each inverted alone, then max) | Fixed: "Only this" masks are joined first, then inverted once. |
+| 2 | major | PNG cutout blended over black and then took alpha again: dark edge halo | Fixed: cutout export keeps the photo colors, the mask is only alpha. |
+| 3 | minor | Blur background dropped a replaced sky | Fixed: blends from the sky-replaced color. |
+| 4 | minor | Re-choosing the photo background bypassed the Pro gate | Fixed. |
+| 5 | minor | Missing subject or selection files were not handled | Fixed: editor drops them with a message, export fails readably for a missing subject. |
+| 6 | minor | Drawer action ran on any cancellation, double navigation on fast taps | Fixed: action only after a completed close (supersedes the round-2 shell minor 3 trade-off). |
+| 7 | minor | Parallax reserve could reach 0.5 on extreme panoramas | Fixed: capped at 0.4. |
+| 8 | minor | Editor checkerboard flows with the warp | Accepted: editor-only, transparency shows black in video and real alpha in PNG. |

@@ -64,7 +64,7 @@ class PngExporter @Inject constructor(
             g.setOverlay(project.overlay)
             applySky(g, project, assets, max(w, h))
             // No 3D camera on a still: the cutout mask must line up with the unshifted photo.
-            applySubject(g, project, assets, max(w, h))
+            applySubject(g, project, assets, max(w, h), cutout = cutout)
             texts = renderTexts(project, w)
             g.setTexts(texts)
             bitmap.recycle()

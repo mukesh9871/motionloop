@@ -33,11 +33,13 @@ data class ParallaxSettings(
      */
     fun reserve(aspect: Float): Float {
         val largest = if (path == CameraPath.CIRCLE) offset * maxOf(1f, aspect) else offset
-        return 1.1f * largest
+        // The shader divides by 1 - 2 * reserve: cap it for extreme panoramas (aspect 9 and up).
+        return (1.1f * largest).coerceAtMost(MAX_RESERVE)
     }
 
     companion object {
         /** Largest camera offset in image widths at amount 1. Also the auto zoom margin. */
         const val MAX_OFFSET = 0.05f
+        const val MAX_RESERVE = 0.4f
     }
 }

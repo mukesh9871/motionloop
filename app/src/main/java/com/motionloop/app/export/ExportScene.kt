@@ -11,8 +11,9 @@ import com.motionloop.app.render.SelectionLayer
 import com.motionloop.app.render.passes.TextDraw
 import com.motionloop.app.render.text.TextRasterizer
 
-/** Tap-to-select regions of the freeze mask, loaded for an export. Missing files are skipped. */
+/** Tap-to-select regions of the freeze mask, loaded for an export. */
 internal suspend fun loadSelections(project: Project, assets: ProjectAssetRepository): List<SelectionLayer> =
+    // Missing files are skipped: the editor removes such regions when the project is opened.
     project.selections.mapNotNull { region ->
         assets.loadMask(project.id, MaskKind.SELECTION, region.rev)?.let { SelectionLayer(it, region.mode) }
     }
@@ -21,10 +22,24 @@ internal suspend fun loadSelections(project: Project, assets: ProjectAssetReposi
  * Subject mask and background for an export. Transparent backgrounds become black in video,
  * since MP4 and GIF here carry no alpha.
  */
-internal suspend fun applySubject(graph: LoopRenderGraph, project: Project, assets: ProjectAssetRepository, outputLongEdge: Int) {
+internal suspend fun applySubject(
+    graph: LoopRenderGraph,
+    project: Project,
+    assets: ProjectAssetRepository,
+    outputLongEdge: Int,
+    cutout: Boolean = false,
+) {
     val subject = project.subject
     if (!subject.hasArea) return
     val mask = assets.loadMask(project.id, MaskKind.SUBJECT, subject.maskRev)
+    // A stored area whose file is gone would replace the whole frame, or cut out nothing.
+    if (subject.maskRev != 0 && mask == null) error("The subject mask is missing. Find the subject again in Cutout.")
+    if (cutout) {
+        // PNG cutout: keep the photo's own colors, the mask becomes alpha. Blending over black here
+        // and applying alpha again would darken the edges twice.
+        graph.setSubject(subject, mask, project.background.copy(mode = BackgroundMode.NONE), null, tintOnly = false, checker = false)
+        return
+    }
     val photo = if (project.background.mode == BackgroundMode.PHOTO) {
         assets.loadImage(project.id, ImageKind.BACKGROUND, project.background.photoRev, outputLongEdge)
     } else {

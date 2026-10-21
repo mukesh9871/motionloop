@@ -117,12 +117,10 @@ fun HomeScreen(
     // Close first, then act: navigating mid-animation would come back to a half-open drawer.
     fun closeThen(action: () -> Unit) {
         scope.launch {
-            try {
-                drawer.close()
-            } finally {
-                // Back or a drag during the animation cancels this close: still do what was tapped.
-                action()
-            }
+            // If Back or a second tap cancels the close, this coroutine stops here and the
+            // superseded action is dropped: one tap, one navigation.
+            drawer.close()
+            action()
         }
     }
 

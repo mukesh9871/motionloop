@@ -97,6 +97,7 @@ class LoopRenderGraph(assets: AssetManager) {
     private var lastSubjectMask: AlphaMask? = null
     private var subjectMaskBuilt = false
     private val selectionTextures = ArrayList<MaskTexture>()
+    private val animateOnlyTexture = MaskTexture()
     private var lastSelections: List<SelectionLayer>? = null
 
     // Last inputs, so flow and masks are only rebuilt when they actually change.
@@ -182,12 +183,24 @@ class LoopRenderGraph(assets: AssetManager) {
         }
         // SelectionLayer equality compares masks by object, so this is cheap.
         if (strokes != lastStrokes || selections != lastSelections) {
-            while (selectionTextures.size < selections.size) selectionTextures += MaskTexture()
-            while (selectionTextures.size > selections.size) selectionTextures.removeAt(selectionTextures.lastIndex).release()
-            val layers = selections.mapIndexed { i, sel ->
+            // Freeze regions add to the freeze mask one by one. "Only this" regions are first joined,
+            // then everything outside the union freezes: inverting each one alone would leave only
+            // their overlap moving.
+            val freeze = selections.filter { it.mode == SelectionMode.FREEZE }
+            val animateOnly = selections.filter { it.mode == SelectionMode.ANIMATE_ONLY }.map { it.mask }
+            while (selectionTextures.size < freeze.size) selectionTextures += MaskTexture()
+            while (selectionTextures.size > freeze.size) selectionTextures.removeAt(selectionTextures.lastIndex).release()
+            val layers = ArrayList<MaskPass.Layer>()
+            if (animateOnly.isNotEmpty()) {
+                // Small masks (segmenter resolution), joined once per change, not per frame.
+                animateOnlyTexture.set(if (animateOnly.size == 1) animateOnly[0] else unionOf(animateOnly))
+                layers += MaskPass.Layer(animateOnlyTexture.id, MaskPass.LayerMode.ADD_INVERTED)
+            } else {
+                animateOnlyTexture.set(null)
+            }
+            freeze.forEachIndexed { i, sel ->
                 selectionTextures[i].set(sel.mask)
-                val mode = if (sel.mode == SelectionMode.FREEZE) MaskPass.LayerMode.ADD else MaskPass.LayerMode.ADD_INVERTED
-                MaskPass.Layer(selectionTextures[i].id, mode)
+                layers += MaskPass.Layer(selectionTextures[i].id, MaskPass.LayerMode.ADD)
             }
             maskPass.render(aspect, strokes, layers)
             lastStrokes = strokes
@@ -415,6 +428,7 @@ class LoopRenderGraph(assets: AssetManager) {
         subjectMask.release()
         selectionTextures.forEach { it.release() }
         selectionTextures.clear()
+        animateOnlyTexture.release()
         bgPhoto?.release()
         bgPhoto = null
         bgPhotoBitmap = null
@@ -433,6 +447,9 @@ class LoopRenderGraph(assets: AssetManager) {
         textPass.release()
         quad.release()
     }
+
+    private fun unionOf(masks: List<AlphaMask>): AlphaMask =
+        masks.drop(1).fold(masks.first()) { acc, m -> acc.combine(m, subtract = false) }
 
     /** Uploads a model mask once per mask object. */
     private class MaskTexture {

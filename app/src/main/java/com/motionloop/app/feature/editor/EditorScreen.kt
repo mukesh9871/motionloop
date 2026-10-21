@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.motionloop.app.domain.model.BackgroundMode
 import com.motionloop.app.domain.pro.ProFeature
 import com.motionloop.app.domain.pro.ProPolicy
 import com.motionloop.app.feature.editor.components.AdjustPanel
@@ -178,7 +179,13 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                         busy = state.busy != null,
                         onDetect = vm::detectSubject,
                         onTool = vm::setTool,
-                        onBackground = vm::setBackground,
+                        onBackground = { change ->
+                            if (change(project.background).mode == BackgroundMode.PHOTO) {
+                                gated(ProFeature.BACKGROUND_PHOTO) { vm.setBackground(change) }
+                            } else {
+                                vm.setBackground(change)
+                            }
+                        },
                         onFeather = vm::setSubjectFeather,
                         onPickPhoto = {
                             gated(ProFeature.BACKGROUND_PHOTO) {

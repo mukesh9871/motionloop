@@ -153,7 +153,7 @@ vec2 coverFit(vec2 uv, float imageAspect) {
     return (uv - 0.5) * fit + 0.5;
 }
 
-vec3 background(vec3 photo) {
+vec3 background(vec3 base) {
     if (uBgMode == 1) {
         if (uChecker == 0) return vec3(0.0);
         vec2 cell = floor(vec2(vUv.x * uAspect, vUv.y) * 24.0);
@@ -161,7 +161,7 @@ vec3 background(vec3 photo) {
     }
     if (uBgMode == 2) return uBgColor1;
     if (uBgMode == 3) return mix(uBgColor1, uBgColor2, vUv.y);
-    if (uBgMode == 4) return mix(photo, texture(uBlurred, vUv).rgb, uBgBlur);
+    if (uBgMode == 4) return mix(base, texture(uBlurred, vUv).rgb, uBgBlur);
     return texture(uBgPhoto, coverFit(vUv, uBgPhotoAspect)).rgb;
 }
 
@@ -192,7 +192,8 @@ void main() {
             c = mix(c, vec3(0.49, 0.36, 1.0), s * 0.45);
         } else {
             // Uniform branches only (uBgMode), so the texture lookups in background() are well defined.
-            c = mix(background(photo), c, s);
+            // c, not photo: a replaced sky stays (the blurred layer itself is of the original photo).
+            c = mix(background(c), c, s);
         }
     }
     fragColor = vec4(c, 1.0);

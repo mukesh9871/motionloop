@@ -309,6 +309,16 @@ class EditorViewModel @Inject constructor(
         if (rev == _state.value.subjectMaskRev && (rev == 0 || _state.value.subjectMask != null)) return
         subjectMaskJob = viewModelScope.launch {
             val mask = assets.loadMask(projectId, MaskKind.SUBJECT, rev)
+            if (rev != 0 && mask == null) {
+                // File gone or damaged: drop the area instead of replacing the whole frame.
+                val p = _state.value.project ?: return@launch
+                if (p.subject.maskRev == rev) {
+                    val updated = p.copy(subject = p.subject.copy(maskRev = 0))
+                    _state.update { it.copy(project = updated, message = "The subject mask is missing. Find the subject again in Cutout.") }
+                    persist(updated)
+                }
+                return@launch
+            }
             _state.update { it.copy(subjectMask = mask, subjectMaskRev = rev) }
         }
     }
@@ -329,6 +339,14 @@ class EditorViewModel @Inject constructor(
         viewModelScope.launch {
             val loaded = missing.mapNotNull { rev -> assets.loadMask(projectId, MaskKind.SELECTION, rev)?.let { rev to it } }
             _state.update { it.copy(selectionMasks = it.selectionMasks + loaded) }
+            val lost = missing.toSet() - loaded.map { it.first }.toSet()
+            if (lost.isNotEmpty()) {
+                // Regions whose files are gone cannot be shown: remove them rather than keep invisible ones.
+                val p = _state.value.project ?: return@launch
+                val updated = p.copy(selections = p.selections.filterNot { it.rev in lost })
+                _state.update { it.copy(project = updated, message = "Some selected objects could not be loaded and were removed.") }
+                persist(updated)
+            }
         }
     }
 
