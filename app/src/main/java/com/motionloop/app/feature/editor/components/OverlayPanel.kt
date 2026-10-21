@@ -19,10 +19,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.motionloop.app.domain.model.Atmosphere
 import com.motionloop.app.domain.model.BlendMode
 import com.motionloop.app.domain.model.LightLeak
 import com.motionloop.app.domain.model.OverlaySettings
 import com.motionloop.app.domain.model.ParticleType
+import com.motionloop.app.feature.editor.EditorTool
 import com.motionloop.app.ui.components.Pill
 import com.motionloop.app.ui.theme.MlColors
 
@@ -33,6 +35,10 @@ private fun ParticleType.label() = when (this) {
     ParticleType.RAIN -> "Rain"
     ParticleType.BOKEH -> "Bokeh"
     ParticleType.EMBERS -> "Embers"
+    ParticleType.BUBBLES -> "Bubbles"
+    ParticleType.HEARTS -> "Hearts"
+    ParticleType.FIREFLIES -> "Fireflies"
+    ParticleType.SMOKE -> "Smoke"
 }
 
 private fun LightLeak.label() = when (this) {
@@ -40,6 +46,12 @@ private fun LightLeak.label() = when (this) {
     LightLeak.WARM -> "Warm"
     LightLeak.ROSE -> "Rose"
     LightLeak.AURORA -> "Aurora"
+}
+
+private fun Atmosphere.label() = when (this) {
+    Atmosphere.NONE -> "None"
+    Atmosphere.FOG -> "Fog"
+    Atmosphere.GRAIN -> "Film grain"
 }
 
 private fun BlendMode.label() = when (this) {
@@ -54,7 +66,10 @@ private fun BlendMode.label() = when (this) {
 @Composable
 fun OverlayPanel(
     settings: OverlaySettings,
+    tool: EditorTool,
     onChange: ((OverlaySettings) -> OverlaySettings) -> Unit,
+    onTool: (EditorTool) -> Unit,
+    onClearArea: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Capped and scrollable so the photo keeps most of the screen.
@@ -73,12 +88,30 @@ fun OverlayPanel(
                 settings.speed,
                 { "${it}x" },
             ) { v -> onChange { it.copy(speed = v) } }
+            // Paint where the particles show, like sparkles on one dress or smoke from one chimney.
+            SectionLabel("Where")
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill("Paint area", active = tool == EditorTool.OVERLAY_PAINT) { onTool(EditorTool.OVERLAY_PAINT) }
+                Pill("Erase area", active = tool == EditorTool.OVERLAY_ERASE) { onTool(EditorTool.OVERLAY_ERASE) }
+                if (settings.areaStrokes.isNotEmpty()) Pill("Everywhere", active = false, onClick = onClearArea)
+            }
+            Text(
+                if (settings.hasArea) "Particles show only in the painted area." else "Particles fill the whole photo. Paint to limit them to an area.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MlColors.TextSecondary,
+            )
         }
 
         SectionLabel("Light leak")
         ChipRow(LightLeak.entries, settings.lightLeak, { it.label() }) { v -> onChange { it.copy(lightLeak = v) } }
         if (settings.lightLeak != LightLeak.NONE) {
             LabeledSlider("Glow", settings.leakIntensity, 0f..1f, { v -> onChange { it.copy(leakIntensity = v) } })
+        }
+
+        SectionLabel("Atmosphere")
+        ChipRow(Atmosphere.entries, settings.atmosphere, { it.label() }) { v -> onChange { it.copy(atmosphere = v) } }
+        if (settings.atmosphere != Atmosphere.NONE) {
+            LabeledSlider("Strength", settings.atmosphereAmount, 0f..1f, { v -> onChange { it.copy(atmosphereAmount = v) } })
         }
 
         // hasContent, not isActive: at opacity 0 the slider must stay reachable to bring it back.

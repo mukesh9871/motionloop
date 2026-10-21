@@ -33,7 +33,7 @@ import kotlin.math.abs
 import kotlin.math.sin
 
 /** Which tool a help picture shows. */
-enum class Illus { PATH, ANCHOR, FREEZE, UNFREEZE, ERASE, HOLD, ONLY_THIS, SPEED, SKY, DEPTH, CUTOUT, TEXT, SOUND, ADJUST, OVERLAY, EXPORT }
+enum class Illus { PATH, ANCHOR, FREEZE, UNFREEZE, ERASE, HOLD, ONLY_THIS, SPEED, SKY, DEPTH, CUTOUT, TEXT, SOUND, ADJUST, OVERLAY, EXPORT, STICKER, DISPERSE, WATER }
 
 // A picture, so fixed colors: the same in light and dark theme.
 private val SkyTop = Color(0xFF5B7BD5)
@@ -84,6 +84,9 @@ fun HelpIllustration(kind: Illus, modifier: Modifier = Modifier) {
             Illus.SOUND -> bars(t)
             Illus.OVERLAY -> snow(t)
             Illus.EXPORT -> shapes(t)
+            Illus.STICKER -> sticker(t)
+            Illus.DISPERSE -> disperse(t)
+            Illus.WATER -> water(t)
             else -> Unit
         }
     }
@@ -296,4 +299,52 @@ private fun DrawScope.shapes(t: Float) {
     val maxW = size.width * 0.8f
     val (fw, fh) = if (maxW / maxH > r) (maxH * r) to maxH else maxW to (maxW / r)
     drawRoundRect(Mint, Offset((size.width - fw) / 2, (size.height - fh) / 2), Size(fw, fh), CornerRadius(12f), style = Stroke(4f))
+}
+
+/** A glint sticker dragged into place. */
+private fun DrawScope.sticker(t: Float) {
+    val c = Offset(size.width * (0.3f + 0.4f * minOf(t * 1.6f, 1f)), size.height * 0.3f)
+    val r = size.height * 0.12f * (0.8f + 0.2f * sin(t * 4 * PI).toFloat())
+    drawLine(Color.White, Offset(c.x - r, c.y), Offset(c.x + r, c.y), strokeWidth = 3f, cap = StrokeCap.Round)
+    drawLine(Color.White, Offset(c.x, c.y - r), Offset(c.x, c.y + r), strokeWidth = 3f, cap = StrokeCap.Round)
+    drawCircle(Color.White, radius = r * 0.25f, center = c)
+    if (t < 0.65f) finger(Offset(c.x, c.y + r * 1.4f))
+}
+
+/** Squares break off a person and drift away, then return. */
+private fun DrawScope.disperse(t: Float) {
+    silhouette(Color(0xFF1B1E33))
+    val h = size.height
+    val cx = size.width * 0.5f
+    for (k in 0 until 24) {
+        val life = (t + k / 24f) % 1f
+        val ox = cx + h * 0.12f + (k % 4) * h * 0.03f
+        val oy = h * (0.5f + (k / 4) * 0.07f)
+        val x = ox + life * size.width * 0.35f
+        val y = oy - life * h * 0.25f
+        val s = h * 0.03f * (1f - 0.6f * life)
+        drawRect(Color(0xFF1B1E33).copy(alpha = 1f - life), Offset(x, y), Size(s, s))
+    }
+}
+
+/** Ripple lines on the water after a tap. */
+private fun DrawScope.water(t: Float) {
+    val w = size.width
+    val h = size.height
+    val on = t > 0.25f
+    if (on) {
+        for (row in 0 until 5) {
+            val y = h * (0.65f + row * 0.07f)
+            val path = Path().apply {
+                moveTo(0f, y)
+                var x = 0f
+                while (x <= w) {
+                    lineTo(x, y + 3f * sin((x / w * 12f + t * 2f * 2f + row) * PI).toFloat())
+                    x += w / 40f
+                }
+            }
+            drawPath(path, Color.White.copy(alpha = 0.5f), style = Stroke(2f))
+        }
+    }
+    if (t in 0.1f..0.35f) finger(Offset(w * 0.5f, h * 0.78f))
 }

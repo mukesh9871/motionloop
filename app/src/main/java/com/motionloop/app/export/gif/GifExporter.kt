@@ -90,6 +90,7 @@ class GifExporter @Inject constructor(
                 g.setGeometry(project.arrows, project.anchors, project.strokes, loadSelections(project, assets))
                 g.setColor(project.adjustments, luts.resolve(project.id, project.adjustments))
                 g.setOverlay(project.overlay)
+                g.setEffects(project.effects)
                 applySky(g, project, assets, drawEdge)
                 applyParallax(g, project, assets)
                 applySubject(g, project, assets, drawEdge)

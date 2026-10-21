@@ -117,6 +117,7 @@ class VideoExporter @Inject constructor(
                 g.setGeometry(project.arrows, project.anchors, project.strokes, loadSelections(project, assets))
                 g.setColor(project.adjustments, luts.resolve(project.id, project.adjustments))
                 g.setOverlay(project.overlay)
+                g.setEffects(project.effects)
                 applySky(g, project, assets, max(viewport[2], viewport[3]))
                 applyParallax(g, project, assets)
                 applySubject(g, project, assets, max(viewport[2], viewport[3]))

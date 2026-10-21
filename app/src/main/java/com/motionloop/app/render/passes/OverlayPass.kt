@@ -6,6 +6,7 @@ import com.motionloop.app.core.gl.FullscreenQuad
 import com.motionloop.app.core.gl.GlProgram
 import com.motionloop.app.core.gl.GlTexture
 import com.motionloop.app.core.gl.GlUtil
+import com.motionloop.app.domain.model.Atmosphere
 import com.motionloop.app.domain.model.LightLeak
 import com.motionloop.app.domain.model.OverlaySettings
 import com.motionloop.app.domain.model.ParticleSeeds
@@ -19,6 +20,8 @@ class OverlayPass(assets: AssetManager, private val quad: FullscreenQuad) : Rend
 
     private val particles = GlProgram.fromAssets(assets, "particles.vert", "particles.frag")
     private val leak = GlProgram.fromAssets(assets, "fullscreen.vert", "light_leak.frag")
+    private val atmosphere = GlProgram.fromAssets(assets, "fullscreen.vert", "atmosphere.frag")
+    private val areaMask = GlProgram.fromAssets(assets, "fullscreen.vert", "mask_multiply.frag")
     private val vao = IntArray(1)
     private val cornerVbo = IntArray(1)
     private val seedVbo = IntArray(1)
@@ -48,26 +51,19 @@ class OverlayPass(assets: AssetManager, private val quad: FullscreenQuad) : Rend
         GLES30.glBindVertexArray(0)
     }
 
-    /** Renders the overlay layer at [width] x [height]. Leaves the layer FBO bound. */
-    fun render(settings: OverlaySettings, phase: Float, aspect: Float, width: Int, height: Int) {
+    /**
+     * Renders the overlay layer at [width] x [height]. Leaves the layer FBO bound.
+     * [areaMaskTex] limits particles to a painted area (0 = everywhere).
+     */
+    fun render(settings: OverlaySettings, phase: Float, aspect: Float, width: Int, height: Int, areaMaskTex: Int = 0) {
         val target = ensureLayer(width, height)
         target.bindAsTarget()
         GLES30.glClearColor(0f, 0f, 0f, 0f)
         GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
         GLES30.glEnable(GLES30.GL_BLEND)
         GLES30.glBlendEquation(GLES30.GL_FUNC_ADD)
-        // Premultiplied "over".
+        // Particles: premultiplied "over".
         GLES30.glBlendFunc(GLES30.GL_ONE, GLES30.GL_ONE_MINUS_SRC_ALPHA)
-
-        if (settings.lightLeak != LightLeak.NONE && settings.leakIntensity > 0f) {
-            leak.use()
-            leak.set1f("uFlipY", 0f)
-            leak.set1i("uStyle", settings.lightLeak.ordinal) // NONE = 0, WARM = 1, ...
-            leak.set1f("uPhase", phase)
-            leak.set1f("uIntensity", settings.leakIntensity.coerceIn(0f, 1f))
-            leak.set1f("uAspect", aspect)
-            quad.draw()
-        }
 
         if (settings.particles != ParticleType.NONE) {
             particles.use()
@@ -84,6 +80,38 @@ class OverlayPass(assets: AssetManager, private val quad: FullscreenQuad) : Rend
             GLES30.glBindVertexArray(vao[0])
             GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, 4, settings.particleCount)
             GLES30.glBindVertexArray(0)
+        }
+
+        // Painted area: keep particles only inside it.
+        if (areaMaskTex != 0 && settings.particles != ParticleType.NONE) {
+            GLES30.glBlendFunc(GLES30.GL_ZERO, GLES30.GL_SRC_ALPHA)
+            areaMask.use()
+            areaMask.set1f("uFlipY", 0f)
+            areaMask.bindTexture("uMask", 0, areaMaskTex)
+            quad.draw()
+        }
+
+        // Light leak, then atmosphere, each drawn under what is already there (premultiplied "under"),
+        // so fog sits behind the leak and both sit behind the particles.
+        GLES30.glBlendFunc(GLES30.GL_ONE_MINUS_DST_ALPHA, GLES30.GL_ONE)
+        if (settings.lightLeak != LightLeak.NONE && settings.leakIntensity > 0f) {
+            leak.use()
+            leak.set1f("uFlipY", 0f)
+            leak.set1i("uStyle", settings.lightLeak.ordinal) // NONE = 0, WARM = 1, ...
+            leak.set1f("uPhase", phase)
+            leak.set1f("uIntensity", settings.leakIntensity.coerceIn(0f, 1f))
+            leak.set1f("uAspect", aspect)
+            quad.draw()
+        }
+
+        if (settings.atmosphere != Atmosphere.NONE && settings.atmosphereAmount > 0f) {
+            atmosphere.use()
+            atmosphere.set1f("uFlipY", 0f)
+            atmosphere.set1i("uStyle", settings.atmosphere.ordinal) // NONE = 0, FOG = 1, GRAIN = 2
+            atmosphere.set1f("uPhase", phase)
+            atmosphere.set1f("uAmount", settings.atmosphereAmount.coerceIn(0f, 1f))
+            atmosphere.set1f("uAspect", aspect)
+            quad.draw()
         }
 
         GLES30.glDisable(GLES30.GL_BLEND)
@@ -109,5 +137,7 @@ class OverlayPass(assets: AssetManager, private val quad: FullscreenQuad) : Rend
         GLES30.glDeleteVertexArrays(1, vao, 0)
         particles.release()
         leak.release()
+        atmosphere.release()
+        areaMask.release()
     }
 }

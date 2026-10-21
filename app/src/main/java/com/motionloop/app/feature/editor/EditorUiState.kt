@@ -9,6 +9,7 @@ import com.motionloop.app.domain.model.Project
 import com.motionloop.app.domain.model.BackgroundMode
 import com.motionloop.app.domain.model.SelectionRegion
 import com.motionloop.app.render.AudioClock
+import com.motionloop.app.domain.model.Sticker
 import com.motionloop.app.render.RenderScene
 import com.motionloop.app.domain.model.TextAnimation
 import com.motionloop.app.domain.model.TextLayer
@@ -29,6 +30,12 @@ enum class EditorTool {
     /** Cutout panel: tap to add or remove subject areas, or restore and erase by hand (11d). */
     SUBJECT_ADD, SUBJECT_REMOVE, SUBJECT_RESTORE, SUBJECT_ERASE,
 
+    /** Effects panel: tap water to ripple it, paint the dispersion area, drag stickers. */
+    WATER, DISPERSE_PAINT, DISPERSE_ERASE, STICKER_MOVE,
+
+    /** Overlay panel: paint where particles appear. */
+    OVERLAY_PAINT, OVERLAY_ERASE,
+
     /** Text panel: tap a text to select it, drag to move it (11e). */
     TEXT_MOVE,
 }
@@ -36,13 +43,14 @@ enum class EditorTool {
 /** Bottom panel: motion tools, sky, color adjustments or overlays. */
 enum class EditorPanel(val label: String, val defaultTool: EditorTool) {
     ANIMATE("Animate", EditorTool.ARROW),
+    EFFECTS("Effects", EditorTool.STICKER_MOVE),
     SKY("Sky", EditorTool.SKY_ADD),
     DEPTH("3D", EditorTool.ARROW),
     CUTOUT("Cutout", EditorTool.SUBJECT_ADD),
     TEXT("Text", EditorTool.TEXT_MOVE),
     SOUND("Sound", EditorTool.ARROW),
     ADJUST("Adjust", EditorTool.ARROW),
-    OVERLAY("Overlay", EditorTool.ARROW),
+    OVERLAY("Overlay", EditorTool.OVERLAY_PAINT),
 }
 
 /** Everything undo/redo covers. */
@@ -101,6 +109,7 @@ data class EditorUiState(
     /** Rasterized text by layer id. May lag one edit behind while a new one is drawn. */
     val renderedTexts: Map<String, RenderedText> = emptyMap(),
     val selectedTextId: String? = null,
+    val selectedStickerId: String? = null,
     /** Beat envelope of the preview loop, null without sound or beat sync. */
     val beatEnvelope: FloatArray? = null,
     val audioClock: AudioClock? = null,
@@ -109,9 +118,13 @@ data class EditorUiState(
 
     val isSkyBrush: Boolean get() = tool == EditorTool.SKY_PAINT || tool == EditorTool.SKY_ERASE
     val isSubjectBrush: Boolean get() = tool == EditorTool.SUBJECT_RESTORE || tool == EditorTool.SUBJECT_ERASE
+    val isEffectBrush: Boolean get() = tool == EditorTool.DISPERSE_PAINT || tool == EditorTool.DISPERSE_ERASE
+    val isOverlayBrush: Boolean get() = tool == EditorTool.OVERLAY_PAINT || tool == EditorTool.OVERLAY_ERASE
     val isSubjectTool: Boolean get() = isSubjectBrush || tool == EditorTool.SUBJECT_ADD || tool == EditorTool.SUBJECT_REMOVE
     val isBrush: Boolean
-        get() = tool == EditorTool.FREEZE || tool == EditorTool.UNFREEZE || isSkyBrush || isSubjectBrush
+        get() = tool == EditorTool.FREEZE || tool == EditorTool.UNFREEZE || isSkyBrush || isSubjectBrush || isEffectBrush || isOverlayBrush
+
+    val selectedSticker: Sticker? get() = project?.effects?.stickers?.firstOrNull { it.id == selectedStickerId }
 
     /** Tools whose result is the freeze mask, so the editor tints frozen areas while they are active. */
     private val showsFreezeMask: Boolean
@@ -128,13 +141,18 @@ data class EditorUiState(
                 image = preview,
                 arrows = visibleArrows,
                 anchors = p.anchors,
-                strokes = if (isSkyBrush || isSubjectBrush) p.strokes else p.strokes + listOfNotNull(liveStroke),
+                strokes = if (isSkyBrush || isSubjectBrush || isEffectBrush || isOverlayBrush) p.strokes else p.strokes + listOfNotNull(liveStroke),
                 loop = p.loop,
                 playing = playing,
                 showMask = !playing && panel == EditorPanel.ANIMATE && (showsFreezeMask || liveStroke != null),
                 adjustments = p.adjustments,
                 lut = lut.takeIf { lutGradeId != null && lutGradeId == p.adjustments.gradeId },
-                overlay = p.overlay,
+                overlay = if (isOverlayBrush && liveStroke != null) p.overlay.copy(areaStrokes = p.overlay.areaStrokes + liveStroke) else p.overlay,
+                effects = if (isEffectBrush && liveStroke != null) {
+                    p.effects.copy(dispersion = p.effects.dispersion.copy(strokes = p.effects.dispersion.strokes + liveStroke))
+                } else {
+                    p.effects
+                },
                 sky = if (isSkyBrush && liveStroke != null) p.sky.copy(strokes = p.sky.strokes + liveStroke) else p.sky,
                 skyMask = skyMask.takeIf { skyMaskRev == p.sky.maskRev },
                 skyPhoto = skyPhoto.takeIf { skyPhotoRev == p.sky.photoRev },

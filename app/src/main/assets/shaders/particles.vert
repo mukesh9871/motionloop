@@ -5,7 +5,7 @@
 layout(location = 0) in vec2 aCorner;  // quad corner in [-1, 1]
 layout(location = 1) in vec4 aSeed;    // per instance: x0, y0, phase offset, random
 
-uniform int uType;        // 1 sparkle, 2 snow, 3 rain, 4 bokeh, 5 embers
+uniform int uType;        // 1 sparkle, 2 snow, 3 rain, 4 bokeh, 5 embers, 6 bubbles, 7 hearts, 8 fireflies, 9 smoke
 uniform float uPhase;
 uniform float uSpeed;     // whole wraps per cycle for the slowest particles
 uniform float uSize;      // 0..1
@@ -73,13 +73,44 @@ void main() {
         size = mix(0.03, 0.08, r);
         alpha = 0.18 + 0.2 * fract(r * 5.0);
         color = mix(vec3(1.0, 0.8, 0.55), vec3(0.6, 0.75, 1.0), fract(r * 11.0));
-    } else {
+    } else if (uType == 5) {
         // Embers: rise, wiggle and flicker.
         float y = fract(y0 + k * t);
         pos = vec2(x0 + 0.03 * sin(TAU * (2.0 * m * t + ph)), 1.0 + margin - y * (1.0 + 2.0 * margin));
         size = mix(0.003, 0.009, r);
         alpha = 0.6 + 0.4 * sin(TAU * (3.0 * m * t + ph));
         color = mix(vec3(1.0, 0.45, 0.1), vec3(1.0, 0.8, 0.3), fract(r * 17.0));
+    } else if (uType == 6) {
+        // Bubbles: rise slowly with a wobble. Larger wrap margin: bubbles are big.
+        float bm = margin + 0.04;
+        float y = fract(y0 + uSpeed * t);
+        pos = vec2(x0 + 0.02 * sin(TAU * (2.0 * m * t + ph)), 1.0 + bm - y * (1.0 + 2.0 * bm));
+        size = mix(0.01, 0.035, r);
+        alpha = 0.7;
+        color = mix(vec3(0.85, 0.95, 1.0), vec3(1.0, 0.9, 1.0), fract(r * 9.0));
+    } else if (uType == 7) {
+        // Hearts: float up and sway, gently pulsing.
+        float hm = margin + 0.03;
+        float y = fract(y0 + uSpeed * t);
+        pos = vec2(x0 + 0.03 * sin(TAU * (m * t + ph)), 1.0 + hm - y * (1.0 + 2.0 * hm));
+        size = mix(0.012, 0.03, r) * (0.9 + 0.1 * sin(TAU * (2.0 * m * t + ph)));
+        alpha = 0.85;
+        color = mix(vec3(1.0, 0.3, 0.45), vec3(1.0, 0.55, 0.7), fract(r * 5.0));
+    } else if (uType == 8) {
+        // Fireflies: wander on small closed loops and pulse.
+        pos = vec2(x0, y0) + 0.05 * vec2(sin(TAU * (m * t + ph)), sin(TAU * (2.0 * t + ph * 1.7)));
+        size = mix(0.006, 0.014, r);
+        float pulse = 0.5 + 0.5 * sin(TAU * (2.0 * m * t + ph));
+        alpha = pulse * pulse;
+        color = vec3(0.85, 1.0, 0.45);
+    } else {
+        // Smoke: large soft puffs that rise, grow and fade.
+        float y = fract(y0 + uSpeed * t);
+        float sm = margin + 0.12;
+        pos = vec2(x0 + 0.06 * sin(TAU * (t + ph)), 1.0 + sm - y * (1.0 + 2.0 * sm));
+        size = mix(0.05, 0.12, r) * (0.6 + 0.8 * y);
+        alpha = 0.22 * sin(3.14159265 * y);
+        color = vec3(0.85, 0.85, 0.88);
     }
 
     // At least about 1.5 px wide, so thin particles do not flicker out in small (GIF) exports.

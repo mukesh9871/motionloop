@@ -66,6 +66,14 @@ private val groups = listOf(
         ),
     ),
     Group(
+        "Effects",
+        listOf(
+            Topic("stickers", MlIcons.Star, "Stickers", "Add an animated butterfly, flame, birds or glint. Drag it into place, then set its size and angle.", Illus.STICKER),
+            Topic("dispersion", MlIcons.Freeze, "Dispersion", "Paint over a part of the photo: it breaks into flakes that drift away and come back. Set the amount, distance and direction.", Illus.DISPERSE),
+            Topic("water", MlIcons.Motion, "Water ripples", "Tap a lake, river or sea and it ripples gently, with or without motion paths.", Illus.WATER),
+        ),
+    ),
+    Group(
         "Sky",
         listOf(
             Topic("sky", MlIcons.Gallery, "Replace the sky", "Detect the sky, fix it by tapping or painting, then pick a new animated sky or your own photo. Drift moves the clouds, Edge softens the border, Blend matches the colors.", Illus.SKY),
@@ -74,7 +82,7 @@ private val groups = listOf(
     Group(
         "3D",
         listOf(
-            Topic("depth", MlIcons.Eye, "3D camera", "Create the depth map once, then pick a camera move. Near things move more than far things, like a real camera.", Illus.DEPTH),
+            Topic("depth", MlIcons.Eye, "3D camera", "Create the depth map once, then pick a camera move: circle, sway, zoom, tilt or float. Near things move more than far things, like a real camera.", Illus.DEPTH),
         ),
     ),
     Group(
@@ -99,7 +107,7 @@ private val groups = listOf(
         "Adjust and overlay",
         listOf(
             Topic("adjust", MlIcons.Settings, "Adjust", "Brightness, contrast, saturation and warmth, plus color grades. Import your own .cube grade.", Illus.ADJUST),
-            Topic("overlay", MlIcons.Star, "Overlay", "Add snow, rain, sparkles or light leaks. They loop as seamlessly as the photo.", Illus.OVERLAY),
+            Topic("overlay", MlIcons.Star, "Overlay", "Add snow, rain, bubbles, hearts, smoke, fog, film grain or light leaks. Paint an area to keep particles in one place. Everything loops seamlessly.", Illus.OVERLAY),
         ),
     ),
     Group(

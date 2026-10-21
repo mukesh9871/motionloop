@@ -207,6 +207,7 @@ class LoopWallpaperService : WallpaperService() {
             g.setGeometry(p.arrows, p.anchors, p.strokes, loadSelections(p, assets))
             g.setColor(p.adjustments, luts.resolve(p.id, p.adjustments))
             g.setOverlay(p.overlay)
+            g.setEffects(p.effects)
             applySky(g, p, assets, WALLPAPER_EDGE)
             // A missing depth or subject file should cost that feature, not the whole wallpaper.
             // Cancellation must still stop the load: a reload keeps the same context, so the egl check misses it.

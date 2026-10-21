@@ -28,6 +28,8 @@ private fun CameraPath.label() = when (this) {
     CameraPath.CIRCLE -> "Circle"
     CameraPath.SWAY -> "Sway"
     CameraPath.ZOOM -> "Zoom"
+    CameraPath.TILT -> "Tilt"
+    CameraPath.FLOAT -> "Float"
 }
 
 @Composable

@@ -46,11 +46,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.motionloop.app.domain.model.BackgroundMode
+import com.motionloop.app.domain.model.NPoint
+import com.motionloop.app.domain.model.ParticleType
+import com.motionloop.app.domain.model.SelectionMode
 import com.motionloop.app.domain.pro.ProFeature
 import com.motionloop.app.domain.pro.ProPolicy
 import com.motionloop.app.feature.editor.components.AdjustPanel
 import com.motionloop.app.feature.editor.components.CutoutPanel
 import com.motionloop.app.feature.editor.components.DepthPanel
+import com.motionloop.app.feature.editor.components.EffectsPanel
 import com.motionloop.app.feature.editor.components.LabeledSlider
 import com.motionloop.app.feature.editor.components.OverlayPanel
 import com.motionloop.app.feature.editor.components.SkyPanel
@@ -96,7 +100,8 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
         uri?.let(vm::importSkyPhoto)
     }
     val touchPanel = state.panel == EditorPanel.ANIMATE || state.panel == EditorPanel.SKY ||
-        state.panel == EditorPanel.CUTOUT || state.panel == EditorPanel.TEXT
+        state.panel == EditorPanel.CUTOUT || state.panel == EditorPanel.TEXT ||
+        state.panel == EditorPanel.EFFECTS || state.panel == EditorPanel.OVERLAY
     // Any audio file the device can decode.
     val pickAudio = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(vm::importAudio)
@@ -146,6 +151,9 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                         showGuides = !state.playing && state.panel == EditorPanel.ANIMATE,
                         enabled = touchPanel && state.busy == null,
                         brushRadius = state.brushRadius,
+                        highlight = state.selectedSticker
+                            ?.takeIf { state.panel == EditorPanel.EFFECTS && !state.playing }
+                            ?.let { NPoint(it.x, it.y) to it.size / 2f },
                         onDown = vm::pointerDown,
                         onMove = vm::pointerMove,
                         onUp = vm::pointerUp,
@@ -273,7 +281,37 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                         }
                     } else if (state.panel == EditorPanel.OVERLAY) {
                         if (project != null) {
-                            OverlayPanel(settings = project.overlay, onChange = vm::setOverlay)
+                            OverlayPanel(
+                                settings = project.overlay,
+                                tool = state.tool,
+                                onChange = vm::setOverlay,
+                                onTool = vm::setTool,
+                                onClearArea = vm::clearOverlayArea,
+                            )
+                            if (state.isOverlayBrush && project.overlay.particles != ParticleType.NONE) {
+                                LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
+                            }
+                        }
+                    } else if (state.panel == EditorPanel.EFFECTS) {
+                        if (project != null) {
+                            EffectsPanel(
+                                effects = project.effects,
+                                selected = state.selectedSticker,
+                                tool = state.tool,
+                                busy = state.busy != null,
+                                waterCount = project.selections.count { it.mode == SelectionMode.RIPPLE },
+                                onTool = vm::setTool,
+                                onChange = vm::setEffects,
+                                onAddSticker = vm::addSticker,
+                                onSelectSticker = vm::selectSticker,
+                                onChangeSticker = vm::updateSelectedSticker,
+                                onDeleteSticker = vm::deleteSelectedSticker,
+                                onClearDispersion = vm::clearDispersion,
+                                onClearWater = vm::clearWater,
+                            )
+                            if (state.isEffectBrush) {
+                                LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
+                            }
                         }
                     } else if (state.panel == EditorPanel.ADJUST) {
                         if (project != null) {

@@ -76,6 +76,8 @@ data class Project(
     /** Text layers (11e), drawn in list order. */
     val texts: List<TextLayer> = emptyList(),
     val audio: AudioSettings = AudioSettings(),
+    /** Stickers, dispersion and water ripples. */
+    val effects: EffectsSettings = EffectsSettings(),
 ) {
     val aspect: Float get() = imageWidth.toFloat() / imageHeight
 }

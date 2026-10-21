@@ -8,7 +8,7 @@ in vec2 vUv;
 
 uniform sampler2D uFrame;
 uniform sampler2D uDepth;   // R8, 1 = near
-uniform int uPath;          // CameraPath ordinal: circle, sway, zoom
+uniform int uPath;          // CameraPath ordinal: circle, sway, zoom, tilt, float
 uniform float uPhase;
 uniform float uOffset;      // camera offset in image widths (amount * MAX_OFFSET)
 uniform float uReserve;     // per-edge reserve in uv, from ParallaxSettings.reserve (unit tested there)
@@ -28,6 +28,12 @@ vec2 shiftFor(vec2 uv, float depth) {
         return uOffset * k * vec2(cos(a), sin(a) * uAspect);
     } else if (uPath == 1) {
         return uOffset * k * vec2(sin(a), 0.0);
+    } else if (uPath == 3) {
+        // Tilt: up and down.
+        return uOffset * k * vec2(0.0, sin(a) * uAspect);
+    } else if (uPath == 4) {
+        // Float: a lazy figure eight, sideways once and up and down twice per cycle.
+        return uOffset * k * vec2(sin(a), 0.5 * sin(2.0 * a) * uAspect);
     }
     // Zoom: push near content outward from the center and back, once per cycle.
     float z = 0.5 - 0.5 * cos(a);

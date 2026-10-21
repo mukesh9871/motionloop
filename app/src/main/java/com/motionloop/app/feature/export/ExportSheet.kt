@@ -108,7 +108,7 @@ fun ExportSheet(onDismiss: () -> Unit, onOpenPro: () -> Unit, vm: ExportViewMode
             val lengths = if (settings.format == ExportFormat.GIF) ExportSettings.GIF_LENGTHS else ExportSettings.VIDEO_LENGTHS
             if (settings.format != ExportFormat.PNG) Section("Length") {
                 lengths.forEach { s ->
-                    val lock = s == ExportSettings.VIDEO_LENGTHS.last() && locked(ProFeature.LONG_EXPORT)
+                    val lock = s >= ExportSettings.LONG_SECONDS && locked(ProFeature.LONG_EXPORT)
                     Chip(if (lock) "${s}s (Pro)" else "${s}s", selected = settings.lengthSeconds == s, enabled = !state.running) {
                         if (lock) {
                             onDismiss()

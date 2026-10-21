@@ -9,6 +9,7 @@ import com.motionloop.app.core.gl.GlTexture
 import com.motionloop.app.domain.model.Adjustments
 import com.motionloop.app.domain.model.BackgroundMode
 import com.motionloop.app.domain.model.BackgroundSettings
+import com.motionloop.app.domain.model.EffectsSettings
 import com.motionloop.app.domain.model.SelectionMode
 import com.motionloop.app.domain.model.SubjectSettings
 import com.motionloop.app.domain.model.Anchor
@@ -22,6 +23,8 @@ import com.motionloop.app.domain.model.SkySettings
 import com.motionloop.app.domain.model.SkyStyle
 import com.motionloop.app.render.passes.BlurPass
 import com.motionloop.app.render.passes.ColorPass
+import com.motionloop.app.render.passes.DispersionPass
+import com.motionloop.app.render.passes.StickerPass
 import com.motionloop.app.render.passes.FlowFieldPass
 import com.motionloop.app.render.passes.LoopWarpPass
 import com.motionloop.app.render.passes.MaskPass
@@ -63,6 +66,16 @@ class LoopRenderGraph(assets: AssetManager) {
     private val overlayPass = OverlayPass(assets, quad)
     private val parallaxPass = ParallaxPass(assets, quad)
     private val textPass = TextPass(assets, quad)
+    private val stickerPass = StickerPass(assets, quad)
+    private val dispersionPass = DispersionPass(assets, quad)
+    private val dispersionMaskPass = MaskPass(assets, quad)
+    private val overlayAreaPass = MaskPass(assets, quad)
+    private val rippleMaskPass = MaskPass(assets, quad)
+    private val rippleTextures = ArrayList<MaskTexture>()
+    private var effects = EffectsSettings()
+    private var lastDispersionStrokes: List<MaskStroke>? = null
+    private var lastAreaStrokes: List<MaskStroke>? = null
+    private var hasRipple = false
     private var texts: List<TextDraw> = emptyList()
 
     private var photo: GlTexture? = null
@@ -115,7 +128,8 @@ class LoopRenderGraph(assets: AssetManager) {
 
         override fun prepare(phase: Float, width: Int, height: Int) {
             overlayTex = if (overlay.isActive) {
-                overlayPass.render(overlay, phase, aspect, width, height)
+                val area = if (overlay.hasArea) overlayAreaPass.texture?.id ?: 0 else 0
+                overlayPass.render(overlay, phase, aspect, width, height, area)
                 overlayPass.layer?.id ?: 0
             } else {
                 overlayPass.releaseLayer()
@@ -151,6 +165,32 @@ class LoopRenderGraph(assets: AssetManager) {
             textPass.drawFront(inputTex, texts, subjectMaskTextureId != 0, phase, aspect, flipY)
     }
 
+    // Dispersion moves with the photo: first after the warp, so 3D and text sit over it correctly.
+    private val dispersionStage = object : PostStage {
+        private var phase = 0f
+
+        override fun prepare(phase: Float, width: Int, height: Int) {
+            this.phase = phase
+        }
+
+        override fun draw(inputTex: Int, flipY: Boolean) {
+            val src = photo ?: return
+            val mask = dispersionMaskPass.texture ?: return
+            dispersionPass.draw(inputTex, mask.id, blurPass.texture(src).id, effects.dispersion, phase, aspect, flipY)
+        }
+    }
+
+    // Stickers sit on top of the photo, text and 3D, under the color grade and overlays.
+    private val stickerStage = object : PostStage {
+        private var phase = 0f
+
+        override fun prepare(phase: Float, width: Int, height: Int) {
+            this.phase = phase
+        }
+
+        override fun draw(inputTex: Int, flipY: Boolean) = stickerPass.draw(inputTex, effects.stickers, phase, aspect, flipY)
+    }
+
     // 3D camera move by depth, applied to the warped photo (and text) before color and overlays.
     private val parallaxStage = object : PostStage {
         private var phase = 0f
@@ -174,6 +214,8 @@ class LoopRenderGraph(assets: AssetManager) {
         // Target sizes depend on aspect, so rebuild flow and masks.
         lastArrows = null
         lastStrokes = null
+        lastDispersionStrokes = null
+        lastAreaStrokes = null
         skyMaskBuilt = false
         subjectMaskBuilt = false
     }
@@ -216,6 +258,16 @@ class LoopRenderGraph(assets: AssetManager) {
                 layers += MaskPass.Layer(selectionTextures[i].id, MaskPass.LayerMode.ADD)
             }
             maskPass.render(aspect, strokes, layers)
+
+            // Water regions: their own mask, read by the warp for ripples.
+            val ripple = selections.filter { it.mode == SelectionMode.RIPPLE }
+            while (rippleTextures.size < ripple.size) rippleTextures += MaskTexture()
+            while (rippleTextures.size > ripple.size) rippleTextures.removeAt(rippleTextures.lastIndex).release()
+            ripple.forEachIndexed { i, sel -> rippleTextures[i].set(sel.mask) }
+            hasRipple = ripple.isNotEmpty()
+            if (hasRipple) {
+                rippleMaskPass.render(aspect, emptyList(), rippleTextures.map { MaskPass.Layer(it.id, MaskPass.LayerMode.ADD) })
+            }
             lastStrokes = strokes
             lastSelections = selections
         }
@@ -296,6 +348,20 @@ class LoopRenderGraph(assets: AssetManager) {
 
     fun setOverlay(settings: OverlaySettings) {
         overlay = settings
+        if (photo != null && settings.hasArea && settings.areaStrokes != lastAreaStrokes) {
+            overlayAreaPass.render(aspect, settings.areaStrokes)
+            lastAreaStrokes = settings.areaStrokes
+        }
+    }
+
+    /** Stickers, dispersion and ripple strength for following frames. */
+    fun setEffects(settings: EffectsSettings) {
+        effects = settings
+        val strokes = settings.dispersion.strokes
+        if (photo != null && settings.dispersion.isActive && strokes != lastDispersionStrokes) {
+            dispersionMaskPass.render(aspect, strokes)
+            lastDispersionStrokes = strokes
+        }
     }
 
     /**
@@ -355,7 +421,8 @@ class LoopRenderGraph(assets: AssetManager) {
 
         val warpInput = sourceTexture(src, phase)
 
-        val stages = ArrayList<PostStage>(4)
+        val stages = ArrayList<PostStage>(6)
+        if (effects.dispersion.isActive && dispersionMaskPass.texture != null) stages += dispersionStage
         // Behind text and parallax move with the photo, front text sits on top of the 3D move.
         // Color is per pixel and overlays stay in screen space.
         val hasSubject = subjectMaskTextureId != 0
@@ -363,6 +430,7 @@ class LoopRenderGraph(assets: AssetManager) {
         if (frameTexts && texts.any { textPass.isBehind(it, hasSubject) }) stages += behindTextStage
         if (parallax.isActive && depthMask.id != 0) stages += parallaxStage
         if (frameTexts && texts.any { !textPass.isBehind(it, hasSubject) }) stages += frontTextStage
+        if (effects.stickers.isNotEmpty()) stages += stickerStage
         if (!adjustments.isIdentity || overlay.isActive) stages += colorStage
         if (!overlay.isActive) overlayPass.releaseLayer()
 
@@ -370,14 +438,14 @@ class LoopRenderGraph(assets: AssetManager) {
             // Nothing after the warp: draw straight into the target and free the offscreen frames.
             releaseFrames()
             bindTarget(fbo, x, y, width, height)
-            warpPass.draw(warpInput, flow.id, mask.id, flowPass.encoded, phase, mode, amount, maskOverlay, flipY)
+            warpPass.draw(warpInput, flow.id, mask.id, flowPass.encoded, phase, mode, amount, maskOverlay, flipY, rippleId(), effects.ripple.strength)
             return
         }
 
         // Offscreen frames are never flipped: row 0 = image top, like the photo.
         var current = ensureFrame(true, width, height)
         current.bindAsTarget()
-        warpPass.draw(warpInput, flow.id, mask.id, flowPass.encoded, phase, mode, amount, maskOverlay, flipY = false)
+        warpPass.draw(warpInput, flow.id, mask.id, flowPass.encoded, phase, mode, amount, maskOverlay, flipY = false, rippleId(), effects.ripple.strength)
         for ((i, stage) in stages.withIndex()) {
             stage.prepare(phase, width, height)
             val last = i == stages.lastIndex
@@ -396,6 +464,8 @@ class LoopRenderGraph(assets: AssetManager) {
             frameB = null
         }
     }
+
+    private fun rippleId(): Int = if (hasRipple) rippleMaskPass.texture?.id ?: 0 else 0
 
     /** The photo, or the photo with its sky and/or background replaced when those stages are active. */
     private fun sourceTexture(src: GlTexture, phase: Float): Int {
@@ -460,6 +530,8 @@ class LoopRenderGraph(assets: AssetManager) {
         selectionTextures.forEach { it.release() }
         selectionTextures.clear()
         animateOnlyTexture.release()
+        rippleTextures.forEach { it.release() }
+        rippleTextures.clear()
         bgPhoto?.release()
         bgPhoto = null
         bgPhotoBitmap = null
@@ -476,6 +548,11 @@ class LoopRenderGraph(assets: AssetManager) {
         overlayPass.release()
         parallaxPass.release()
         textPass.release()
+        stickerPass.release()
+        dispersionPass.release()
+        dispersionMaskPass.release()
+        overlayAreaPass.release()
+        rippleMaskPass.release()
         quad.release()
     }
 

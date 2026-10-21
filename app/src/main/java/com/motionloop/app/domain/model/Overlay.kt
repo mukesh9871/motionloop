@@ -4,10 +4,14 @@ import kotlinx.serialization.Serializable
 import kotlin.random.Random
 
 @Serializable
-enum class ParticleType { NONE, SPARKLE, SNOW, RAIN, BOKEH, EMBERS }
+enum class ParticleType { NONE, SPARKLE, SNOW, RAIN, BOKEH, EMBERS, BUBBLES, HEARTS, FIREFLIES, SMOKE }
 
 @Serializable
 enum class LightLeak { NONE, WARM, ROSE, AURORA }
+
+/** Full-frame texture over the photo. Order matters: `atmosphere.frag` switches on the ordinal. */
+@Serializable
+enum class Atmosphere { NONE, FOG, GRAIN }
 
 /** How the overlay layer combines with the photo. Applied in the color shader. */
 @Serializable
@@ -28,17 +32,29 @@ data class OverlaySettings(
     val speed: Int = 1,
     val lightLeak: LightLeak = LightLeak.NONE,
     val leakIntensity: Float = 0.7f,
+    val atmosphere: Atmosphere = Atmosphere.NONE,
+    /** 0..1 strength of the atmosphere. */
+    val atmosphereAmount: Float = 0.5f,
     val blend: BlendMode = BlendMode.SCREEN,
     /** 0..1 strength of the whole overlay layer. */
     val opacity: Float = 1f,
+    /** Painted area that limits the particles. No paint: particles everywhere. */
+    val areaStrokes: List<MaskStroke> = emptyList(),
 ) {
+    /** Particles are limited to a painted area. */
+    val hasArea: Boolean get() = areaStrokes.any { it.mode == MaskMode.FREEZE }
+
     /** Something is chosen, even if it is currently invisible (opacity or glow at 0). Drives the UI. */
     val hasContent: Boolean
-        get() = particles != ParticleType.NONE || lightLeak != LightLeak.NONE
+        get() = particles != ParticleType.NONE || lightLeak != LightLeak.NONE || atmosphere != Atmosphere.NONE
 
     /** Something will actually be drawn. Drives rendering. */
     val isActive: Boolean
-        get() = opacity > 0f && (particles != ParticleType.NONE || (lightLeak != LightLeak.NONE && leakIntensity > 0f))
+        get() = opacity > 0f && (
+            particles != ParticleType.NONE ||
+                (lightLeak != LightLeak.NONE && leakIntensity > 0f) ||
+                (atmosphere != Atmosphere.NONE && atmosphereAmount > 0f)
+            )
 
     val particleCount: Int
         get() = if (particles == ParticleType.NONE) 0 else (density.coerceIn(0f, 1f) * MAX_PARTICLES).toInt().coerceAtLeast(1)

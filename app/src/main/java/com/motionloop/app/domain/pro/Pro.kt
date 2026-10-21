@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
  */
 enum class ProFeature(val title: String, val description: String, val available: Boolean) {
     EXPORT_4K("4K export", "Export loops in 4K on phones whose encoder supports it.", available = true),
-    LONG_EXPORT("Long videos", "Export 15 second videos.", available = true),
+    LONG_EXPORT("Long videos", "Export 15 and 30 second videos.", available = true),
     SKY_PHOTO("Your own skies", "Use any photo as the new sky.", available = true),
     PARALLAX("3D camera", "Depth-based 3D camera motion.", available = true),
     CUSTOM_LUT("Custom color grades", "Import your own .cube color grades.", available = true),

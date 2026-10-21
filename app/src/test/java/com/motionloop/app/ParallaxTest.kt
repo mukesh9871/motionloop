@@ -22,8 +22,8 @@ class ParallaxTest {
 
     @Test
     fun shaderPathOrderIsStable() {
-        // parallax.frag: 0 circle, 1 sway, 2 zoom.
-        assertEquals(listOf("CIRCLE", "SWAY", "ZOOM"), CameraPath.entries.map { it.name })
+        // parallax.frag: 0 circle, 1 sway, 2 zoom, 3 tilt, 4 float.
+        assertEquals(listOf("CIRCLE", "SWAY", "ZOOM", "TILT", "FLOAT"), CameraPath.entries.map { it.name })
     }
 
     @Test
@@ -37,6 +37,8 @@ class ParallaxTest {
                     CameraPath.CIRCLE -> p.offset * max(1f, aspect)
                     CameraPath.SWAY -> p.offset
                     CameraPath.ZOOM -> p.offset // (uv - 0.5) * 2 * offset at the edge
+                    CameraPath.TILT -> p.offset * aspect
+                    CameraPath.FLOAT -> max(p.offset, 0.5f * p.offset * aspect)
                 }
                 assertTrue("$path at $aspect", reserve >= largest)
                 // The shader divides by 1 - 2 * reserve: it must stay well below half the frame.

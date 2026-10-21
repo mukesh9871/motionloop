@@ -57,4 +57,7 @@ enum class SelectionMode {
 
     /** Only the region moves: everything outside it is frozen. */
     ANIMATE_ONLY,
+
+    /** Water: the region ripples (RippleSettings), on top of any motion paths. */
+    RIPPLE,
 }

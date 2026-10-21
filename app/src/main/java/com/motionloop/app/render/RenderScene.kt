@@ -3,6 +3,7 @@ package com.motionloop.app.render
 import android.graphics.Bitmap
 import com.motionloop.app.domain.model.Adjustments
 import com.motionloop.app.domain.model.BackgroundSettings
+import com.motionloop.app.domain.model.EffectsSettings
 import com.motionloop.app.domain.model.SelectionMode
 import com.motionloop.app.domain.model.SubjectSettings
 import com.motionloop.app.render.passes.TextDraw
@@ -32,6 +33,7 @@ data class RenderScene(
     /** Baked LUT for adjustments.gradeId, resolved off the GL thread by the ViewModel. */
     val lut: LutData? = null,
     val overlay: OverlaySettings = OverlaySettings(),
+    val effects: EffectsSettings = EffectsSettings(),
     val sky: SkySettings = SkySettings(),
     /** Model mask for sky.maskRev, loaded off the GL thread. */
     val skyMask: AlphaMask? = null,

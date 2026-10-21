@@ -1,6 +1,7 @@
 package com.motionloop.app
 
 import com.motionloop.app.domain.model.BlendMode
+import com.motionloop.app.domain.model.Atmosphere
 import com.motionloop.app.domain.model.LightLeak
 import com.motionloop.app.domain.model.OverlaySettings
 import com.motionloop.app.domain.model.ParticleSeeds
@@ -16,7 +17,11 @@ class OverlayTest {
     @Test
     fun shaderConstantsMatchEnumOrdinals() {
         // particles.vert uType: 1 sparkle, 2 snow, 3 rain, 4 bokeh, 5 embers.
-        assertEquals(listOf("NONE", "SPARKLE", "SNOW", "RAIN", "BOKEH", "EMBERS"), ParticleType.entries.map { it.name })
+        assertEquals(
+            listOf("NONE", "SPARKLE", "SNOW", "RAIN", "BOKEH", "EMBERS", "BUBBLES", "HEARTS", "FIREFLIES", "SMOKE"),
+            ParticleType.entries.map { it.name },
+        )
+        assertEquals(listOf("NONE", "FOG", "GRAIN"), Atmosphere.entries.map { it.name })
         // light_leak.frag uStyle: 1 warm, 2 rose, 3 aurora.
         assertEquals(listOf("NONE", "WARM", "ROSE", "AURORA"), LightLeak.entries.map { it.name })
         // color.frag uBlendMode: 0 normal, 1 add, 2 screen, 3 overlay, 4 multiply, 5 soft light.

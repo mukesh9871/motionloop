@@ -68,6 +68,13 @@ class FullscreenQuad {
         GLES30.glBindVertexArray(0)
     }
 
+    /** [count] copies of the quad; the vertex shader places each one by gl_InstanceID. */
+    fun drawInstanced(count: Int) {
+        GLES30.glBindVertexArray(vao[0])
+        GLES30.glDrawArraysInstanced(GLES30.GL_TRIANGLE_STRIP, 0, 4, count)
+        GLES30.glBindVertexArray(0)
+    }
+
     fun release() {
         GLES30.glDeleteBuffers(1, vbo, 0)
         GLES30.glDeleteVertexArrays(1, vao, 0)

@@ -49,6 +49,7 @@ class EditorRenderer(private val assets: AssetManager) : GLSurfaceView.Renderer 
         g.setGeometry(s.arrows, s.anchors, s.strokes, s.selections)
         g.setColor(s.adjustments, s.lut)
         g.setOverlay(s.overlay)
+        g.setEffects(s.effects)
         g.setSky(s.sky, s.skyMask, s.skyPhoto, s.skyReplace)
         g.setParallax(s.parallax, s.depth)
         g.setSubject(s.subject, s.subjectMask, s.background, s.backgroundPhoto, s.subjectTintOnly, checker = true)

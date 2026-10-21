@@ -162,7 +162,7 @@ class AacSample(val data: ByteArray, val presentationUs: Long, val flags: Int)
 
 class EncodedAudio(val format: MediaFormat, val samples: List<AacSample>)
 
-/** Encodes PCM to AAC-LC for the MP4 export. 15 s of 128 kbps AAC is about 240 KB. */
+/** Encodes PCM to AAC-LC for the MP4 export. 30 s of 128 kbps AAC is about 480 KB. */
 object AudioEncoder {
     private const val MIME = MediaFormat.MIMETYPE_AUDIO_AAC
     private const val BITRATE = 128_000

@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 /** Order matters: `parallax.frag` switches on the ordinal. */
 @Serializable
-enum class CameraPath { CIRCLE, SWAY, ZOOM }
+enum class CameraPath { CIRCLE, SWAY, ZOOM, TILT, FLOAT }
 
 /**
  * 3D parallax from a depth map ([MaskKind.DEPTH] revision, 255 = near).
@@ -28,11 +28,17 @@ data class ParallaxSettings(
 
     /**
      * How much of the frame (in uv units, per edge) the shader keeps in reserve so shifted pixels
-     * never sample past the photo edge: 1.1x the largest shift of this path. Only the circle path
-     * moves vertically by offset * aspect (offsets are in widths), sway and zoom move at most offset.
+     * never sample past the photo edge: 1.1x the largest shift of this path. Offsets are in widths,
+     * so a vertical move of offset is offset * aspect in uv units.
      */
     fun reserve(aspect: Float): Float {
-        val largest = if (path == CameraPath.CIRCLE) offset * maxOf(1f, aspect) else offset
+        val largest = when (path) {
+            CameraPath.CIRCLE -> offset * maxOf(1f, aspect)
+            CameraPath.TILT -> offset * aspect
+            // Figure eight: full width sideways, half height up and down.
+            CameraPath.FLOAT -> offset * maxOf(1f, 0.5f * aspect)
+            CameraPath.SWAY, CameraPath.ZOOM -> offset
+        }
         // The shader divides by 1 - 2 * reserve: cap it for extreme panoramas (aspect 9 and up).
         return (1.1f * largest).coerceAtMost(MAX_RESERVE)
     }

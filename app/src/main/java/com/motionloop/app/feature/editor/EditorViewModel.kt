@@ -16,7 +16,10 @@ import com.motionloop.app.domain.model.LoopSettings
 import com.motionloop.app.domain.model.MaskKind
 import com.motionloop.app.domain.model.MaskMode
 import com.motionloop.app.domain.model.MaskStroke
+import com.motionloop.app.domain.model.EffectsSettings
 import com.motionloop.app.domain.model.MotionArrow
+import com.motionloop.app.domain.model.Sticker
+import com.motionloop.app.domain.model.StickerKind
 import com.motionloop.app.domain.model.MotionPaths
 import com.motionloop.app.domain.model.NPoint
 import com.motionloop.app.domain.model.OverlaySettings
@@ -400,7 +403,13 @@ class EditorViewModel @Inject constructor(
 
     /** Tap-to-select: the object under [p] becomes a freeze region or the only moving region. */
     private fun selectRegion(p: NPoint, mode: SelectionMode) =
-        runModel(if (mode == SelectionMode.FREEZE) "Freezing the object" else "Selecting the object") { preview ->
+        runModel(
+            when (mode) {
+                SelectionMode.FREEZE -> "Freezing the object"
+                SelectionMode.ANIMATE_ONLY -> "Selecting the object"
+                SelectionMode.RIPPLE -> "Finding the water"
+            },
+        ) { preview ->
             val region = withContext(cpu) { segmenter.segmentAt(preview, p.x, p.y) }
             val rev = assets.saveMask(projectId, MaskKind.SELECTION, region)
             _state.update { it.copy(selectionMasks = it.selectionMasks + (rev to region)) }
@@ -409,12 +418,90 @@ class EditorViewModel @Inject constructor(
             commit(g.copy(selections = g.selections + SelectionRegion(rev, mode)))
         }
 
-    /** Removes all tap-to-select regions (undoable). */
+    /** Removes the Hold and Only this regions (undoable). Water regions belong to Effects. */
     fun clearSelections() {
         val project = _state.value.project ?: return
         val g = current(project)
-        if (g.selections.isNotEmpty()) commit(g.copy(selections = emptyList()))
+        val kept = g.selections.filter { it.mode == SelectionMode.RIPPLE }
+        if (kept.size != g.selections.size) commit(g.copy(selections = kept))
     }
+
+    /** Removes the water regions (undoable). */
+    fun clearWater() {
+        val project = _state.value.project ?: return
+        val g = current(project)
+        val kept = g.selections.filterNot { it.mode == SelectionMode.RIPPLE }
+        if (kept.size != g.selections.size) commit(g.copy(selections = kept))
+    }
+
+    // region effects: stickers, dispersion, ripples
+
+    /** Effects settings, not part of undo. */
+    fun setEffects(change: (EffectsSettings) -> EffectsSettings) {
+        val p = _state.value.project ?: return
+        val updated = p.copy(effects = change(p.effects))
+        _state.update { it.copy(project = updated) }
+        persist(updated)
+    }
+
+    fun addSticker(kind: StickerKind) {
+        val p = _state.value.project ?: return
+        if (p.effects.stickers.size >= Sticker.MAX) {
+            _state.update { it.copy(messagePanel = it.panel, message = "Up to ${Sticker.MAX} stickers.") }
+            return
+        }
+        // Staggered so several new stickers do not land exactly on top of each other.
+        val n = p.effects.stickers.size
+        val sticker = Sticker(UUID.randomUUID().toString(), kind, x = 0.5f + 0.06f * (n % 3 - 1), y = 0.45f + 0.05f * (n % 4))
+        setEffects { it.copy(stickers = it.stickers + sticker) }
+        _state.update { it.copy(selectedStickerId = sticker.id, tool = EditorTool.STICKER_MOVE) }
+    }
+
+    fun selectSticker(id: String?) = _state.update { it.copy(selectedStickerId = id) }
+
+    fun updateSelectedSticker(change: (Sticker) -> Sticker) {
+        val id = _state.value.selectedStickerId ?: return
+        setEffects { e -> e.copy(stickers = e.stickers.map { if (it.id == id) change(it) else it }) }
+    }
+
+    fun deleteSelectedSticker() {
+        val id = _state.value.selectedStickerId ?: return
+        setEffects { e -> e.copy(stickers = e.stickers.filterNot { it.id == id }) }
+        _state.update { it.copy(selectedStickerId = null) }
+    }
+
+    fun clearDispersion() = setEffects { it.copy(dispersion = it.dispersion.copy(strokes = emptyList())) }
+
+    fun clearOverlayArea() = setOverlay { it.copy(areaStrokes = emptyList()) }
+
+    private fun stickerDown(p: NPoint) {
+        val project = _state.value.project ?: return
+        // Topmost (last drawn) first. Hit radius: the sticker's half size, at least a finger.
+        val hit = project.effects.stickers.lastOrNull { distance(p, NPoint(it.x, it.y), project.aspect) < maxOf(it.size / 2f, 0.05f) }
+        _state.update { it.copy(selectedStickerId = hit?.id) }
+        dragStart = if (hit != null) p else null
+        dragOrigin = hit?.let { NPoint(it.x, it.y) }
+    }
+
+    private fun stickerMove(p: NPoint) {
+        val start = dragStart ?: return
+        val origin = dragOrigin ?: return
+        val project = _state.value.project ?: return
+        val id = _state.value.selectedStickerId ?: return
+        val nx = (origin.x + p.x - start.x).coerceIn(0f, 1f)
+        val ny = (origin.y + p.y - start.y).coerceIn(0f, 1f)
+        // Live position only: saved once on release.
+        val effects = project.effects.copy(stickers = project.effects.stickers.map { if (it.id == id) it.copy(x = nx, y = ny) else it })
+        _state.update { it.copy(project = project.copy(effects = effects)) }
+    }
+
+    private fun stickerUp() {
+        if (dragStart != null) _state.value.project?.let(::persist)
+        dragStart = null
+        dragOrigin = null
+    }
+
+    // endregion
 
     fun importBackgroundPhoto(uri: Uri) = runModel("Loading the photo") {
         val rev = assets.importImage(projectId, ImageKind.BACKGROUND, uri)
@@ -731,9 +818,11 @@ class EditorViewModel @Inject constructor(
 
             EditorTool.FREEZE, EditorTool.UNFREEZE, EditorTool.SKY_PAINT, EditorTool.SKY_ERASE,
             EditorTool.SUBJECT_RESTORE, EditorTool.SUBJECT_ERASE,
+            EditorTool.DISPERSE_PAINT, EditorTool.DISPERSE_ERASE, EditorTool.OVERLAY_PAINT, EditorTool.OVERLAY_ERASE,
             -> _state.update {
-                // Freeze, sky paint and subject restore add to their mask, the others remove from it.
-                val adds = s.tool == EditorTool.FREEZE || s.tool == EditorTool.SKY_PAINT || s.tool == EditorTool.SUBJECT_RESTORE
+                // Freeze and every "paint" tool add to their mask, the erase tools remove from it.
+                val adds = s.tool == EditorTool.FREEZE || s.tool == EditorTool.SKY_PAINT || s.tool == EditorTool.SUBJECT_RESTORE ||
+                    s.tool == EditorTool.DISPERSE_PAINT || s.tool == EditorTool.OVERLAY_PAINT
                 it.copy(
                     liveStroke = MaskStroke(
                         points = listOf(p),
@@ -752,12 +841,18 @@ class EditorViewModel @Inject constructor(
             EditorTool.TEXT_MOVE -> textDown(p)
             EditorTool.SELECT_FREEZE -> selectRegion(p, SelectionMode.FREEZE)
             EditorTool.SELECT_ANIMATE -> selectRegion(p, SelectionMode.ANIMATE_ONLY)
+            EditorTool.WATER -> selectRegion(p, SelectionMode.RIPPLE)
+            EditorTool.STICKER_MOVE -> stickerDown(p)
         }
     }
 
     fun pointerMove(p: NPoint) {
         if (_state.value.tool == EditorTool.TEXT_MOVE) {
             textMove(p)
+            return
+        }
+        if (_state.value.tool == EditorTool.STICKER_MOVE) {
+            stickerMove(p)
             return
         }
         _state.update { s ->
@@ -784,6 +879,10 @@ class EditorViewModel @Inject constructor(
             textUp()
             return
         }
+        if (_state.value.tool == EditorTool.STICKER_MOVE) {
+            stickerUp()
+            return
+        }
         val s = _state.value
         val project = s.project ?: return
         s.liveArrow?.let { live ->
@@ -803,6 +902,15 @@ class EditorViewModel @Inject constructor(
         }
         s.liveStroke?.let { stroke ->
             _state.update { it.copy(liveStroke = null) }
+            // Effect areas are settings, like the rest of their panel: not part of undo.
+            if (s.isEffectBrush) {
+                setEffects { e -> e.copy(dispersion = e.dispersion.copy(strokes = (e.dispersion.strokes + stroke).takeLast(MAX_AREA_STROKES))) }
+                return
+            }
+            if (s.isOverlayBrush) {
+                setOverlay { o -> o.copy(areaStrokes = (o.areaStrokes + stroke).takeLast(MAX_AREA_STROKES)) }
+                return
+            }
             val g = current(project)
             commit(
                 when {
@@ -906,6 +1014,9 @@ class EditorViewModel @Inject constructor(
         const val MIN_ARROW_LENGTH = 0.01f
         const val MIN_STROKE_STEP = 0.003f
         const val MIN_PATH_STEP = 0.006f
+
+        /** Brush strokes kept per effect area: older ones drop off, so the area stays cheap to draw. */
+        const val MAX_AREA_STROKES = 60
         const val ERASE_RADIUS = 0.04f
         const val MAX_HISTORY = 100
         const val SKY_PHOTO_EDGE = 2048

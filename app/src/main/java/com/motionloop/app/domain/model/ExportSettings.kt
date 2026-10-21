@@ -33,7 +33,10 @@ data class ExportSettings(
 ) {
     companion object {
         const val VIDEO_FPS = 24
-        val VIDEO_LENGTHS = listOf(3, 5, 10, 15)
+        val VIDEO_LENGTHS = listOf(3, 5, 10, 15, 30)
+
+        /** Lengths from here up are Pro. */
+        const val LONG_SECONDS = 15
         val GIF_LENGTHS = listOf(3, 5)
         const val GIF_LONG_EDGE = 480
 

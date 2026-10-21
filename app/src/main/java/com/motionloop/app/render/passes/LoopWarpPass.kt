@@ -21,6 +21,8 @@ class LoopWarpPass(assets: AssetManager, private val quad: FullscreenQuad) : Ren
         amount: Float,
         maskOverlay: Float,
         flipY: Boolean,
+        rippleTex: Int = 0,
+        rippleAmount: Float = 0f,
     ) {
         program.use()
         program.set1f("uFlipY", if (flipY) 1f else 0f)
@@ -33,6 +35,9 @@ class LoopWarpPass(assets: AssetManager, private val quad: FullscreenQuad) : Ren
         program.set1f("uEncoded", if (flowEncoded) 1f else 0f)
         program.set1f("uMaxFlow", FlowFieldPass.MAX_FLOW)
         program.set1f("uMaskOverlay", maskOverlay)
+        // Without water regions, bind the freeze mask so the sampler is valid; amount 0 skips it.
+        program.bindTexture("uRipple", 3, if (rippleTex != 0) rippleTex else maskTex)
+        program.set1f("uRippleAmount", if (rippleTex != 0) rippleAmount else 0f)
         quad.draw()
         GlUtil.checkError("LoopWarpPass")
     }

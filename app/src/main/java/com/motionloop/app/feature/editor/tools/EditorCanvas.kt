@@ -39,6 +39,8 @@ fun EditorCanvas(
     showGuides: Boolean,
     brushRadius: Float,
     enabled: Boolean,
+    /** Ring drawn around a selected item: center, radius in widths. */
+    highlight: Pair<NPoint, Float>? = null,
     onDown: (NPoint) -> Unit,
     onMove: (NPoint) -> Unit,
     onUp: () -> Unit,
@@ -78,9 +80,17 @@ fun EditorCanvas(
         val c = cursor
         val brush = tool == EditorTool.FREEZE || tool == EditorTool.UNFREEZE ||
             tool == EditorTool.SKY_PAINT || tool == EditorTool.SKY_ERASE ||
-            tool == EditorTool.SUBJECT_RESTORE || tool == EditorTool.SUBJECT_ERASE
+            tool == EditorTool.SUBJECT_RESTORE || tool == EditorTool.SUBJECT_ERASE ||
+            tool == EditorTool.DISPERSE_PAINT || tool == EditorTool.DISPERSE_ERASE ||
+            tool == EditorTool.OVERLAY_PAINT || tool == EditorTool.OVERLAY_ERASE
         if (c != null && brush) {
             drawCircle(Color.White, radius = brushRadius * size.width, center = c, style = Stroke(width = 2f))
+        }
+        // The selected sticker: a ring so it is clear what dragging will move.
+        highlight?.let { (center, radius) ->
+            val px = toPx(center)
+            drawCircle(Color.Black.copy(alpha = 0.35f), radius = radius * size.width, center = px, style = Stroke(width = 4f * density))
+            drawCircle(MlColors.Arrow, radius = radius * size.width, center = px, style = Stroke(width = 2f * density))
         }
     }
 }

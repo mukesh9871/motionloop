@@ -199,7 +199,7 @@ source --[LoopWarp (flow, freeze mask = strokes + selection masks)]--> frame
 frame --[Color + overlay]--> [Text layers, subject re-drawn on top]--> [Parallax by depth]--> target
 ```
 Each bracketed stage is skipped when unused. Post stages ping-pong between two offscreen frames, the last active stage draws into the target.
-Final order: Source (sky, background) -> Warp -> Behind text (+ subject redrawn) -> Parallax -> Front text -> Color + overlay.
+Final order: Source (sky, background) -> Warp (motion paths advected along the flow, water ripples) -> Dispersion -> Behind text (+ subject redrawn) -> Parallax -> Front text -> Stickers -> Color + overlay (particles, optionally limited to a painted area, under them light leak and atmosphere).
 
 ### Milestones (each: review loop, push, green CI)
 

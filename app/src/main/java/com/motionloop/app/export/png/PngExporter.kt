@@ -65,6 +65,7 @@ class PngExporter @Inject constructor(
             g.setGeometry(project.arrows, project.anchors, project.strokes, loadSelections(project, assets))
             g.setColor(project.adjustments, luts.resolve(project.id, project.adjustments))
             g.setOverlay(project.overlay)
+            g.setEffects(project.effects)
             applySky(g, project, assets, max(w, h))
             // No 3D camera on a still: the cutout mask must line up with the unshifted photo.
             applySubject(g, project, assets, max(w, h), cutout = cutout)
