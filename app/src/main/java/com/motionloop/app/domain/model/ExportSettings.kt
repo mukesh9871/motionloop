@@ -12,10 +12,24 @@ enum class ExportResolution(val shortEdge: Int, val label: String) {
     UHD(2160, "4K"),
 }
 
+/** Output frame shape. The photo is center-cropped to it. Null ratio keeps the photo's own. */
+enum class ExportAspect(val label: String, val ratio: Float?) {
+    ORIGINAL("Original", null),
+    SQUARE("1:1", 1f),
+    PORTRAIT("4:5", 4f / 5f),
+    STORY("9:16", 9f / 16f),
+    ;
+
+    fun widthOverHeight(photoAspect: Float): Float = ratio ?: photoAspect
+}
+
 data class ExportSettings(
     val format: ExportFormat = ExportFormat.MP4,
     val lengthSeconds: Int = 5,
     val resolution: ExportResolution = ExportResolution.FULL_HD,
+    val aspect: ExportAspect = ExportAspect.ORIGINAL,
+    /** MP4 only: include the project's sound. */
+    val includeSound: Boolean = true,
 ) {
     companion object {
         const val VIDEO_FPS = 24

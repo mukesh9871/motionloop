@@ -50,6 +50,7 @@ import com.motionloop.app.feature.editor.components.DepthPanel
 import com.motionloop.app.feature.editor.components.LabeledSlider
 import com.motionloop.app.feature.editor.components.OverlayPanel
 import com.motionloop.app.feature.editor.components.SkyPanel
+import com.motionloop.app.feature.editor.components.SoundPanel
 import com.motionloop.app.feature.editor.components.TextPanel
 import com.motionloop.app.feature.editor.components.PlaybackBar
 import com.motionloop.app.feature.editor.components.ToolBar
@@ -83,6 +84,10 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
     }
     val touchPanel = state.panel == EditorPanel.ANIMATE || state.panel == EditorPanel.SKY ||
         state.panel == EditorPanel.CUTOUT || state.panel == EditorPanel.TEXT
+    // Any audio file the device can decode.
+    val pickAudio = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(vm::importAudio)
+    }
     val pickBackgroundPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let(vm::importBackgroundPhoto)
     }
@@ -158,7 +163,16 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                         .padding(vertical = 4.dp),
                 )
             }
-            if (state.panel == EditorPanel.TEXT) {
+            if (state.panel == EditorPanel.SOUND) {
+                if (project != null) {
+                    SoundPanel(
+                        audio = project.audio,
+                        busy = state.busy != null,
+                        onChange = vm::setAudio,
+                        onPickFile = { gated(ProFeature.MUSIC) { pickAudio.launch(arrayOf("audio/*")) } },
+                    )
+                }
+            } else if (state.panel == EditorPanel.TEXT) {
                 if (project != null) {
                     TextPanel(
                         texts = project.texts,

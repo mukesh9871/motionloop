@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.AssetManager
 import android.opengl.GLES30
 import android.opengl.GLSurfaceView
+import com.motionloop.app.domain.audio.BeatDetector
 import com.motionloop.app.domain.model.LoopSettings
 import com.motionloop.app.render.LoopRenderGraph
 import com.motionloop.app.render.RenderScene
@@ -21,6 +22,8 @@ class EditorRenderer(private val assets: AssetManager) : GLSurfaceView.Renderer 
     private var height = 1
     private var phase = 0f
     private var lastFrameNanos = 0L
+    // Time within the preview sound loop, kept in step with the audio by advancing only while playing.
+    private var audioTime = 0f
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         // A new context means every old GL object is gone. Do not release, just drop.
@@ -55,7 +58,16 @@ class EditorRenderer(private val assets: AssetManager) : GLSurfaceView.Renderer 
         val now = System.nanoTime()
         if (s.playing && lastFrameNanos != 0L) {
             val dt = ((now - lastFrameNanos) / 1e9f).coerceAtMost(0.1f)
-            phase = (phase + dt * s.loop.speed / LoopSettings.BASE_CYCLE_SECONDS) % 1000f
+            val env = s.beatEnvelope
+            val pulse = if (env != null && env.isNotEmpty()) {
+                audioTime = (audioTime + dt) % (env.size.toFloat() / BeatDetector.ENVELOPE_RATE)
+                env[(audioTime * BeatDetector.ENVELOPE_RATE).toInt().coerceIn(0, env.lastIndex)]
+            } else {
+                0f
+            }
+            // Same speed rule as the beat-synced export: up to 3x on a strong beat.
+            val speed = s.loop.speed * (1f + 2f * s.beatAmount * pulse)
+            phase = (phase + dt * speed / LoopSettings.BASE_CYCLE_SECONDS) % 1000f
         }
         lastFrameNanos = if (s.playing) now else 0L
 

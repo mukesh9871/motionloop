@@ -41,6 +41,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.motionloop.app.data.media.MediaIntents
+import com.motionloop.app.domain.model.ExportAspect
 import com.motionloop.app.domain.model.ExportFormat
 import com.motionloop.app.domain.model.ExportResolution
 import com.motionloop.app.domain.pro.ProFeature
@@ -113,6 +114,19 @@ fun ExportSheet(onDismiss: () -> Unit, onOpenPro: () -> Unit, vm: ExportViewMode
                             vm.setLength(s)
                         }
                     }
+                }
+            }
+            if (settings.format != ExportFormat.PNG) {
+                Section("Shape") {
+                    ExportAspect.entries.forEach { a ->
+                        Chip(a.label, selected = settings.aspect == a, enabled = !state.running) { vm.setAspect(a) }
+                    }
+                }
+            }
+            if (settings.format == ExportFormat.MP4 && state.hasSound) {
+                Section("Sound") {
+                    Chip("With sound", selected = settings.includeSound, enabled = !state.running) { vm.setIncludeSound(true) }
+                    Chip("Silent", selected = !settings.includeSound, enabled = !state.running) { vm.setIncludeSound(false) }
                 }
             }
             if (settings.format == ExportFormat.MP4) {

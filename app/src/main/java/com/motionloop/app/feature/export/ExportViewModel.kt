@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.motionloop.app.core.common.DefaultDispatcher
+import com.motionloop.app.domain.model.ExportAspect
 import com.motionloop.app.domain.model.ExportFormat
 import com.motionloop.app.domain.model.ExportResolution
 import com.motionloop.app.domain.model.ExportSettings
@@ -36,6 +37,8 @@ data class ExportUiState(
     val settings: ExportSettings = ExportSettings(),
     val resolutions: List<ExportResolution> = listOf(ExportResolution.HD, ExportResolution.FULL_HD),
     val running: Boolean = false,
+    /** The project has a sound, so MP4 can include it. */
+    val hasSound: Boolean = false,
     val progress: Float = 0f,
     val resultUri: Uri? = null,
     val resultMime: String? = null,
@@ -71,7 +74,7 @@ class ExportViewModel @Inject constructor(
                     it != ExportResolution.UHD || VideoExporter.supportsNominal(project, it)
                 }
             }
-            _state.update { it.copy(resolutions = available) }
+            _state.update { it.copy(resolutions = available, hasSound = project.audio.hasSound) }
         }
     }
 
@@ -88,6 +91,8 @@ class ExportViewModel @Inject constructor(
 
     fun setLength(seconds: Int) = updateSettings { it.copy(lengthSeconds = seconds) }
     fun setResolution(r: ExportResolution) = updateSettings { it.copy(resolution = r) }
+    fun setAspect(a: ExportAspect) = updateSettings { it.copy(aspect = a) }
+    fun setIncludeSound(on: Boolean) = updateSettings { it.copy(includeSound = on) }
 
     fun onStoragePermissionDenied() =
         _state.update { it.copy(error = "Storage permission is needed to save to your gallery.") }

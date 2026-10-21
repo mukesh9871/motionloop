@@ -16,7 +16,15 @@ import com.motionloop.app.domain.model.LoopTiming
 import com.motionloop.app.domain.model.Project
 import com.motionloop.app.domain.repository.LutRepository
 import com.motionloop.app.domain.repository.ProjectAssetRepository
+import com.motionloop.app.core.common.DefaultDispatcher
+import com.motionloop.app.data.audio.AudioEncoder
+import com.motionloop.app.data.audio.EncodedAudio
 import com.motionloop.app.export.applyParallax
+import com.motionloop.app.export.buildClipAudio
+import com.motionloop.app.export.clipPhases
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.withContext
+import java.nio.ByteBuffer
 import com.motionloop.app.export.applySubject
 import com.motionloop.app.export.loadSelections
 import com.motionloop.app.export.renderTexts
@@ -41,16 +49,24 @@ class VideoExporter @Inject constructor(
     private val projects: ProjectRepository,
     private val luts: LutRepository,
     private val assets: ProjectAssetRepository,
+    @DefaultDispatcher private val cpu: CoroutineDispatcher,
 ) {
 
     suspend fun export(project: Project, settings: ExportSettings, out: File, onProgress: (Float) -> Unit) =
         OffscreenLoop.onGlThread("ml-video-export") {
             val encoderInfo = avcEncoder() ?: error("This device has no H.264 encoder")
-            val (w, h) = outputSize(project, settings.resolution, encoderInfo)
+            val targetAspect = settings.aspect.widthOverHeight(project.aspect)
+            val (w, h) = outputSize(project, settings.resolution, encoderInfo, targetAspect)
                 ?: error("This device cannot encode ${settings.resolution.label} video")
+            val viewport = OffscreenLoop.coverViewport(project.imageWidth, project.imageHeight, w, h)
             val fps = ExportSettings.VIDEO_FPS
             val frameCount = settings.lengthSeconds * fps
             val cycles = LoopTiming.cyclesForClip(settings.lengthSeconds.toFloat(), project.loop.speed)
+
+            // Sound first (CPU, small): it also drives beat-synced motion even when it is not included.
+            val clipAudio = buildClipAudio(project, settings.lengthSeconds, assets, cpu)
+            val phases = clipPhases(project, frameCount, fps, cycles, clipAudio)
+            val encodedAudio = if (settings.includeSound && clipAudio != null) withContext(cpu) { AudioEncoder.encode(clipAudio) } else null
 
             val format = MediaFormat.createVideoFormat(MIME, w, h).apply {
                 setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
@@ -76,27 +92,28 @@ class VideoExporter @Inject constructor(
                 e.makeCurrentWindow(surface)
 
                 // Decode near output size: sharper than GPU minification and far less memory.
-                val bitmap = projects.loadImage(project.id, minOf(max(w, h) * 2, GlUtil.maxTextureSize()))
+                val bitmap = projects.loadImage(project.id, minOf(max(viewport[2], viewport[3]) * 2, GlUtil.maxTextureSize()))
                 val g = LoopRenderGraph(context.assets).also { graph = it }
                 g.setImage(bitmap)
                 g.setGeometry(project.arrows, project.anchors, project.strokes, loadSelections(project, assets))
                 g.setColor(project.adjustments, luts.resolve(project.id, project.adjustments))
                 g.setOverlay(project.overlay)
-                applySky(g, project, assets, max(w, h))
+                applySky(g, project, assets, max(viewport[2], viewport[3]))
                 applyParallax(g, project, assets)
-                applySubject(g, project, assets, max(w, h))
-                texts = renderTexts(project, w)
+                applySubject(g, project, assets, max(viewport[2], viewport[3]))
+                texts = renderTexts(project, viewport[2])
                 g.setTexts(texts)
                 bitmap.recycle() // uploaded to the GPU, the CPU copy is no longer needed
 
                 val m = MediaMuxer(out.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4).also { muxer = it }
-                val drainer = Drainer(c, m)
+                val drainer = Drainer(c, m, encodedAudio)
                 for (i in 0 until frameCount) {
                     currentCoroutineContext().ensureActive()
                     drainer.drain(endOfStream = false)
                     g.draw(
-                        fbo = 0, x = 0, y = 0, width = w, height = h,
-                        phase = LoopTiming.phaseForFrame(i, frameCount, cycles),
+                        // Center-cropped to the chosen aspect: the viewport overflows the frame.
+                        fbo = 0, x = viewport[0], y = viewport[1], width = viewport[2], height = viewport[3],
+                        phase = phases[i],
                         mode = project.loop.mode,
                         amount = 1f,
                         maskOverlay = 0f,
@@ -131,8 +148,12 @@ class VideoExporter @Inject constructor(
             }
         }
 
-    /** Pulls encoded packets out of the codec and writes them to the muxer. */
-    private class Drainer(private val codec: MediaCodec, private val muxer: MediaMuxer) {
+    /**
+     * Pulls encoded packets out of the codec and writes them to the muxer. The muxer can only start
+     * once every track is added, so the (already encoded) audio track is added and written as soon as
+     * the video format is known.
+     */
+    private class Drainer(private val codec: MediaCodec, private val muxer: MediaMuxer, private val audio: EncodedAudio?) {
         private val info = MediaCodec.BufferInfo()
         private var track = -1
 
@@ -149,7 +170,9 @@ class VideoExporter @Inject constructor(
                     index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                         check(track < 0) { "Format changed twice" }
                         track = muxer.addTrack(codec.outputFormat)
+                        val audioTrack = audio?.let { muxer.addTrack(it.format) }
                         muxer.start()
+                        if (audio != null && audioTrack != null) writeAudio(audioTrack, audio)
                     }
                     index >= 0 -> {
                         idleTries = 0
@@ -166,19 +189,29 @@ class VideoExporter @Inject constructor(
                 }
             }
         }
+
+        private fun writeAudio(audioTrack: Int, audio: EncodedAudio) {
+            val audioInfo = MediaCodec.BufferInfo()
+            for (sample in audio.samples) {
+                audioInfo.set(0, sample.data.size, sample.presentationUs, sample.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM.inv())
+                muxer.writeSampleData(audioTrack, ByteBuffer.wrap(sample.data), audioInfo)
+            }
+        }
     }
 
     companion object {
         private const val MIME = MediaFormat.MIMETYPE_VIDEO_AVC
 
-        /** Output size for [resolution], shrunk until [encoder] accepts it. Null if nothing fits. */
-        fun outputSize(project: Project, resolution: ExportResolution, encoder: MediaCodecInfo): Pair<Int, Int>? {
+        /** Output size for [resolution] at [aspect], shrunk until [encoder] accepts it. Null if nothing fits. */
+        fun outputSize(project: Project, resolution: ExportResolution, encoder: MediaCodecInfo, aspect: Float): Pair<Int, Int>? {
             val caps = encoder.getCapabilitiesForType(MIME).videoCapabilities ?: return null
+            // Never larger than the part of the photo that stays after cropping.
+            val (cropW, cropH) = OffscreenLoop.cropSize(project.imageWidth, project.imageHeight, aspect)
             var edge = resolution.shortEdge
             while (edge >= 144) {
                 val (w, h) = OffscreenLoop.fit(
-                    project.aspect, edge, edgeIsShort = true,
-                    srcW = project.imageWidth, srcH = project.imageHeight, align = 16,
+                    aspect, edge, edgeIsShort = true,
+                    srcW = cropW, srcH = cropH, align = 16,
                 )
                 if (caps.isSizeSupported(w, h)) return w to h
                 edge = (edge * 0.9f).toInt()

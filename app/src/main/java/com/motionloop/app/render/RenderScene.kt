@@ -50,4 +50,7 @@ data class RenderScene(
     /** True while editing the subject area: tint it instead of replacing the background. */
     val subjectTintOnly: Boolean = false,
     val texts: List<TextDraw> = emptyList(),
+    /** Beat pulse envelope for the preview sound loop (BeatDetector.ENVELOPE_RATE per second), null when off. */
+    val beatEnvelope: FloatArray? = null,
+    val beatAmount: Float = 0f,
 )

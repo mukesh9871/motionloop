@@ -43,7 +43,16 @@ import javax.inject.Inject
 import kotlin.math.hypot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import com.motionloop.app.data.audio.AudioDecoder
+import com.motionloop.app.data.audio.AudioLoopPlayer
+import com.motionloop.app.domain.audio.AmbientSynth
+import com.motionloop.app.domain.audio.AudioSettings
+import com.motionloop.app.domain.audio.AudioSource
+import com.motionloop.app.domain.audio.BeatDetector
+import com.motionloop.app.domain.audio.ClipAudio
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -79,6 +88,10 @@ class EditorViewModel @Inject constructor(
     private var subjectMaskJob: Job? = null
     private var backgroundPhotoJob: Job? = null
     private val textJobs = HashMap<String, Job>()
+    // Above init: init starts a collector that uses the player right away.
+    private val player = AudioLoopPlayer()
+    private var soundJob: Job? = null
+    private var loadedSound: Pair<AudioSource, Any>? = null
     private var dragStart: NPoint? = null
     private var dragOrigin: NPoint? = null
     private val undoStack = ArrayDeque<Geometry>()
@@ -125,8 +138,77 @@ class EditorViewModel @Inject constructor(
             loadBackgroundPhoto(project.background.photoRev)
             loadSelections(project.selections)
             rasterizeTexts(project.texts)
+            loadSound(project.audio)
+        }
+        // The preview sound follows play and pause.
+        viewModelScope.launch {
+            _state.map { it.playing }.distinctUntilChanged().collect { playing ->
+                if (playing) player.play() else player.pause()
+            }
         }
     }
+
+    // region sound (11c)
+
+    /** Sound settings, not part of undo. Reloads the preview loop only when the source changed. */
+    fun setAudio(change: (AudioSettings) -> AudioSettings) {
+        val p = _state.value.project ?: return
+        val updated = p.copy(audio = change(p.audio))
+        _state.update { it.copy(project = updated) }
+        persist(updated)
+        player.setVolume(updated.audio.volume)
+        loadSound(updated.audio)
+    }
+
+    fun importAudio(uri: Uri) = runModel("Loading the sound") {
+        val rev = assets.importAudio(projectId, uri)
+        setAudio { it.copy(source = AudioSource.FILE, fileRev = rev) }
+    }
+
+    private fun loadSound(audio: AudioSettings) {
+        val key: Pair<AudioSource, Any>? = when {
+            !audio.hasSound -> null
+            audio.source == AudioSource.AMBIENT -> AudioSource.AMBIENT to audio.ambient
+            else -> AudioSource.FILE to audio.fileRev
+        }
+        if (key == loadedSound) return
+        loadedSound = key
+        soundJob?.cancel()
+        if (key == null) {
+            player.setLoop(null)
+            _state.update { it.copy(beatEnvelope = null) }
+            return
+        }
+        soundJob = viewModelScope.launch {
+            try {
+                val pcm = withContext(cpu) {
+                    if (audio.source == AudioSource.AMBIENT) {
+                        AmbientSynth.generate(audio.ambient, PREVIEW_SOUND_SECONDS)
+                    } else {
+                        val file = assets.audioFile(projectId, audio.fileRev) ?: error("The audio file is missing")
+                        // The preview loops the first seconds: a static audio buffer must stay small.
+                        ClipAudio.fit(AudioDecoder.decode(file), minOf(PREVIEW_SOUND_SECONDS, AudioDecoder.MAX_SECONDS.toFloat()), 1f)
+                    }
+                }
+                val envelope = withContext(cpu) { BeatDetector.envelope(BeatDetector.beats(pcm), pcm.seconds) }
+                player.setLoop(pcm)
+                player.setVolume(_state.value.project?.audio?.volume ?: 1f)
+                if (_state.value.playing) player.play()
+                _state.update { it.copy(beatEnvelope = envelope) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                loadedSound = null
+                _state.update { it.copy(message = "Could not play that sound: ${e.message}") }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        player.release()
+    }
+
+    // endregion
 
     // region text (11e)
 
@@ -772,5 +854,6 @@ class EditorViewModel @Inject constructor(
         /** Text is rasterized against this image width: sharp at 1080p and still small. */
         const val TEXT_REF_WIDTH = 1440
         const val TEXT_DEBOUNCE_MS = 40L
+        const val PREVIEW_SOUND_SECONDS = 12f
     }
 }

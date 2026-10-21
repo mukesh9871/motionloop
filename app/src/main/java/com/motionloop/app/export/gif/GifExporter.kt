@@ -46,10 +46,13 @@ class GifExporter @Inject constructor(
 
     suspend fun export(project: Project, settings: ExportSettings, out: File, onProgress: (Float) -> Unit) =
         OffscreenLoop.onGlThread("ml-gif-export") {
+            val targetAspect = settings.aspect.widthOverHeight(project.aspect)
+            val (cropW, cropH) = OffscreenLoop.cropSize(project.imageWidth, project.imageHeight, targetAspect)
             val (w, h) = OffscreenLoop.fit(
-                project.aspect, ExportSettings.GIF_LONG_EDGE, edgeIsShort = false,
-                srcW = project.imageWidth, srcH = project.imageHeight, align = 2,
+                targetAspect, ExportSettings.GIF_LONG_EDGE, edgeIsShort = false,
+                srcW = cropW, srcH = cropH, align = 2,
             )
+            val viewport = OffscreenLoop.coverViewport(project.imageWidth, project.imageHeight, w, h)
             val delay = ExportSettings.GIF_DELAY_CS
             val frameCount = (settings.lengthSeconds * 100f / delay).roundToInt()
             val cycles = LoopTiming.cyclesForClip(settings.lengthSeconds.toFloat(), project.loop.speed)
@@ -73,7 +76,7 @@ class GifExporter @Inject constructor(
                 applySky(g, project, assets, max(w, h))
                 applyParallax(g, project, assets)
                 applySubject(g, project, assets, max(w, h))
-                texts = renderTexts(project, w)
+                texts = renderTexts(project, viewport[2])
                 g.setTexts(texts)
                 bitmap.recycle() // uploaded to the GPU, the CPU copy is no longer needed
                 val t = GlTexture.empty(w, h, GLES30.GL_RGBA8, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE).also { target = it }
@@ -81,7 +84,7 @@ class GifExporter @Inject constructor(
 
                 fun renderFrame(i: Int): ByteArray {
                     g.draw(
-                        fbo = t.framebuffer(), x = 0, y = 0, width = w, height = h,
+                        fbo = t.framebuffer(), x = viewport[0], y = viewport[1], width = viewport[2], height = viewport[3],
                         phase = LoopTiming.phaseForFrame(i, frameCount, cycles),
                         mode = project.loop.mode,
                         amount = 1f,

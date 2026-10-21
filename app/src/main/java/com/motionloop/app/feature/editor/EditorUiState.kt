@@ -39,6 +39,7 @@ enum class EditorPanel(val label: String, val defaultTool: EditorTool) {
     DEPTH("3D", EditorTool.ARROW),
     CUTOUT("Cutout", EditorTool.SUBJECT_ADD),
     TEXT("Text", EditorTool.TEXT_MOVE),
+    SOUND("Sound", EditorTool.ARROW),
     ADJUST("Adjust", EditorTool.ARROW),
     OVERLAY("Overlay", EditorTool.ARROW),
 }
@@ -97,6 +98,8 @@ data class EditorUiState(
     /** Rasterized text by layer id. May lag one edit behind while a new one is drawn. */
     val renderedTexts: Map<String, RenderedText> = emptyMap(),
     val selectedTextId: String? = null,
+    /** Beat envelope of the preview loop, null without sound or beat sync. */
+    val beatEnvelope: FloatArray? = null,
 ) {
     val selectedText: TextLayer? get() = project?.texts?.firstOrNull { it.id == selectedTextId }
 
@@ -148,6 +151,8 @@ data class EditorUiState(
                 subjectTintOnly = panel == EditorPanel.CUTOUT && !playing &&
                     (liveStroke != null || p.background.mode == BackgroundMode.NONE),
                 // Paused: show every text fully (a fade starts invisible at phase 0), animate only while playing.
+                beatEnvelope = beatEnvelope.takeIf { p.audio.beatSync },
+                beatAmount = p.audio.beatAmount,
                 texts = p.texts.mapNotNull { t ->
                     renderedTexts[t.id]?.let { TextDraw(if (playing) t else t.copy(animation = TextAnimation.NONE), it) }
                 },

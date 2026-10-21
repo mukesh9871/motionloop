@@ -1,5 +1,6 @@
 package com.motionloop.app.domain.model
 
+import com.motionloop.app.domain.audio.AudioSettings
 import kotlinx.serialization.Serializable
 
 /** Point in normalized image space: (0,0) top-left, (1,1) bottom-right. */
@@ -68,6 +69,7 @@ data class Project(
     val selections: List<SelectionRegion> = emptyList(),
     /** Text layers (11e), drawn in list order. */
     val texts: List<TextLayer> = emptyList(),
+    val audio: AudioSettings = AudioSettings(),
 ) {
     val aspect: Float get() = imageWidth.toFloat() / imageHeight
 }

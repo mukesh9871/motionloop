@@ -1,6 +1,15 @@
 package com.motionloop.app.export
 
+import com.motionloop.app.data.audio.AudioDecoder
+import com.motionloop.app.domain.audio.AmbientSynth
+import com.motionloop.app.domain.audio.AudioSource
+import com.motionloop.app.domain.audio.BeatDetector
+import com.motionloop.app.domain.audio.ClipAudio
+import com.motionloop.app.domain.audio.Pcm
 import com.motionloop.app.domain.model.BackgroundMode
+import com.motionloop.app.domain.model.LoopTiming
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.withContext
 import com.motionloop.app.domain.model.MaskKind
 import com.motionloop.app.domain.model.TextAnimation
 import com.motionloop.app.domain.model.Project
@@ -60,6 +69,34 @@ internal fun renderTexts(project: Project, outputWidth: Int, animated: Boolean =
         val layer = if (animated) it else it.copy(animation = TextAnimation.NONE)
         TextDraw(layer, TextRasterizer.render(layer, maxOf(1440, outputWidth)))
     }
+
+/**
+ * The project's sound fitted to exactly [seconds], or null when it has none. Ambient sounds are
+ * generated at the clip length, so they loop as seamlessly as the picture. CPU work on [cpu].
+ */
+internal suspend fun buildClipAudio(project: Project, seconds: Int, assets: ProjectAssetRepository, cpu: CoroutineDispatcher): Pcm? {
+    val audio = project.audio
+    if (!audio.hasSound) return null
+    return withContext(cpu) {
+        when (audio.source) {
+            AudioSource.AMBIENT -> ClipAudio.scaled(AmbientSynth.generate(audio.ambient, seconds.toFloat()), audio.volume)
+            AudioSource.FILE -> {
+                val file = assets.audioFile(project.id, audio.fileRev) ?: error("The audio file is missing. Choose it again in Sound.")
+                ClipAudio.fit(AudioDecoder.decode(file), seconds.toFloat(), audio.volume)
+            }
+            AudioSource.NONE -> null
+        }
+    }
+}
+
+/** Per-frame phases, beat-synced when the project asks for it, otherwise the plain whole-cycle ramp. */
+internal fun clipPhases(project: Project, frameCount: Int, fps: Int, cycles: Int, clipAudio: Pcm?): FloatArray {
+    if (clipAudio == null || !project.audio.beatSync) {
+        return FloatArray(frameCount) { LoopTiming.phaseForFrame(it, frameCount, cycles) }
+    }
+    val envelope = BeatDetector.envelope(BeatDetector.beats(clipAudio), clipAudio.seconds)
+    return LoopTiming.beatPhases(frameCount, fps, cycles, envelope, BeatDetector.ENVELOPE_RATE, project.audio.beatAmount)
+}
 
 /** Loads the depth map for an export's 3D camera and hands it to the graph. */
 internal suspend fun applyParallax(graph: LoopRenderGraph, project: Project, assets: ProjectAssetRepository) {

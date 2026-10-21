@@ -79,6 +79,44 @@ class ProjectAssetRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun importAudio(projectId: String, source: Uri): Int = lock.withLock {
+        withContext(io) {
+            val dir = dir(projectId)
+            val rev = nextRev(dir, AUDIO_PREFIX, AUDIO_EXT)
+            val target = File(dir, "${AUDIO_PREFIX}_$rev$AUDIO_EXT")
+            val tmp = File(dir, "${target.name}.tmp")
+            val input = context.contentResolver.openInputStream(source) ?: throw IOException("Cannot open the audio file")
+            try {
+                input.use { inp ->
+                    tmp.outputStream().use { out ->
+                        // Stop as soon as the file is larger than any short loop could need.
+                        val buffer = ByteArray(64 * 1024)
+                        var copied = 0L
+                        while (true) {
+                            val n = inp.read(buffer)
+                            if (n < 0) break
+                            copied += n
+                            if (copied > MAX_AUDIO_BYTES) throw IOException("That audio file is too large")
+                            out.write(buffer, 0, n)
+                        }
+                    }
+                }
+            } catch (e: IOException) {
+                tmp.delete()
+                throw e
+            }
+            if (!tmp.renameTo(target)) throw IOException("Could not store the audio file")
+            // Only the newest import is kept.
+            dir.listFiles().orEmpty()
+                .filter { revOf(it.name, AUDIO_PREFIX, AUDIO_EXT)?.let { r -> r != rev } == true }
+                .forEach { it.delete() }
+            rev
+        }
+    }
+
+    override fun audioFile(projectId: String, rev: Int): File? =
+        if (rev <= 0) null else File(dir(projectId), "${AUDIO_PREFIX}_$rev$AUDIO_EXT").takeIf { it.exists() }
+
     override suspend fun pruneImages(projectId: String, kind: ImageKind, keep: Set<Int>) = lock.withLock {
         withContext(io) {
             dir(projectId).listFiles().orEmpty()
@@ -96,6 +134,9 @@ class ProjectAssetRepositoryImpl @Inject constructor(
         private const val MASK_EXT = ".mask"
         private const val IMAGE_EXT = ".jpg"
         private const val MAX_IMAGE_EDGE = 2048
+        private const val AUDIO_PREFIX = "audio"
+        private const val AUDIO_EXT = ".audio"
+        private const val MAX_AUDIO_BYTES = 100L * 1024 * 1024
 
         /** "sky_12.mask" -> 12 for prefix "sky". "sky_photo_3.jpg" is not a "sky" mask. Internal for tests. */
         fun revOf(name: String, prefix: String, ext: String): Int? {

@@ -48,6 +48,10 @@ interface ProjectAssetRepository {
     suspend fun importImage(projectId: String, kind: ImageKind, source: Uri): Int
     suspend fun loadImage(projectId: String, kind: ImageKind, rev: Int, maxEdge: Int): Bitmap?
 
+    /** Copies an audio file into the project as is, returns its revision. */
+    suspend fun importAudio(projectId: String, source: Uri): Int
+    fun audioFile(projectId: String, rev: Int): File?
+
     /** Deletes revisions of [kind] that are not in [keep]. */
     suspend fun prune(projectId: String, kind: MaskKind, keep: Set<Int>)
     suspend fun pruneImages(projectId: String, kind: ImageKind, keep: Set<Int>)
