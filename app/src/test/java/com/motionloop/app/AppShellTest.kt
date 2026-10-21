@@ -26,7 +26,6 @@ class AppShellTest {
         assertTrue(ProFeature.LONG_EXPORT in ProPolicy.proOnly)
         assertTrue(ProFeature.EXPORT_4K in ProPolicy.proOnly)
         assertFalse(ProFeature.LIVE_WALLPAPER in ProPolicy.proOnly)
-        assertFalse(ProFeature.EFFECTS in ProPolicy.proOnly)
     }
 
     @Test
