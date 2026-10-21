@@ -16,6 +16,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import com.motionloop.app.data.writeAtomically
 import java.io.File
 import java.io.IOException
 import java.util.UUID
@@ -84,8 +85,11 @@ class ProjectRepositoryImpl @Inject constructor(
     }
 
     override suspend fun load(id: String): Project? = withContext(io) {
-        val file = File(dir(id), JSON)
-        if (!file.exists()) null else runCatching { json.decodeFromString<Project>(file.readText()) }.getOrNull()
+        val dir = dir(id)
+        // A damaged file (power loss mid-save) falls back to the previous version.
+        listOf(File(dir, JSON), File(dir, BACKUP)).firstNotNullOfOrNull { file ->
+            if (!file.exists()) null else runCatching { json.decodeFromString<Project>(file.readText()) }.getOrNull()
+        }
     }
 
     override fun saveInBackground(project: Project) {
@@ -129,17 +133,18 @@ class ProjectRepositoryImpl @Inject constructor(
     }
 
     private fun writeJson(project: Project) {
-        // Write then rename, so a crash mid-write never corrupts the project.
         val dir = dir(project.id)
-        val tmp = File(dir, "$JSON.tmp")
-        tmp.writeText(json.encodeToString(Project.serializer(), project))
-        if (!tmp.renameTo(File(dir, JSON))) throw IOException("Could not replace $JSON")
+        val target = File(dir, JSON)
+        // The previous version stays as a backup for load() in case the new file is unreadable.
+        if (target.exists()) target.copyTo(File(dir, BACKUP), overwrite = true)
+        target.writeAtomically { it.write(json.encodeToString(Project.serializer(), project).toByteArray()) }
     }
 
     companion object {
         private const val TAG = "ProjectRepository"
         const val MAX_STORED_EDGE = 4096
         private const val PROJECTS = "projects"
+        private const val BACKUP = "project.json.bak"
 
         /** Folder holding everything for one project. Shared with other repositories (custom LUT file). */
         fun projectDir(context: Context, id: String) = File(File(context.filesDir, PROJECTS), id)

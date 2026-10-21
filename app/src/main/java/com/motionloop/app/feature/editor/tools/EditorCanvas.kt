@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -47,16 +48,19 @@ fun EditorCanvas(
     modifier: Modifier = Modifier,
 ) {
     var cursor by remember { mutableStateOf<Offset?>(null) }
+    val enabledState = rememberUpdatedState(enabled)
+    val enabledNow = { enabledState.value }
 
     Canvas(
-        modifier.pointerInput(tool, enabled) {
-            if (!enabled) return@pointerInput
+        // enabled is read inside, not a key: keying on it restarts the handler when busy flips mid-tap.
+        modifier.pointerInput(tool) {
             fun norm(o: Offset) = NPoint(
                 (o.x / size.width).coerceIn(0f, 1f),
                 (o.y / size.height).coerceIn(0f, 1f),
             )
             awaitEachGesture {
                 val down = awaitFirstDown()
+                if (!enabledNow()) return@awaitEachGesture
                 down.consume()
                 cursor = down.position
                 onDown(norm(down.position))

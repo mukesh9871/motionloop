@@ -3,6 +3,9 @@ package com.motionloop.app.feature.pro
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,18 +51,20 @@ fun ProScreen(onBack: () -> Unit, vm: SettingsViewModel = hiltViewModel()) {
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(Brush.linearGradient(listOf(MlColors.Violet, MlColors.SurfaceHigh)))
+                .background(Brush.linearGradient(listOf(MlColors.Violet, Color(0xFF3A2E8C))))
                 .padding(20.dp),
         ) {
-            Icon(MlIcons.Pro, contentDescription = null, tint = MlColors.Mint, modifier = Modifier.size(36.dp))
+            // White in both themes: the violet gradient behind it does not follow the theme.
+            Icon(MlIcons.Pro, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
             Text(
                 if (isPro) "You have Pro" else "Go further with Pro",
                 style = MaterialTheme.typography.headlineMedium,
+                color = Color.White,
             )
             Text(
                 "Pro unlocks the advanced tools. Everything you already made stays yours either way.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MlColors.TextPrimary.copy(alpha = 0.85f),
+                color = Color.White.copy(alpha = 0.9f),
             )
         }
 
@@ -75,6 +80,7 @@ fun ProScreen(onBack: () -> Unit, vm: SettingsViewModel = hiltViewModel()) {
         }
 
         if (!isPro) {
+            Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             ProPlan.entries.forEach { p ->
                 val selected = p == plan
                 Row(
@@ -83,7 +89,7 @@ fun ProScreen(onBack: () -> Unit, vm: SettingsViewModel = hiltViewModel()) {
                         .clip(RoundedCornerShape(14.dp))
                         .border(2.dp, if (selected) MlColors.Mint else Color.Transparent, RoundedCornerShape(14.dp))
                         .background(MlColors.Surface)
-                        .clickable { plan = p }
+                        .selectable(selected = selected, role = Role.RadioButton) { plan = p }
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -93,6 +99,7 @@ fun ProScreen(onBack: () -> Unit, vm: SettingsViewModel = hiltViewModel()) {
                     }
                     Text(p.note, style = MaterialTheme.typography.labelMedium, color = MlColors.Mint)
                 }
+            }
             }
             Button(
                 onClick = { vm.purchase(plan) },

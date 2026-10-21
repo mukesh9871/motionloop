@@ -4,7 +4,6 @@ import com.motionloop.app.domain.model.BackgroundMode
 import com.motionloop.app.domain.model.BackgroundSettings
 import com.motionloop.app.domain.model.ExportFormat
 import com.motionloop.app.domain.model.Project
-import com.motionloop.app.domain.model.SelectionMode
 import com.motionloop.app.domain.model.SubjectSettings
 import com.motionloop.app.export.png.CutoutLayers
 import com.motionloop.app.export.png.PngExporter
@@ -23,7 +22,6 @@ class CutoutTest {
             listOf("NONE", "TRANSPARENT", "SOLID", "GRADIENT", "BLUR", "PHOTO"),
             BackgroundMode.entries.map { it.name },
         )
-        assertEquals(listOf("FREEZE", "ANIMATE_ONLY", "RIPPLE"), SelectionMode.entries.map { it.name })
         assertTrue(ExportFormat.PNG in ExportFormat.entries)
     }
 

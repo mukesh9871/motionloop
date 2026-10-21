@@ -19,6 +19,8 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
+        // Contact form recipient. Personal address until the app has a support mailbox.
+        buildConfigField("String", "SUPPORT_EMAIL", "\"mukesh9871@gmail.com\"")
 
         // MediaPipe and LiteRT ship large native libraries per CPU type. Phones are ARM, and
         // x86_64 covers the emulator. 32-bit x86 has no real devices left, so it is not packaged.
@@ -30,6 +32,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

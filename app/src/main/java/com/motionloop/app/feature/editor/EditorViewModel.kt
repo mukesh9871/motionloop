@@ -106,6 +106,10 @@ class EditorViewModel @Inject constructor(
     private val undoStack = ArrayDeque<Geometry>()
     private val redoStack = ArrayDeque<Geometry>()
 
+    // Panel where the running model action started: its result message belongs there,
+    // even if the user switched panels while it ran.
+    private var modelOrigin: EditorPanel? = null
+
     init {
         viewModelScope.launch {
             // Reopening right after leaving: wait for that session's queued saves first.
@@ -242,7 +246,7 @@ class EditorViewModel @Inject constructor(
         setTexts(p.texts + layer)
         _state.update { it.copy(selectedTextId = layer.id) }
         // Only for the first text: later ones would repeat a failed search on photos without a subject.
-        if (!p.subject.hasArea && p.texts.isEmpty()) detectSubject()
+        if (!p.subject.hasArea && p.texts.isEmpty()) detectSubject(record = false)
     }
 
     fun selectText(id: String?) = _state.update { it.copy(selectedTextId = id) }
@@ -364,7 +368,11 @@ class EditorViewModel @Inject constructor(
     }
 
     /** Finds the main subject automatically (ML Kit, with the interactive model as fallback). */
-    fun detectSubject() = runModel("Finding the subject") { preview ->
+    /**
+     * Finds the main subject automatically. [record] false applies it like a setting (no history
+     * entry), for the automatic search when the first text is added: texts are not undoable either.
+     */
+    fun detectSubject(record: Boolean = true) = runModel("Finding the subject") { preview ->
         val mask = withContext(cpu) { segmenter.segmentSubject(preview) }
         if (mask.coverage() < 0.005f) {
             _state.update { it.copy(messagePanel = messageOrigin(), message = "No clear subject found. Tap it or paint it to select it.") }
@@ -373,7 +381,13 @@ class EditorViewModel @Inject constructor(
         val rev = assets.saveMask(projectId, MaskKind.SUBJECT, mask)
         _state.update { it.copy(subjectMask = mask, subjectMaskRev = rev) }
         val project = _state.value.project ?: return@runModel
-        commit(current(project).copy(subjectMaskRev = rev))
+        if (record) {
+            commit(current(project).copy(subjectMaskRev = rev))
+        } else {
+            val updated = project.copy(subject = project.subject.copy(maskRev = rev))
+            _state.update { it.copy(project = updated) }
+            persist(updated)
+        }
     }
 
     private fun subjectTap(p: NPoint, add: Boolean) =
@@ -396,8 +410,9 @@ class EditorViewModel @Inject constructor(
                 }
             }
             val rev = assets.saveMask(projectId, MaskKind.SUBJECT, combined)
-            _state.update { it.copy(subjectMask = combined, subjectMaskRev = rev) }
             val project = _state.value.project ?: return@runModel
+            if (project.subject.maskRev != subject.maskRev) return@runModel
+            _state.update { it.copy(subjectMask = combined, subjectMaskRev = rev) }
             commit(current(project).copy(subjectMaskRev = rev))
         }
 
@@ -549,6 +564,9 @@ class EditorViewModel @Inject constructor(
                 // Regions whose files are gone cannot be shown: remove them rather than keep invisible ones.
                 val p = _state.value.project ?: return@launch
                 val updated = p.copy(selections = p.selections.filterNot { it.rev in lost })
+                // Also out of the history, or undo would bring them back and remove them again.
+                undoStack.replaceAll { g -> g.copy(selections = g.selections.filterNot { it.rev in lost }) }
+                redoStack.replaceAll { g -> g.copy(selections = g.selections.filterNot { it.rev in lost }) }
                 _state.update { it.copy(project = updated, messagePanel = it.panel, message = "Some selected objects could not be loaded and were removed.") }
                 persist(updated)
             }
@@ -637,8 +655,10 @@ class EditorViewModel @Inject constructor(
             }
         }
         val rev = assets.saveMask(projectId, MaskKind.SKY, combined)
-        _state.update { it.copy(skyMask = combined, skyMaskRev = rev) }
         val project = _state.value.project ?: return@runModel
+        // The area changed under us (undo while the model ran): drop this result.
+        if (project.sky.maskRev != sky.maskRev) return@runModel
+        _state.update { it.copy(skyMask = combined, skyMaskRev = rev) }
         commit(current(project).copy(skyMaskRev = rev))
     }
 
@@ -750,10 +770,6 @@ class EditorViewModel @Inject constructor(
     }
 
     fun dismissMessage() = _state.update { it.copy(message = null, messagePanel = null) }
-
-    // Panel where the running model action started: its result message belongs there,
-    // even if the user switched panels while it ran.
-    private var modelOrigin: EditorPanel? = null
 
     private fun messageOrigin(): EditorPanel = modelOrigin ?: _state.value.panel
 
@@ -960,17 +976,21 @@ class EditorViewModel @Inject constructor(
         apply(project, next)
     }
 
-    fun clearAll() {
-        val project = _state.value.project ?: return
-        if (current(project) != Geometry()) commit(Geometry())
-    }
-
     private fun commit(next: Geometry) {
         val project = _state.value.project ?: return
         undoStack.addLast(current(project))
         if (undoStack.size > MAX_HISTORY) undoStack.removeFirst()
         redoStack.clear()
         apply(project, next)
+    }
+
+    /** Drops loaded selection masks that neither the project nor the history still refer to. */
+    private fun pruneSelectionMasks(project: Project) {
+        val live = HashSet<Int>()
+        project.selections.forEach { live += it.rev }
+        undoStack.forEach { g -> g.selections.forEach { live += it.rev } }
+        redoStack.forEach { g -> g.selections.forEach { live += it.rev } }
+        _state.update { s -> if (s.selectionMasks.keys.all { it in live }) s else s.copy(selectionMasks = s.selectionMasks.filterKeys { it in live }) }
     }
 
     private fun apply(project: Project, g: Geometry) {
@@ -988,6 +1008,7 @@ class EditorViewModel @Inject constructor(
         _state.update {
             it.copy(project = updated, canUndo = undoStack.isNotEmpty(), canRedo = redoStack.isNotEmpty())
         }
+        pruneSelectionMasks(updated)
         persist(updated)
     }
 
@@ -1005,15 +1026,6 @@ class EditorViewModel @Inject constructor(
     private fun distance(a: NPoint, b: NPoint, aspect: Float): Float =
         hypot(b.x - a.x, (b.y - a.y) / aspect)
 
-    private fun distanceToSegment(p: NPoint, a: NPoint, b: NPoint, aspect: Float): Float {
-        val abx = b.x - a.x
-        val aby = (b.y - a.y) / aspect
-        val apx = p.x - a.x
-        val apy = (p.y - a.y) / aspect
-        val len2 = abx * abx + aby * aby
-        val t = if (len2 < 1e-8f) 0f else ((apx * abx + apy * aby) / len2).coerceIn(0f, 1f)
-        return hypot(apx - abx * t, apy - aby * t)
-    }
 
     private companion object {
         /** GLES 3.0 guarantees 2048 px textures. Export uses the full-size photo. */

@@ -2,9 +2,26 @@ package com.motionloop.ml
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertArrayEquals
 import org.junit.Test
 
 class MlLogicTest {
+
+    @Test
+    fun alphaMaskSamplesClampAndFloatsRound() {
+        val mask = AlphaMask(4, 4, ByteArray(16) { it.toByte() })
+        // The far corner must not run past the last pixel.
+        assertEquals(15, mask.sample(1f, 1f))
+        assertEquals(0, mask.sample(0f, 0f))
+        val f = AlphaMask.fromFloats(2, 2, floatArrayOf(0.5f, 1f, 1.7f, -0.3f))
+        assertEquals(128, f[0, 0])
+        assertEquals(255, f[1, 0])
+        assertEquals(255, f[0, 1])
+        assertEquals(0, f[1, 1])
+        assertArrayEquals(mask.data, mask.inverted().inverted().data)
+        assertEquals(1f - mask.coverage(), mask.inverted().coverage(), 1e-6f)
+    }
+
 
     private fun rgb(r: Int, g: Int, b: Int) = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
 

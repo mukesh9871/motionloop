@@ -4,9 +4,26 @@ import com.motionloop.app.domain.model.ExportAspect
 import com.motionloop.app.export.OffscreenLoop
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertArrayEquals
 import org.junit.Test
 
 class ExportShapeTest {
+
+    @Test
+    fun extremeAspectsStayInsideTheSource() {
+        val (pw, ph) = OffscreenLoop.fit(10f, 1080, edgeIsShort = true, srcW = 10000, srcH = 1000, align = 16)
+        assertEquals(0, pw % 16)
+        assertEquals(0, ph % 16)
+        assertTrue(pw <= 10000 && ph <= 1000)
+        assertEquals(10f, pw.toFloat() / ph, 0.2f)
+        val (sw, sh) = OffscreenLoop.fit(1f, 1080, edgeIsShort = true, srcW = 3000, srcH = 3000, align = 16)
+        assertEquals(sw, sh)
+        // Same shape as the photo: nothing is cropped.
+        assertEquals(4000 to 3000, OffscreenLoop.cropSize(4000, 3000, 4f / 3f))
+        // A square photo filling a story frame overflows sideways, centered.
+        assertArrayEquals(intArrayOf(-420, 0, 1920, 1920), OffscreenLoop.coverViewport(1, 1, 1080, 1920))
+    }
+
 
     @Test
     fun cropKeepsTheLargestRegionOfTheTargetShape() {

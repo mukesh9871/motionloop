@@ -3,6 +3,8 @@ package com.motionloop.app.feature.editor.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +23,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -74,7 +80,7 @@ fun TextPanel(
                     tool == EditorTool.TEXT_MOVE -> "Drag a text to move it. Pick a subject tool to fix the outline."
                     tool == EditorTool.SUBJECT_ADD -> "Tap a part of the subject to add it."
                     tool == EditorTool.SUBJECT_REMOVE -> "Tap an area to remove it from the subject."
-                    tool == EditorTool.SUBJECT_RESTORE -> "Paint over the subject to add it."
+                    tool == EditorTool.SUBJECT_RESTORE -> "Paint over the subject to restore it."
                     else -> "Paint to remove areas from the subject."
                 },
                 style = MaterialTheme.typography.bodySmall,
@@ -92,11 +98,18 @@ fun TextPanel(
         }
 
         Spacer(Modifier.height(8.dp))
+        // Local text while typing: a field driven straight from the state flow lags a frame and
+        // can drop characters during fast input. Truncated here, so the limit shows at once.
+        var draft by remember(selected.id) { mutableStateOf(selected.text) }
         OutlinedTextField(
-            value = selected.text,
-            onValueChange = { v -> onChange { it.copy(text = v) } },
+            value = draft,
+            onValueChange = { v ->
+                draft = v.take(TextLayer.MAX_LENGTH)
+                onChange { it.copy(text = draft) }
+            },
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Text") },
+            supportingText = { Text("${draft.length} / ${TextLayer.MAX_LENGTH}") },
             maxLines = 3,
         )
         Label("Font")
@@ -141,7 +154,7 @@ private val subjectTools = listOf(
     EditorTool.TEXT_MOVE to "Move text",
     EditorTool.SUBJECT_ADD to "Tap to add",
     EditorTool.SUBJECT_REMOVE to "Tap to remove",
-    EditorTool.SUBJECT_RESTORE to "Paint",
+    EditorTool.SUBJECT_RESTORE to "Restore",
     EditorTool.SUBJECT_ERASE to "Erase",
 )
 
@@ -162,8 +175,8 @@ private fun Swatches(selected: Int, onPick: (Int) -> Unit) {
                     .clip(CircleShape)
                     .background(Color(argb))
                     .border(2.dp, if (argb == selected) MlColors.Mint else MlColors.SurfaceHigh, CircleShape)
-                    .semantics { contentDescription = "Color swatch" }
-                    .clickable { onPick(argb) },
+                    .semantics { contentDescription = "Color ${"%06X".format(argb and 0xFFFFFF)}" }
+                    .selectable(selected = argb == selected, role = Role.RadioButton) { onPick(argb) },
             )
         }
     }

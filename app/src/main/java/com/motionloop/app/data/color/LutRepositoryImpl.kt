@@ -13,6 +13,7 @@ import com.motionloop.app.domain.repository.LutRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
+import com.motionloop.app.data.writeAtomically
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
@@ -57,10 +58,7 @@ class LutRepositoryImpl @Inject constructor(
         } catch (e: CubeLutParser.CubeFormatException) {
             throw IOException("Not a valid .cube LUT: ${e.message}", e)
         }
-        val target = cubeFile(projectId)
-        val tmp = File(target.parentFile, "$CUBE_NAME.tmp")
-        tmp.writeText(text)
-        if (!tmp.renameTo(target)) throw IOException("Could not store the LUT")
+        cubeFile(projectId).writeAtomically { it.write(text.toByteArray()) }
     }
 
     override suspend fun hasCustom(projectId: String): Boolean = withContext(io) { cubeFile(projectId).exists() }

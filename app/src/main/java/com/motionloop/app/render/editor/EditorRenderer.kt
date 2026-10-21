@@ -69,7 +69,8 @@ class EditorRenderer(private val assets: AssetManager) : GLSurfaceView.Renderer 
             }
             // Same speed rule as the beat-synced export: up to 3x on a strong beat.
             val speed = s.loop.speed * (1f + 2f * s.beatAmount * pulse)
-            phase = (phase + dt * speed / LoopSettings.BASE_CYCLE_SECONDS) % 1000f
+            // Every animated term has period 1, so wrap at 1: large phases lose float precision in the shaders.
+            phase = (phase + dt * speed / LoopSettings.BASE_CYCLE_SECONDS) % 1f
         }
         lastFrameNanos = if (s.playing) now else 0L
 

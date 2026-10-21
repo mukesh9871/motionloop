@@ -8,7 +8,8 @@ data class FlowSegment(val a: NPoint, val b: NPoint, val speed: Float)
 
 /**
  * Free-hand motion paths: simplify what the finger drew, and split paths into straight
- * segments for the flow field. Distances are in aspect space (x scaled by width / height).
+ * segments for the flow field. Distances are in image widths (y scaled by height / width),
+ * like every other distance in the app.
  */
 object MotionPaths {
 
@@ -102,13 +103,13 @@ object MotionPaths {
         return best
     }
 
-    private fun dist(a: NPoint, b: NPoint, aspect: Float) = hypot((a.x - b.x) * aspect, a.y - b.y)
+    private fun dist(a: NPoint, b: NPoint, aspect: Float) = hypot(a.x - b.x, (a.y - b.y) / aspect)
 
     private fun distanceToSegment(p: NPoint, a: NPoint, b: NPoint, aspect: Float): Float {
-        val abx = (b.x - a.x) * aspect
-        val aby = b.y - a.y
-        val apx = (p.x - a.x) * aspect
-        val apy = p.y - a.y
+        val abx = b.x - a.x
+        val aby = (b.y - a.y) / aspect
+        val apx = p.x - a.x
+        val apy = (p.y - a.y) / aspect
         val lenSq = abx * abx + aby * aby
         val t = if (lenSq <= 1e-12f) 0f else ((apx * abx + apy * aby) / lenSq).coerceIn(0f, 1f)
         return hypot(apx - abx * t, apy - aby * t)

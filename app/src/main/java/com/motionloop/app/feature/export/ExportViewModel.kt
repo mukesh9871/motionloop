@@ -79,10 +79,20 @@ class ExportViewModel @Inject constructor(
     private var photoAspect = 1f
     private var resolutionJob: Job? = null
 
+    private var photoWidth = 0
+    private var photoHeight = 0
+
     init {
+        refreshProject()
+    }
+
+    /** The project can change between two openings of the sheet (sound added, photo the same). */
+    private fun refreshProject() {
         viewModelScope.launch {
             val project = projects.load(projectId) ?: return@launch
             photoAspect = project.aspect
+            photoWidth = project.imageWidth
+            photoHeight = project.imageHeight
             _state.update { it.copy(hasSound = project.audio.hasSound) }
             refreshResolutions()
         }
@@ -92,6 +102,7 @@ class ExportViewModel @Inject constructor(
     fun reset() {
         if (_state.value.running) return
         _state.update { it.copy(progress = 0f, resultUri = null, resultMime = null, error = null) }
+        refreshProject()
     }
 
     fun setFormat(format: ExportFormat) = updateSettings {
@@ -112,7 +123,9 @@ class ExportViewModel @Inject constructor(
         val aspect = _state.value.settings.aspect.widthOverHeight(photoAspect)
         resolutionJob = viewModelScope.launch {
             val available = withContext(cpu) {
-                ExportResolution.entries.filter { it != ExportResolution.UHD || VideoExporter.supportsNominal(aspect, it) }
+                ExportResolution.entries.filter {
+                    it != ExportResolution.UHD || VideoExporter.supportsNominal(aspect, it, photoWidth, photoHeight)
+                }
             }
             _state.update { s ->
                 val keep = s.settings.resolution in available
@@ -148,6 +161,8 @@ class ExportViewModel @Inject constructor(
             }
             val name = "MotionLoop_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) + ext
             val file = media.exportTempFile(name)
+            // A file left by an export interrupted by process death would sit there until the OS trims the cache.
+            withContext(cpu) { file.parentFile?.listFiles()?.filter { it != file }?.forEach { it.delete() } }
             try {
                 // Wait for the editor's queued saves, then read the latest state from disk.
                 projects.flush()

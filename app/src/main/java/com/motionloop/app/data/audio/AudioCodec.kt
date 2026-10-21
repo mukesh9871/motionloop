@@ -65,13 +65,12 @@ object AudioDecoder {
                             c.queueInputBuffer(inIndex, 0, size, extractor.sampleTime, 0)
                             extractor.advance()
                         }
-                        idle = 0
                     }
                 }
                 val outIndex = c.dequeueOutputBuffer(info, 10_000)
                 when {
                     outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> {
-                        // 10 ms per try: give up after 10 s without any progress, before or after the last input.
+                        // 10 ms per try: give up after 10 s without output.
                         if (++idle > 1000) throw IOException("The audio decoder stopped responding")
                     }
                     outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
@@ -80,6 +79,9 @@ object AudioDecoder {
                         maxFrames = rate * seconds
                     }
                     outIndex >= 0 -> {
+                        // Progress means output, not accepted input: a decoder that eats input and never
+                        // produces anything still hits the stall guard.
+                        idle = 0
                         idle = 0
                         val buffer = c.getOutputBuffer(outIndex)!!
                         val pcmEncoding = runCatching { c.outputFormat.getInteger(MediaFormat.KEY_PCM_ENCODING) }

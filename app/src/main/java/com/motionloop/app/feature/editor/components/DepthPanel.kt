@@ -2,7 +2,9 @@ package com.motionloop.app.feature.editor.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -59,7 +61,7 @@ fun DepthPanel(
                 colors = SwitchDefaults.colors(checkedTrackColor = MlColors.Violet),
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CameraPath.entries.forEach { path ->
                 Pill(path.label(), active = settings.path == path, enabled = !busy) {
                     onChange { it.copy(path = path, enabled = true) }

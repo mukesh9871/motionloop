@@ -20,6 +20,7 @@ uniform float uFeather;        // 0..1
 uniform float uHarmonize;      // 0..1
 uniform float uAspect;         // width / height
 uniform float uSkyPhotoAspect; // width / height of the sky photo
+uniform float uSkyLod;         // mip level that matches the sky photo's scale on screen
 
 // Background replacement (11d). uBgMode: -1 off, 0 tint the subject (editing view),
 // otherwise BackgroundMode ordinal: 1 transparent, 2 solid, 3 gradient, 4 blur, 5 photo.
@@ -132,8 +133,8 @@ vec3 skyColor(vec2 uv) {
     float p1 = fract(uPhase);
     float p2 = fract(uPhase + 0.5);
     float d = uDrift * 0.3;
-    vec3 a = textureLod(uSkyPhoto, vec2(st.x + d * (p1 - 0.5), st.y), 0.0).rgb;
-    vec3 b = textureLod(uSkyPhoto, vec2(st.x + d * (p2 - 0.5), st.y), 0.0).rgb;
+    vec3 a = textureLod(uSkyPhoto, vec2(st.x + d * (p1 - 0.5), st.y), uSkyLod).rgb;
+    vec3 b = textureLod(uSkyPhoto, vec2(st.x + d * (p2 - 0.5), st.y), uSkyLod).rgb;
     return mix(a, b, abs(2.0 * p1 - 1.0));
 }
 

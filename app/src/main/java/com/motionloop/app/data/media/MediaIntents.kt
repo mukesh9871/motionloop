@@ -8,12 +8,16 @@ import java.io.File
 
 object MediaIntents {
 
-    /** Temp file Uri the camera app writes the photo into. */
+    /** Temp file Uri the camera app writes the photo into. Old captures are cleared by [pruneCaptures]. */
     fun newCameraUri(context: Context): Uri {
         val dir = File(context.cacheDir, "camera").apply { mkdirs() }
-        dir.listFiles()?.forEach { it.delete() }
         val file = File(dir, "capture_${System.currentTimeMillis()}.jpg")
         return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    }
+
+    /** Deletes earlier captures. Disk work: call off the main thread. */
+    fun pruneCaptures(context: Context) {
+        File(context.cacheDir, "camera").listFiles()?.forEach { it.delete() }
     }
 
     fun shareText(context: Context, text: String) {

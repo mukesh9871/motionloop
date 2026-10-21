@@ -33,6 +33,35 @@ class MaskStorageTest {
     }
 
     @Test
+    fun rejectsBadHeadersAndAcceptsEdgeSizes() {
+        fun header(magic: Int, version: Int, w: Int, h: Int): ByteArray {
+            val out = ByteArrayOutputStream()
+            java.io.DataOutputStream(out).apply {
+                writeInt(magic); writeInt(version); writeInt(w); writeInt(h); flush()
+            }
+            return out.toByteArray()
+        }
+        val magic = 0x4D4C4D4B
+        for (bad in listOf(header(magic, 1, 0, 5), header(magic, 1, 8193, 1), header(magic, 2, 4, 4), header(0x12345678, 1, 4, 4))) {
+            try {
+                MaskCodec.read(ByteArrayInputStream(bad))
+                assertTrue("accepted a bad header", false)
+            } catch (expected: IOException) {
+                // The size guard stops a corrupt file from asking for a huge allocation.
+            }
+        }
+        for ((w, h) in listOf(1 to 1, 8192 to 1, 3 to 8192)) {
+            val mask = AlphaMask(w, h, ByteArray(w * h) { (it % 251).toByte() })
+            val out = ByteArrayOutputStream()
+            MaskCodec.write(mask, out)
+            val back = MaskCodec.read(ByteArrayInputStream(out.toByteArray()))
+            assertEquals(w, back.width)
+            assertEquals(h, back.height)
+            assertArrayEquals(mask.data, back.data)
+        }
+    }
+
+    @Test
     fun flatMasksCompress() {
         val mask = AlphaMask(512, 512, ByteArray(512 * 512) { if (it < 512 * 200) -1 else 0 })
         val out = ByteArrayOutputStream()

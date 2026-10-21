@@ -6,7 +6,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.motionloop.app.data.settings.AppSettings
@@ -32,11 +32,11 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.DARK -> true
             }
             // Status and navigation bar icons follow the app theme, not only the system one.
-            DisposableEffect(dark) {
+            // SideEffect: a synchronous call with nothing to clean up.
+            SideEffect {
                 val transparent = android.graphics.Color.TRANSPARENT
                 val style = if (dark) SystemBarStyle.dark(transparent) else SystemBarStyle.light(transparent, transparent)
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
-                onDispose { }
             }
             MotionLoopTheme(dark = dark) {
                 MotionLoopNavHost()

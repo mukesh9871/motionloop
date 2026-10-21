@@ -478,7 +478,7 @@ class LoopRenderGraph(assets: AssetManager) {
         val skyMaskTex = skyMaskPass.texture
         val skyInput = if (sky.hasArea && skyMaskTex != null && (!skyReplace || sky.isActive)) {
             val photoAspect = skyPhoto?.let { it.width.toFloat() / it.height } ?: aspect
-            SourcePass.SkyInput(skyMaskTex.id, skyPhoto?.id ?: 0, photoAspect, sky, skyReplace)
+            SourcePass.SkyInput(skyMaskTex.id, skyPhoto?.id ?: 0, photoAspect, skyPhoto?.width ?: 0, sky, skyReplace)
         } else {
             null
         }
@@ -498,10 +498,19 @@ class LoopRenderGraph(assets: AssetManager) {
 
         if (skyInput == null && bgInput == null) {
             sourcePass.releaseTarget()
+            lastSourceKey = null
             return src.id
         }
+        // A replaced background with no animated sky is the same every frame: render it once.
+        val still = skyInput == null || !skyInput.replace
+        val key = if (still) Triple(src, skyInput, bgInput) else null
+        val cached = sourcePass.texture
+        if (key != null && cached != null && key == lastSourceKey) return cached.id
+        lastSourceKey = key
         return sourcePass.render(src, skyInput, bgInput, phase, aspect).id
     }
+
+    private var lastSourceKey: Triple<GlTexture, SourcePass.SkyInput?, SourcePass.BackgroundInput?>? = null
 
     private fun bindTarget(fbo: Int, x: Int, y: Int, width: Int, height: Int) {
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)

@@ -2,7 +2,11 @@ package com.motionloop.app.ui.components
 
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
@@ -23,23 +27,31 @@ import androidx.compose.ui.unit.dp
 import com.motionloop.app.ui.theme.MlColors
 import kotlin.math.max
 
-/** Rounded option chip used by every panel. Active: violet with white text. */
+/**
+ * Rounded option chip used by every panel. Active: violet with white text. Read by TalkBack as a
+ * selectable button with its state, and padded out to a 48 dp touch target.
+ */
 @Composable
 fun Pill(label: String, active: Boolean, enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Text(
-        label,
-        style = MaterialTheme.typography.labelMedium,
-        color = when {
-            !enabled -> MlColors.TextSecondary.copy(alpha = 0.5f)
-            active -> Color.White
-            else -> MlColors.TextPrimary
-        },
-        modifier = modifier
+    Box(
+        modifier
+            .minimumInteractiveComponentSize()
             .clip(RoundedCornerShape(50))
             .background(if (active) MlColors.Violet else MlColors.SurfaceHigh)
-            .clickable(enabled = enabled, onClick = onClick)
+            .selectable(selected = active, enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 7.dp),
-    )
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = when {
+                !enabled -> MlColors.TextSecondary.copy(alpha = 0.5f)
+                active -> Color.White
+                else -> MlColors.TextPrimary
+            },
+        )
+    }
 }
 
 /**

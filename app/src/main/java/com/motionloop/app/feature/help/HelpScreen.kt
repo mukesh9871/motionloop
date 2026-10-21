@@ -7,6 +7,7 @@ import android.os.Build
 import android.widget.ImageView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
@@ -55,7 +56,7 @@ private val groups = listOf(
     Group(
         "Animate",
         listOf(
-            Topic("motion", MlIcons.Motion, "Motion path", "Draw the path things should follow, straight or curved. Pixels flow along it. A longer path moves faster. Motion fades out away from your paths.", Illus.PATH),
+            Topic("motion", MlIcons.Motion, "Motion", "Draw the path things should follow, straight or curved. Pixels flow along it. A longer path moves faster. Motion fades out away from your paths.", Illus.PATH),
             Topic("anchor", MlIcons.Anchor, "Anchor", "Tap to pin points that must stay still, such as rocks next to a waterfall or the edge of a building.", Illus.ANCHOR),
             Topic("freeze", MlIcons.Freeze, "Freeze", "Paint over areas that must not move at all, like people or trees. Adjust the brush size and softness below the photo.", Illus.FREEZE),
             Topic("unfreeze", MlIcons.Unfreeze, "Unfreeze", "Paint over a frozen area to let it move again.", Illus.UNFREEZE),
@@ -122,7 +123,8 @@ private val groups = listOf(
 fun HelpScreen(onBack: () -> Unit, onContact: () -> Unit) {
     val context = LocalContext.current
     // Recorded demos, listed once off the main thread.
-    val recorded by produceState(emptySet<String>()) {
+    // Null until known, so a card does not show the drawing and then swap to a recorded demo.
+    val recorded by produceState<Set<String>?>(null) {
         value = withContext(Dispatchers.IO) { runCatching { context.assets.list("help")?.toSet() }.getOrNull().orEmpty() }
     }
     val listState = rememberLazyListState()
@@ -146,8 +148,9 @@ fun HelpScreen(onBack: () -> Unit, onContact: () -> Unit) {
             groups.forEach { group ->
                 item(key = "title_${group.title}") { SectionTitle(group.title) }
                 items(group.topics, key = { it.id }) { topic ->
-                    val demo = listOf("${topic.id}.gif", "${topic.id}.webp").firstOrNull { it in recorded }?.let { "help/$it" }
-                    TopicCard(topic, demo)
+                    val files = recorded
+                    val demo = files?.let { f -> listOf("${topic.id}.gif", "${topic.id}.webp").firstOrNull { it in f } }?.let { "help/$it" }
+                    TopicCard(topic, demo, showPicture = files != null)
                 }
             }
             item(key = "contact") {
@@ -170,7 +173,7 @@ fun HelpScreen(onBack: () -> Unit, onContact: () -> Unit) {
 }
 
 @Composable
-private fun TopicCard(topic: Topic, recorded: String?) {
+private fun TopicCard(topic: Topic, recorded: String?, showPicture: Boolean) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -181,10 +184,10 @@ private fun TopicCard(topic: Topic, recorded: String?) {
             .fillMaxWidth()
             .aspectRatio(16f / 9f)
             .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
-        if (recorded != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            RecordedDemo(recorded, pictureModifier)
-        } else {
-            HelpIllustration(topic.picture, pictureModifier)
+        when {
+            recorded != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P -> RecordedDemo(recorded, pictureModifier)
+            showPicture -> HelpIllustration(topic.picture, pictureModifier)
+            else -> Box(pictureModifier.background(MlColors.SurfaceHigh))
         }
         Row(
             Modifier.padding(16.dp),

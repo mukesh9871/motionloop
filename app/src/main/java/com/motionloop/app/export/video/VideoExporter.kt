@@ -89,7 +89,7 @@ class VideoExporter @Inject constructor(
 
             val format = MediaFormat.createVideoFormat(MIME, w, h).apply {
                 setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-                setInteger(MediaFormat.KEY_BIT_RATE, bitrateFor(w, h, fps))
+                setInteger(MediaFormat.KEY_BIT_RATE, bitrateFor(w, h, fps, encoderInfo))
                 setInteger(MediaFormat.KEY_FRAME_RATE, fps)
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
             }
@@ -233,17 +233,26 @@ class VideoExporter @Inject constructor(
                     aspect, edge, edgeIsShort = true,
                     srcW = cropW, srcH = cropH, align = 16,
                 )
-                if (caps.isSizeSupported(w, h)) return w to h
+                if (caps.areSizeAndRateSupported(w, h, ExportSettings.VIDEO_FPS.toDouble())) return w to h
                 edge = (edge * 0.9f).toInt()
             }
             return null
         }
 
-        /** True if the encoder can do [resolution] at [aspect] at its nominal size. Used to hide 4K. Slow, call off main. */
-        fun supportsNominal(aspect: Float, resolution: ExportResolution): Boolean {
+        /**
+         * True if the encoder can do [resolution] at [aspect] at its nominal size and the photo
+         * ([srcW] x [srcH]) is large enough to fill it. Used to hide 4K. Slow, call off main.
+         */
+        fun supportsNominal(aspect: Float, resolution: ExportResolution, srcW: Int, srcH: Int): Boolean {
             val caps = avcEncoder()?.getCapabilitiesForType(MIME)?.videoCapabilities ?: return false
             val (w, h) = OffscreenLoop.fit(aspect, resolution.shortEdge, true, Int.MAX_VALUE, Int.MAX_VALUE, 16)
-            return caps.isSizeSupported(w, h)
+            if (!caps.areSizeAndRateSupported(w, h, ExportSettings.VIDEO_FPS.toDouble())) return false
+            // A 1080p photo offered as 4K would only be upscaled: not worth the label.
+            if (srcW > 0 && srcH > 0) {
+                val (cropW, cropH) = OffscreenLoop.cropSize(srcW, srcH, aspect)
+                if (minOf(cropW, cropH) < resolution.shortEdge * 0.9f) return false
+            }
+            return true
         }
 
         /** Prefers a hardware H.264 encoder (API 29+ can tell), else the first one listed. */
@@ -253,11 +262,18 @@ class VideoExporter @Inject constructor(
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 encoders.firstOrNull { it.isHardwareAccelerated } ?: encoders.firstOrNull()
             } else {
-                encoders.firstOrNull()
+                // Older systems do not say which encoders are hardware: the software ones carry known names.
+                encoders.firstOrNull { !it.name.startsWith("OMX.google.") && !it.name.startsWith("c2.android.") }
+                    ?: encoders.firstOrNull()
             }
         }
 
         /** About 0.2 bits per pixel per frame: clean for slow-moving content without huge files. */
-        private fun bitrateFor(w: Int, h: Int, fps: Int): Int = (w.toLong() * h * fps / 5).coerceIn(2_000_000, 40_000_000).toInt()
+        private fun bitrateFor(w: Int, h: Int, fps: Int, encoder: MediaCodecInfo): Int {
+            val wanted = (w.toLong() * h * fps / 5).coerceIn(2_000_000, 40_000_000).toInt()
+            // Inside what this encoder accepts, or configure() may reject it.
+            val range = runCatching { encoder.getCapabilitiesForType(MIME).encoderCapabilities.bitrateRange }.getOrNull()
+            return if (range != null) wanted.coerceIn(range.lower, range.upper) else wanted
+        }
     }
 }

@@ -81,7 +81,7 @@ fun EffectsPanel(
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Pill("Paint area", active = tool == EditorTool.DISPERSE_PAINT, enabled = !busy) { onTool(EditorTool.DISPERSE_PAINT) }
             Pill("Erase area", active = tool == EditorTool.DISPERSE_ERASE, enabled = !busy) { onTool(EditorTool.DISPERSE_ERASE) }
-            if (dispersion.strokes.isNotEmpty()) Pill("Clear", active = false, onClick = onClearDispersion)
+            if (dispersion.strokes.isNotEmpty()) Pill("Clear", active = false, enabled = !busy, onClick = onClearDispersion)
         }
         if (dispersion.strokes.isEmpty()) {
             Hint("Paint over a part of the photo: it breaks into flakes that drift away and return.")
@@ -94,7 +94,7 @@ fun EffectsPanel(
         Label("Water")
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Pill("Tap water", active = tool == EditorTool.WATER, enabled = !busy) { onTool(EditorTool.WATER) }
-            if (waterCount > 0) Pill("Clear", active = false, onClick = onClearWater)
+            if (waterCount > 0) Pill("Clear", active = false, enabled = !busy, onClick = onClearWater)
         }
         if (waterCount == 0) {
             Hint("Tap a lake, river or sea: it ripples gently, with or without motion paths.")

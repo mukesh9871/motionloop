@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Projects hold multi-megabyte photos and audio: far over the backup quota, so they stay local. -->
+<full-backup-content>
+    <exclude domain="file" path="projects" />
+    <exclude domain="sharedpref" path="motionloop_settings.xml" />
+</full-backup-content>

@@ -60,7 +60,7 @@ fun SkyPanel(
             .fillMaxWidth(),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Pill(if (sky.hasArea) "Detect again" else "Detect sky", active = true, enabled = !busy, onClick = onDetect)
+            Pill(if (sky.hasArea) "Find again" else "Find sky", active = true, enabled = !busy, onClick = onDetect)
             Spacer(Modifier.weight(1f))
             Text("Replace", style = MaterialTheme.typography.labelMedium, color = MlColors.TextSecondary)
             Switch(
@@ -72,7 +72,7 @@ fun SkyPanel(
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            if (sky.hasArea) "Fix the sky area: tap a region, or paint by hand." else "Detect the sky, or tap it to select it.",
+            if (sky.hasArea) "Fix the sky area: tap a region, or paint by hand." else "Find the sky, or tap it to select it.",
             style = MaterialTheme.typography.bodySmall,
             color = MlColors.TextSecondary,
         )

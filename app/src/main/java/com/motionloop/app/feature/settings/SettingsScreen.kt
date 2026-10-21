@@ -17,6 +17,9 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -47,6 +50,7 @@ fun SettingsScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     val isPro by vm.isPro.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var notice by rememberSaveable { mutableStateOf<String?>(null) }
 
     SimpleScreen("Settings", onBack) {
         SectionTitle("MotionLoop Pro")
@@ -95,8 +99,9 @@ fun SettingsScreen(
 
         SectionTitle("About")
         MenuRow("Open source licenses and photo credits", onClick = onOpenLicenses)
-        MenuRow("Privacy policy", onClick = { openUrl(context, AppLinks.PRIVACY) })
-        MenuRow("Terms of use", onClick = { openUrl(context, AppLinks.TERMS) })
+        MenuRow("Privacy policy", onClick = { if (!openUrl(context, AppLinks.PRIVACY)) notice = "No app can open that link." })
+        MenuRow("Terms of use", onClick = { if (!openUrl(context, AppLinks.TERMS)) notice = "No app can open that link." })
+        notice?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MlColors.Coral) }
         MenuRow("Version", subtitle = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
     }
 }

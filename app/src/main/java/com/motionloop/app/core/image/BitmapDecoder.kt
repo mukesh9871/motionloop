@@ -32,22 +32,26 @@ object BitmapDecoder {
         open().use { BitmapFactory.decodeStream(it, null, bounds) }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw IOException("Unsupported image")
 
-        // Power-of-two subsampling first (cheap, saves memory), exact scale after.
+        // Power-of-two subsampling, then the decoder scales the rest itself (density scaling), so
+        // the full-size image is never held in memory: a 48 MP photo decodes straight to maxEdge.
+        val longEdge = max(bounds.outWidth, bounds.outHeight)
         var sample = 1
-        while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxEdge) sample *= 2
+        while (longEdge / (sample * 2) >= maxEdge) sample *= 2
+        val sampled = longEdge / sample
         val opts = BitmapFactory.Options().apply {
             inSampleSize = sample
             inPreferredConfig = Bitmap.Config.ARGB_8888
+            if (sampled > maxEdge) {
+                inScaled = true
+                inDensity = sampled
+                inTargetDensity = maxEdge
+            }
         }
         val decoded = open().use { BitmapFactory.decodeStream(it, null, opts) }
             ?: throw IOException("Decode failed")
 
-        val scale = minOf(1f, maxEdge.toFloat() / max(decoded.width, decoded.height))
-        if (scale >= 1f && orientation == ExifInterface.ORIENTATION_NORMAL) return decoded
-        val m = Matrix().apply {
-            postScale(scale, scale)
-            applyOrientation(this, orientation)
-        }
+        if (orientation == ExifInterface.ORIENTATION_NORMAL) return decoded
+        val m = Matrix().apply { applyOrientation(this, orientation) }
         val out = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, m, true)
         if (out !== decoded) decoded.recycle()
         return out

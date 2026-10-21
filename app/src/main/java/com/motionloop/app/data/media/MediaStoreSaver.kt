@@ -25,6 +25,8 @@ class MediaStoreSaver @Inject constructor(
         // Installs from an app bundle are split into several APKs. base.apk alone would not install.
         get() = context.applicationInfo.splitSourceDirs.isNullOrEmpty()
 
+    override suspend fun pruneCaptures() = withContext(io) { MediaIntents.pruneCaptures(context) }
+
     override suspend fun shareableApk(): Uri = withContext(io) {
         if (!canShareApk) throw IOException("This install is split into several files and cannot be shared as one")
         val dir = File(context.cacheDir, "share").apply {
@@ -73,7 +75,13 @@ class MediaStoreSaver @Inject constructor(
                 if (isVideo) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES,
             )
             val target = File(publicDir, ALBUM).apply { mkdirs() }.resolve(displayName)
-            file.copyTo(target, overwrite = true)
+            try {
+                file.copyTo(target, overwrite = true)
+            } catch (t: Throwable) {
+                // No half-written file left for the gallery to index.
+                target.delete()
+                throw t
+            }
             @Suppress("DEPRECATION")
             values.put(MediaStore.MediaColumns.DATA, target.absolutePath)
             context.contentResolver.insert(collection, values) ?: throw IOException("MediaStore insert failed")

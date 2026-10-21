@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ml_background">#FF0E0F1A</color>
+    <!-- Window background before Compose draws. Dark variant in values-night. -->
+    <color name="ml_background">#FFF5F6FB</color>
     <color name="ml_launcher_bg">#FF2A1F66</color>
 </resources>

@@ -1,5 +1,6 @@
 #version 300 es
-precision mediump float;
+// highp: these sample full frames at frame resolution, and mediump uv is coarser than a texel there.
+precision highp float;
 
 // Premultiplied text with optional glow under it and a typewriter reveal.
 in vec2 vUv;

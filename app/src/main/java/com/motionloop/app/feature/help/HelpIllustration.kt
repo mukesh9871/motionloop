@@ -249,6 +249,7 @@ private fun DrawScope.depthScene(t: Float) {
 private fun DrawScope.cutout(t: Float) {
     // Checkerboard where the background was removed, the person kept.
     val cell = size.height / 8f
+    if (cell <= 0f) return
     var y = 0f
     var row = 0
     while (y < size.height) {

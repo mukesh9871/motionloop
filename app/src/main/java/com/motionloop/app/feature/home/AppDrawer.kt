@@ -1,6 +1,7 @@
 package com.motionloop.app.feature.home
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -19,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.motionloop.app.BuildConfig
 import com.motionloop.app.ui.components.MenuRow
+import com.motionloop.app.ui.components.verticalScrollWithBar
 import com.motionloop.app.ui.icons.MlIcons
 import com.motionloop.app.ui.theme.MlColors
 
@@ -33,7 +35,13 @@ fun AppDrawer(
     onSettings: () -> Unit,
 ) {
     ModalDrawerSheet(drawerContainerColor = MlColors.Surface) {
-        Column(Modifier.fillMaxHeight().padding(horizontal = 20.dp, vertical = 24.dp)) {
+        // Scrolls: landscape and large fonts push the last rows below the sheet.
+        Column(
+            Modifier
+                .fillMaxHeight()
+                .verticalScrollWithBar(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 24.dp),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(MlIcons.Loop, contentDescription = null, tint = MlColors.Mint, modifier = Modifier.size(36.dp))
                 Spacer(Modifier.width(12.dp))
@@ -58,7 +66,7 @@ fun AppDrawer(
             MenuRow("Rate MotionLoop", icon = MlIcons.Star, onClick = onRate)
             MenuRow("Contact us", icon = MlIcons.Mail, onClick = onContact)
             MenuRow("Settings", icon = MlIcons.Settings, onClick = onSettings)
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(24.dp))
             Text(
                 "Version ${BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.bodySmall,

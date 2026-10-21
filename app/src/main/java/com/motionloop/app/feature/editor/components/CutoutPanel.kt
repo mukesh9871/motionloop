@@ -3,6 +3,8 @@ package com.motionloop.app.feature.editor.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -66,7 +68,7 @@ fun CutoutPanel(
         modifier
             .fillMaxWidth(),
     ) {
-        Pill(if (subject.hasArea) "Detect again" else "Find the subject", active = true, enabled = !busy, onClick = onDetect)
+        Pill(if (subject.hasArea) "Find again" else "Find subject", active = true, enabled = !busy, onClick = onDetect)
         Spacer(Modifier.height(8.dp))
         Text(
             if (subject.hasArea) "Fix the edges: tap a region, or restore and erase by hand." else "Find the subject, or tap it to select it.",
@@ -120,8 +122,8 @@ private fun Swatches(label: String, selected: Int, onPick: (Int) -> Unit) {
                     .clip(CircleShape)
                     .background(Color(argb))
                     .border(2.dp, if (argb == selected) MlColors.Mint else MlColors.SurfaceHigh, CircleShape)
-                    .semantics { contentDescription = "Color swatch" }
-                    .clickable { onPick(argb) },
+                    .semantics { contentDescription = "Color ${"%06X".format(argb and 0xFFFFFF)}" }
+                    .selectable(selected = argb == selected, role = Role.RadioButton) { onPick(argb) },
             )
         }
     }

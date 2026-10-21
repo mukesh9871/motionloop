@@ -15,6 +15,16 @@ import org.junit.Test
 class OverlayTest {
 
     @Test
+    fun particleCountBoundaries() {
+        assertEquals(1, OverlaySettings(particles = ParticleType.SNOW, density = 0.0025f).particleCount)
+        assertEquals(1, OverlaySettings(particles = ParticleType.SNOW, density = 0.001f).particleCount)
+        assertEquals(399, OverlaySettings(particles = ParticleType.SNOW, density = 0.9999f).particleCount)
+        // A restored NaN must not crash the draw call.
+        assertEquals(1, OverlaySettings(particles = ParticleType.SNOW, density = Float.NaN).particleCount)
+    }
+
+
+    @Test
     fun shaderConstantsMatchEnumOrdinals() {
         // particles.vert uType: 1 sparkle, 2 snow, 3 rain, 4 bokeh, 5 embers.
         assertEquals(

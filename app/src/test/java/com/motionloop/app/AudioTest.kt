@@ -105,6 +105,19 @@ class AudioTest {
     }
 
     @Test
+    fun fitHandlesTinySourcesAndClampsVolume() {
+        // A 10 frame source is shorter than the 30 ms fade.
+        val tiny = Pcm(Pcm.RATE, ShortArray(20) { 10_000 })
+        val clip = ClipAudio.fit(tiny, 1f, volume = 2f)
+        assertEquals(Pcm.RATE, clip.frames)
+        assertTrue(clip.data.all { it <= 10_000 })
+        assertEquals(1, ClipAudio.fit(tiny, 0f, 1f).frames)
+        assertEquals(0, ClipAudio.mapBeats(floatArrayOf(0.5f), 0f, 5f).size)
+        // A beat past the source end never maps.
+        assertEquals(0, ClipAudio.mapBeats(floatArrayOf(2.5f), 2f, 5f).size)
+    }
+
+    @Test
     fun beatsMapThroughLoopsAndTrims() {
         // A 2 s source with beats at 0.5 and 1.5 s, looped into a 5 s clip.
         val mapped = ClipAudio.mapBeats(floatArrayOf(0.5f, 1.5f), 2f, 5f).toList()

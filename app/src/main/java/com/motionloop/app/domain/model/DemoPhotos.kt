@@ -1,5 +1,7 @@
 package com.motionloop.app.domain.model
 
+import com.motionloop.app.BuildConfig
+
 /**
  * Sample photos for trying the app. All CC0 (public domain dedication) from Wikimedia Commons,
  * downloaded at build time into assets/demos (see app/build.gradle.kts), never committed.
@@ -49,6 +51,6 @@ object AppLinks {
     const val PLAY_STORE = "https://play.google.com/store/apps/details?id=com.motionloop.app"
     const val PRIVACY = "https://motionloop.example/privacy"
     const val TERMS = "https://motionloop.example/terms"
-    /** Contact form recipient. Personal address until the app has a support mailbox. */
-    const val SUPPORT_EMAIL = "mukesh9871@gmail.com"
+    /** Contact form recipient, set in app/build.gradle.kts. */
+    val SUPPORT_EMAIL: String = BuildConfig.SUPPORT_EMAIL
 }

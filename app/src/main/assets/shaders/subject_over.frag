@@ -1,5 +1,6 @@
 #version 300 es
-precision mediump float;
+// highp: these sample full frames at frame resolution, and mediump uv is coarser than a texel there.
+precision highp float;
 
 // Copies the frame (mode 0), or only the subject from it as premultiplied color (mode 1), which is
 // drawn over text so the text appears behind the subject.

@@ -15,7 +15,9 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import com.motionloop.app.data.writeAtomically
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,9 +37,7 @@ class ProjectAssetRepositoryImpl @Inject constructor(
             val dir = dir(projectId)
             val rev = nextRev(dir, kind.prefix, MASK_EXT)
             val target = File(dir, "${kind.prefix}_$rev$MASK_EXT")
-            val tmp = File(dir, "${target.name}.tmp")
-            tmp.outputStream().buffered().use { MaskCodec.write(mask, it) }
-            if (!tmp.renameTo(target)) throw IOException("Could not store the mask")
+            target.writeAtomically { out -> out.buffered().also { MaskCodec.write(mask, it) }.flush() }
             rev
         }
     }
@@ -48,20 +48,25 @@ class ProjectAssetRepositoryImpl @Inject constructor(
         if (!file.exists()) null else runCatching { file.inputStream().buffered().use(MaskCodec::read) }.getOrNull()
     }
 
-    override suspend fun importImage(projectId: String, kind: ImageKind, source: Uri): Int = lock.withLock {
-        withContext(io) {
-            val bitmap = BitmapDecoder.decode(context.contentResolver, source, MAX_IMAGE_EDGE)
-            try {
-                val dir = dir(projectId)
+    override suspend fun importImage(projectId: String, kind: ImageKind, source: Uri): Int = withContext(io) {
+        // Decode and compress outside the lock: a brush stroke must not wait for a slow decode.
+        val dir = dir(projectId)
+        val staged = File(dir, "${kind.prefix}_import_${System.nanoTime()}.jpg")
+        val bitmap = BitmapDecoder.decode(context.contentResolver, source, MAX_IMAGE_EDGE)
+        try {
+            staged.writeAtomically { out -> bitmap.compress(Bitmap.CompressFormat.JPEG, 92, out) }
+        } finally {
+            bitmap.recycle()
+        }
+        try {
+            lock.withLock {
                 val rev = nextRev(dir, kind.prefix, IMAGE_EXT)
                 val target = File(dir, "${kind.prefix}_$rev$IMAGE_EXT")
-                val tmp = File(dir, "${target.name}.tmp")
-                tmp.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 92, it) }
-                if (!tmp.renameTo(target)) throw IOException("Could not store the image")
+                if (!staged.renameTo(target)) throw IOException("Could not store the image")
                 rev
-            } finally {
-                bitmap.recycle()
             }
+        } finally {
+            staged.delete()
         }
     }
 
@@ -105,6 +110,8 @@ class ProjectAssetRepositoryImpl @Inject constructor(
                 tmp.delete()
                 throw e
             }
+            // Durable before the project points at it.
+            FileOutputStream(tmp, true).use { it.fd.sync() }
             if (!tmp.renameTo(target)) throw IOException("Could not store the audio file")
             // Older imports are pruned when the editor next opens, after the project points here.
             rev

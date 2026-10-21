@@ -48,6 +48,15 @@ class ParallaxTest {
     }
 
     @Test
+    fun reserveIsCappedOnPanoramasAndAmountIsClamped() {
+        // The shader divides by 1 - 2 * reserve: the cap keeps that well above zero.
+        assertEquals(ParallaxSettings.MAX_RESERVE, ParallaxSettings(path = CameraPath.CIRCLE, amount = 1f).reserve(9f), 1e-6f)
+        assertEquals(ParallaxSettings.MAX_RESERVE, ParallaxSettings(path = CameraPath.TILT, amount = 1f).reserve(12f), 1e-6f)
+        assertEquals(ParallaxSettings.MAX_OFFSET, ParallaxSettings(amount = 1.5f).offset, 1e-6f)
+        assertEquals(0f, ParallaxSettings(amount = -1f).offset, 1e-6f)
+    }
+
+    @Test
     fun swayAndZoomCropLessThanCircleOnWidePhotos() {
         val wide = 21f / 9f
         val circle = ParallaxSettings(path = CameraPath.CIRCLE).reserve(wide)

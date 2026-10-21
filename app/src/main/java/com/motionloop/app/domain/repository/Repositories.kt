@@ -78,6 +78,9 @@ interface MediaRepository {
     /** False for split installs (from an app bundle), where the APK cannot be shared as one file. */
     val canShareApk: Boolean
 
+    /** Removes camera captures from earlier sessions. */
+    suspend fun pruneCaptures()
+
     /** A content Uri to the installed app's APK, for "share the app" without a store. */
     suspend fun shareableApk(): Uri
 

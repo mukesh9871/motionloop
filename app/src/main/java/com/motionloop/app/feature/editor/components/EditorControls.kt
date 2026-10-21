@@ -147,7 +147,7 @@ private fun ModeToggle(mode: LoopMode, onMode: (LoopMode) -> Unit) {
                 Modifier
                     .clip(RoundedCornerShape(12.dp))
                     .background(if (active) MlColors.Violet else Color.Transparent)
-                    .clickable { onMode(m) }
+                    .selectable(selected = active, role = Role.RadioButton) { onMode(m) }
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {

@@ -84,7 +84,9 @@ class LoopWallpaperService : WallpaperService() {
             // Choosing another project while this wallpaper runs: reload without a new surface.
             scope.launch {
                 // The revision also reloads the same project after its edits were saved.
-                settings.state.map { it.wallpaperProjectId to it.wallpaperRevision }.distinctUntilChanged().drop(1).collect {
+                // The revision alone: it is bumped once the chosen project is saved, also when the id changed.
+                // Keying on the id too would start a load that the bump cancels a moment later.
+                settings.state.map { it.wallpaperRevision }.distinctUntilChanged().drop(1).collect {
                     if (egl != null) reload()
                 }
             }
@@ -122,12 +124,20 @@ class LoopWallpaperService : WallpaperService() {
             // The surface must be released before this returns, so wait for the render thread.
             val done = CountDownLatch(1)
             handler.post {
-                loadJob?.cancel()
-                loadJob = null
-                stopPosting()
-                releaseGl()
-                done.countDown()
+                try {
+                    loadJob?.cancel()
+                    loadJob = null
+                    stopPosting()
+                    releaseGl()
+                } catch (t: Exception) {
+                    // A failed release must not keep the dead surface or block the caller.
+                    Log.e(TAG, "Wallpaper release failed", t)
+                    egl = null
+                } finally {
+                    done.countDown()
+                }
             }
+            // Bounded wait on the main thread: the system requires the surface to be free on return.
             done.await(2, TimeUnit.SECONDS)
         }
 
@@ -147,7 +157,11 @@ class LoopWallpaperService : WallpaperService() {
                 lastDrawNanos = frameTimeNanos
                 safeDraw()
             }
-            if (posting) Choreographer.getInstance().postFrameCallback(this)
+            // Wake only for the next drawn frame, not on every vsync of a 120 Hz screen.
+            if (posting) {
+                val waitMs = ((FRAME_INTERVAL_NANOS - (System.nanoTime() - lastDrawNanos)) / 1_000_000L).coerceIn(0L, 40L)
+                Choreographer.getInstance().postFrameCallbackDelayed(this, waitMs)
+            }
         }
 
         /** Animate only while visible and something animates. A missing project is drawn once, dark. */

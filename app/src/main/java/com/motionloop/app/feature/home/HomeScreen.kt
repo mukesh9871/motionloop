@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -55,6 +56,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -129,7 +131,8 @@ fun HomeScreen(
     }
 
     // Back closes an open drawer instead of leaving the app.
-    BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
+    // targetValue: during the opening animation currentValue is still Closed.
+    BackHandler(enabled = drawer.targetValue == DrawerValue.Open) { scope.launch { drawer.close() } }
 
     ModalNavigationDrawer(
         drawerState = drawer,
@@ -211,13 +214,14 @@ fun HomeScreen(
                     }
                 }
 
-                items(state.recent, key = { it.id }) { p ->
+                itemsIndexed(state.recent, key = { _, p -> p.id }) { index, p ->
+                    val label = "Saved project ${index + 1} of ${state.recent.size}"
                     Box(
                         Modifier
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(18.dp))
                             .background(MlColors.SurfaceHigh)
-                            .semantics { contentDescription = "Saved project" }
+                            .semantics { contentDescription = label }
                             .combinedClickable(
                                 onClickLabel = "Open project",
                                 onLongClickLabel = "Delete project",
@@ -284,8 +288,13 @@ fun HomeScreen(
             }
 
             if (state.importing) {
+                // Swallows touches: a tap on a project meanwhile would open a second editor.
                 Box(
-                    Modifier.fillMaxSize().background(MlColors.Background.copy(alpha = 0.6f)),
+                    Modifier
+                        .fillMaxSize()
+                        .background(MlColors.Background.copy(alpha = 0.6f))
+                        .pointerInput(Unit) { }
+                        .semantics { contentDescription = "Opening the photo" },
                     contentAlignment = Alignment.Center,
                 ) { CircularProgressIndicator() }
             }
@@ -293,15 +302,10 @@ fun HomeScreen(
                 Snackbar(
                     modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
                     action = {
-                        Text(
-                            "OK",
-                            modifier = Modifier
-                                .clickable {
-                                    vm.dismissError()
-                                    notice = null
-                                }
-                                .padding(8.dp),
-                        )
+                        TextButton(onClick = {
+                            vm.dismissError()
+                            notice = null
+                        }) { Text("OK") }
                     },
                 ) { Text(msg) }
             }
@@ -314,14 +318,14 @@ private fun ProPill(onClick: () -> Unit) {
     Row(
         Modifier
             .clip(RoundedCornerShape(50))
-            .background(Brush.linearGradient(listOf(MlColors.Violet, MlColors.Arrow)))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .background(MlColors.Violet)
+            .clickable(onClickLabel = "Open MotionLoop Pro", onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(MlIcons.Pro, contentDescription = null, tint = MlColors.Ink, modifier = Modifier.size(16.dp))
+        Icon(MlIcons.Pro, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
-        Text("Pro", style = MaterialTheme.typography.labelMedium, color = MlColors.Ink)
+        Text("Pro", style = MaterialTheme.typography.labelMedium, color = Color.White)
     }
 }
 

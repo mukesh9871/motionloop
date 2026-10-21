@@ -20,7 +20,7 @@ class ExportSizeTest {
     fun neverUpscalesSmallPhotos() {
         val (w, h) = OffscreenLoop.fit(16f / 9f, 1080, edgeIsShort = true, srcW = 960, srcH = 540, align = 16)
         assertTrue(h <= 540)
-        assertTrue(w <= 976)
+        assertTrue(w <= 960)
     }
 
     @Test

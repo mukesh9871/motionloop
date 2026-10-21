@@ -39,7 +39,8 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          gradle testDebugUnitTest assembleDebug --console=plain --stacktrace 2>&1 | tee build.log
+          # minifyReleaseWithR8 runs the shrinker, so missing keep rules fail here and not on a phone.
+          gradle testDebugUnitTest assembleDebug minifyReleaseWithR8 --console=plain --stacktrace 2>&1 | tee build.log
 
       - uses: actions/upload-artifact@v4
         if: steps.build.outcome == 'success'

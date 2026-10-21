@@ -43,12 +43,13 @@ fun MotionLoopNavHost() {
     val openContact: () -> Unit = { nav.navigate(Routes.CONTACT) { launchSingleTop = true } }
     NavHost(navController = nav, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
+            // dropUnlessResumed: two quick taps on different projects would stack two editors.
             HomeScreen(
-                onOpenProject = { id -> nav.navigate(Routes.editor(id)) { launchSingleTop = true } },
-                onOpenSettings = { nav.navigate(Routes.SETTINGS) { launchSingleTop = true } },
-                onOpenHelp = { nav.navigate(Routes.HELP) { launchSingleTop = true } },
-                onOpenPro = openPro,
-                onOpenContact = openContact,
+                onOpenProject = dropUnlessResumed { id -> nav.navigate(Routes.editor(id)) { launchSingleTop = true } },
+                onOpenSettings = dropUnlessResumed { nav.navigate(Routes.SETTINGS) { launchSingleTop = true } },
+                onOpenHelp = dropUnlessResumed { nav.navigate(Routes.HELP) { launchSingleTop = true } },
+                onOpenPro = dropUnlessResumed { openPro() },
+                onOpenContact = dropUnlessResumed { openContact() },
             )
         }
         composable(

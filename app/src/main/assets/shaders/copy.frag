@@ -1,5 +1,6 @@
 #version 300 es
-precision mediump float;
+// highp: these sample full frames at frame resolution, and mediump uv is coarser than a texel there.
+precision highp float;
 
 in vec2 vUv;
 uniform sampler2D uSrc;

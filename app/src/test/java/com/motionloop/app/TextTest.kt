@@ -13,6 +13,19 @@ import org.junit.Test
 class TextTest {
 
     @Test
+    fun visibilityIsContinuousAcrossTheWrap() {
+        // The exported clip jumps from the last frame to the first: what is visible must match there.
+        for (a in TextAnimation.entries) {
+            val end = TextTiming.at(a, 0.9999f)
+            val start = TextTiming.at(a, 0f)
+            assertEquals("$a visible", end.alpha * end.reveal, start.alpha * start.reveal, 0.02f)
+            assertEquals("$a glow", end.glow, start.glow, 0.02f)
+            // A slide offset only matters while the text can be seen.
+            if (end.alpha > 0.01f && start.alpha > 0.01f) assertEquals("$a offset", end.offsetX, start.offsetX, 0.02f)
+        }
+    }
+
+    @Test
     fun everyAnimationLoopsSeamlessly() {
         // Phase p and p + n must look the same, or exported loops would jump.
         for (a in TextAnimation.entries) {

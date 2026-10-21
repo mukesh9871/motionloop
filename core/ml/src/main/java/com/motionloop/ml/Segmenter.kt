@@ -30,11 +30,12 @@ class Segmenter(private val context: Context) {
 
     private val lock = Mutex()
     private var interactive: InteractiveSegmenter? = null
-    private val subjectClient by lazy {
+    private val subjectClientLazy = lazy {
         SubjectSegmentation.getClient(
             SubjectSegmenterOptions.Builder().enableForegroundConfidenceMask().build(),
         )
     }
+    private val subjectClient by subjectClientLazy
 
     /** Mask of the object under the normalized point ([x], [y]). Soft edges from model confidence. */
     suspend fun segmentAt(image: Bitmap, x: Float, y: Float): AlphaMask = lock.withLock {
@@ -114,10 +115,11 @@ class Segmenter(private val context: Context) {
         return mask.takeIf { it.coverage() > 0.02f }
     }
 
-    fun close() {
+    /** Under the lock: freeing native memory under a running inference would crash. */
+    suspend fun close() = lock.withLock {
         interactive?.close()
         interactive = null
-        subjectClient.close()
+        if (subjectClientLazy.isInitialized()) subjectClient.close()
     }
 
     private fun interactive(): InteractiveSegmenter = interactive ?: InteractiveSegmenter.createFromOptions(

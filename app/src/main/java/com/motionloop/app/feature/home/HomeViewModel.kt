@@ -11,6 +11,7 @@ import com.motionloop.app.domain.repository.MediaRepository
 import com.motionloop.app.domain.repository.ProjectRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -58,6 +59,7 @@ class HomeViewModel @Inject constructor(
     private val deleting = mutableSetOf<String>()
 
     init {
+        viewModelScope.launch { media.pruneCaptures() }
         viewModelScope.launch {
             val demos = DemoPhotos.all.mapNotNull { photo ->
                 projects.loadAssetThumbnail(photo.assetPath, DEMO_THUMB_EDGE)?.let { DemoThumb(photo, it) }
@@ -66,8 +68,11 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    private var refreshJob: Job? = null
+
     fun refresh() {
-        viewModelScope.launch {
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch {
             val list = projects.recent()
                 .filterNot { it.id in deleting }
                 .map { RecentProject(it.id, projects.loadThumbnail(it.id)) }

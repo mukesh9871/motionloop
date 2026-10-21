@@ -21,6 +21,15 @@ class AppShellTest {
     }
 
     @Test
+    fun policyLocksTheRightFeaturesOnceGatingIsOn() {
+        // What the Pro page promises and the sheet gates, independent of the master switch.
+        assertTrue(ProFeature.LONG_EXPORT in ProPolicy.proOnly)
+        assertTrue(ProFeature.EXPORT_4K in ProPolicy.proOnly)
+        assertFalse(ProFeature.LIVE_WALLPAPER in ProPolicy.proOnly)
+        assertFalse(ProFeature.EFFECTS in ProPolicy.proOnly)
+    }
+
+    @Test
     fun proOnlyFeaturesAreDescribed() {
         for (feature in ProPolicy.proOnly) {
             assertTrue(feature.title.isNotBlank())

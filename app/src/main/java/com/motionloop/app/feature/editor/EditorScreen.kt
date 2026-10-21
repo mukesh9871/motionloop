@@ -20,6 +20,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -49,6 +52,7 @@ import com.motionloop.app.domain.model.BackgroundMode
 import com.motionloop.app.domain.model.NPoint
 import com.motionloop.app.domain.model.ParticleType
 import com.motionloop.app.domain.model.SelectionMode
+import com.motionloop.app.domain.model.SkyStyle
 import com.motionloop.app.domain.pro.ProFeature
 import com.motionloop.app.domain.pro.ProPolicy
 import com.motionloop.app.feature.editor.components.AdjustPanel
@@ -118,8 +122,9 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
             .safeDrawingPadding(),
     ) {
         TopBar(
-            canUndo = state.canUndo,
-            canRedo = state.canRedo,
+            // A model run started from one history state must land on it: no undo meanwhile.
+            canUndo = state.canUndo && state.busy == null,
+            canRedo = state.canRedo && state.busy == null,
             exportEnabled = state.project != null && state.preview != null,
             onBack = onBack,
             onUndo = vm::undo,
@@ -219,7 +224,7 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                                 onTool = vm::setTool,
                             )
                             if (state.isSubjectBrush) {
-                                LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
+                                BrushControls(state, vm)
                             }
                         }
                     } else if (state.panel == EditorPanel.CUTOUT) {
@@ -246,7 +251,7 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                                 },
                             )
                             if (state.isSubjectBrush) {
-                                LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
+                                BrushControls(state, vm)
                             }
                         }
                     } else if (state.panel == EditorPanel.DEPTH) {
@@ -269,7 +274,15 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                                 busy = state.busy != null,
                                 onDetect = vm::detectSky,
                                 onTool = vm::setTool,
-                                onChange = vm::setSky,
+                                // Choosing the photo style again (after another style) must pass the gate too.
+                                onChange = { change ->
+                                    val next = change(project.sky)
+                                    if (next.style == SkyStyle.PHOTO && project.sky.style != SkyStyle.PHOTO) {
+                                        gated(ProFeature.SKY_PHOTO) { vm.setSky(change) }
+                                    } else {
+                                        vm.setSky(change)
+                                    }
+                                },
                                 onPickPhoto = {
                                     gated(ProFeature.SKY_PHOTO) {
                                         pickSkyPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -277,7 +290,7 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                                 },
                             )
                             if (state.isSkyBrush) {
-                                LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
+                                BrushControls(state, vm)
                             }
                         }
                     } else if (state.panel == EditorPanel.OVERLAY) {
@@ -290,8 +303,7 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                                 onClearArea = vm::clearOverlayArea,
                             )
                             if (state.isOverlayBrush && project.overlay.particles != ParticleType.NONE) {
-                                LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
-                                LabeledSlider("Softness", 1f - state.brushHardness, 0.05f..1f, { vm.setBrushHardness(1f - it) })
+                                BrushControls(state, vm)
                             }
                         }
                     } else if (state.panel == EditorPanel.EFFECTS) {
@@ -312,8 +324,7 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                                 onClearWater = vm::clearWater,
                             )
                             if (state.isEffectBrush) {
-                                LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
-                                LabeledSlider("Softness", 1f - state.brushHardness, 0.05f..1f, { vm.setBrushHardness(1f - it) })
+                                BrushControls(state, vm)
                             }
                         }
                     } else if (state.panel == EditorPanel.ADJUST) {
@@ -328,8 +339,7 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                             )
                         }
                     } else if (state.isBrush) {
-                        LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
-                        LabeledSlider("Softness", 1f - state.brushHardness, 0.05f..1f, { vm.setBrushHardness(1f - it) })
+                        BrushControls(state, vm)
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
@@ -402,7 +412,9 @@ private fun PanelTabs(selected: EditorPanel, onSelect: (EditorPanel) -> Unit) {
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
                     .background(if (active) MlColors.Violet else Color.Transparent)
-                    .clickable { onSelect(panel) }
+                    .selectable(selected = active, role = Role.Tab) { onSelect(panel) }
+                    .heightIn(min = 44.dp)
+                    .wrapContentHeight()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }
@@ -495,4 +507,11 @@ private fun HistoryButton(label: String, icon: ImageVector, enabled: Boolean, on
         Spacer(Modifier.width(4.dp))
         Text(label, style = MaterialTheme.typography.labelMedium, color = color)
     }
+}
+
+/** Brush size and softness, the same control wherever a brush tool is active. */
+@Composable
+private fun BrushControls(state: EditorUiState, vm: EditorViewModel) {
+    LabeledSlider("Brush", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
+    LabeledSlider("Softness", 1f - state.brushHardness, 0.05f..1f, { vm.setBrushHardness(1f - it) })
 }

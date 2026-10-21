@@ -1,6 +1,8 @@
 package com.motionloop.app.render.passes
 
 import android.content.res.AssetManager
+import kotlin.math.log2
+import kotlin.math.max
 import android.graphics.Color
 import android.opengl.GLES30
 import com.motionloop.app.core.gl.FullscreenQuad
@@ -17,16 +19,18 @@ import com.motionloop.app.domain.model.SkySettings
 class SourcePass(assets: AssetManager, private val quad: FullscreenQuad) : RenderPass {
 
     /** Sky inputs. [replace] false only tints the sky area (sky panel, editing view). */
-    class SkyInput(
+    data class SkyInput(
         val maskTex: Int,
         val photoTex: Int,
         val photoAspect: Float,
+        /** Width of the sky photo texture, for the mip level. */
+        val photoWidth: Int,
         val settings: SkySettings,
         val replace: Boolean,
     )
 
     /** Background inputs. [tintOnly] shows the subject as a tint (background panel, editing view). */
-    class BackgroundInput(
+    data class BackgroundInput(
         val subjectTex: Int,
         val settings: BackgroundSettings,
         val feather: Float,
@@ -63,6 +67,10 @@ class SourcePass(assets: AssetManager, private val quad: FullscreenQuad) : Rende
             program.set1f("uFeather", sky.settings.feather.coerceIn(0f, 1f))
             program.set1f("uHarmonize", sky.settings.harmonize.coerceIn(0f, 1f))
             program.set1f("uSkyPhotoAspect", sky.photoAspect)
+            // Mip level of the cover-fitted sky photo: a 4000 px sky in a 2000 px frame reads level 1.
+            val fitX = minOf(1f, aspect / sky.photoAspect)
+            val lod = if (sky.photoWidth > 0) max(0f, log2(sky.photoWidth * fitX / photo.width)) else 0f
+            program.set1f("uSkyLod", lod)
         }
 
         program.bindTexture("uSubjectMask", 3, background?.subjectTex ?: 0)
