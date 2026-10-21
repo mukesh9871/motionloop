@@ -23,15 +23,23 @@ Read `CLAUDE.md` first. It holds the architecture, package layout and roadmap. T
 - Domain models are `@Serializable` data classes with defaults, so old `project.json` files still load.
 - Cancellation: long loops call `currentCoroutineContext().ensureActive()`. Rethrow `CancellationException`.
 - No `!!` except right after a check that makes it safe, with a reason.
-- Use full words in user-facing text. No em dashes.
+- Use full words in user-facing text. No em dashes, no semicolons.
+- Theme colors (`MlColors.Surface` and friends) are `@Composable` getters. Read them in the composable and pass plain `Color` values into draw lambdas, `remember` blocks and non-composable helpers. `MlColors.Violet`, `Ink`, `Arrow` and `Freeze` are plain values.
+- In a ViewModel, declare every field above the `init` block and above the initial `_state` that uses it. Give mutually referencing fields explicit types.
+- When you add an enum entry, update every `when` over it and every test that lists its entries.
+- Never `runCatching` around suspending code unless you rethrow `CancellationException`.
 
 ## Comments
 - Short, explain why, not what. KDoc on public classes and non-obvious functions.
 
 ## Shaders
 - `#version 300 es`, explicit precision. Uniform names start with `u`, varyings with `v`, attributes with `a`.
+- A uniform used in both stages of a program gets the same explicit precision in both files (`uniform highp int uKind;`). Prefer passing per-draw values as `flat out` varyings.
 - Fixed-size uniform arrays with a count uniform and a `break`, because GLES 3.0 loops need constant bounds.
 - No `if` on per-pixel data where `mix`/`step` works.
+- No `pow` with a base that can go negative, no `smoothstep` with reversed edges, integer math for grid indices.
+- Every animated term is a whole number of cycles per loop phase, so phase and phase + 1 draw the same frame.
+- A `PostStage` renders helper textures in `prepare()`, and `draw()` only draws into the bound target.
 
 ## Build
 - Versions only in `gradle/libs.versions.toml`.

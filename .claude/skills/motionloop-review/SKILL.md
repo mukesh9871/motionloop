@@ -49,7 +49,21 @@ Nothing is pushed until a review pass comes back with **zero blocking findings**
 - Gestures map to normalized coordinates of the photo, not the container.
 
 ### Product
-- No copied names, icons or assets. User-facing text is clear.
+- No copied names, icons or assets. User-facing text is clear: full words, no em dashes, no semicolons.
+
+## Issue classes that slipped through before (check every one, every round)
+These came back in earlier rounds (see `docs/review-log.md`). There is no local compiler, so the ones marked *compile* reach CI unless the reviewer catches them.
+- *compile* `MlColors.*` theme colors are `@Composable` getters: grep every use and reject any inside a DrawScope, `remember {}` calculation, non-composable lambda, default argument of a plain function or a Modifier draw lambda. Read them into a `val` in the composable and pass that in.
+- *compile* Property initialization order in ViewModels: a field used by `init`, by the initial `_state`, or by a lambda in the initial state must be declared above it. Mutually referencing fields need explicit types (recursive type inference fails).
+- *compile* Adding an enum entry: every `when` over it (labels, shader ordinal mappings, panel defaults) and every test that lists its entries by name.
+- *compile* New constructor or function parameters: every call site, including the exporters, the wallpaper service and tests.
+- *link* A uniform declared in both the vertex and the fragment shader of one program must match in type and precision (`int` defaults to highp in vertex, mediump in fragment).
+- GLSL ES 3.00 undefined behaviour: `pow` with a negative base, `smoothstep` with edge0 >= edge1, `normalize` of zero, float division used for grid indices (use integers).
+- A `PostStage.draw()` must not bind other FBOs or change the viewport. Anything that may render (blur cache, overlay layer) belongs in `prepare()`.
+- `runCatching` and broad `catch (Exception)` swallow `CancellationException`: rethrow it. Bitmaps are recycled in `try/finally`, exactly once.
+- Everything periodic in the loop phase uses whole frequencies; particle wrap margins scale with the aspect ratio and the largest particle size.
+- Messages the editor shows carry the panel they belong to, and model results carry the panel the model was started from.
+- Uniform names: every Kotlin `set*`/`bindTexture` name exists in the shader, and every uniform the shader reads is set.
 
 ## Output format of a review pass
 A table: `#`, severity, file:line, problem, failure scenario, suggested fix. Then the verdict: "CLEAN" or "NEEDS WORK".

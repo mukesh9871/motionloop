@@ -25,7 +25,11 @@ Rules:
 
 ## Before pushing
 1. Run the `motionloop-review` skill. Push only when the last review pass is clean.
-2. `git push origin main`.
+2. Record every round in `docs/review-log.md` (findings, fixed, accepted with the reason).
+3. `git push origin main`.
+
+## Unfinished work and a push
+When a clean milestone must go out while other work is in progress, `git stash push -u` the unfinished files, push, then `git stash pop`. A push must never carry uncommitted or unreviewed files.
 
 ## After pushing: watch CI
 CI publishes the result for each commit to the `ci-status` branch (the repo is private and there is no `gh` CLI here).
