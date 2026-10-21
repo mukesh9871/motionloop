@@ -1,5 +1,6 @@
 package com.motionloop.app.feature.wallpaper
 
+import android.graphics.Bitmap
 import android.opengl.GLES30
 import android.os.Handler
 import android.os.HandlerThread
@@ -190,11 +191,17 @@ class LoopWallpaperService : WallpaperService() {
             val id = settings.state.value.wallpaperProjectId ?: return
             val p = projects.load(id) ?: return
             val bitmap = projects.loadImage(id, minOf(WALLPAPER_EDGE, GlUtil.maxTextureSize()))
-            // Each suspension above may have outlived this context (surface destroyed meanwhile).
-            if (egl !== e || !currentCoroutineContext().isActive) {
+            // setImage uploads at once, so the bitmap is freed on every exit, cancellation included.
+            try {
+                loadScene(e, p, bitmap)
+            } finally {
                 bitmap.recycle()
-                return
             }
+        }
+
+        private suspend fun loadScene(e: EglCore, p: Project, bitmap: Bitmap) {
+            // Each suspension before this may have outlived the context (surface destroyed meanwhile).
+            if (egl !== e || !currentCoroutineContext().isActive) return
             val g = LoopRenderGraph(applicationContext.assets).also { graph = it }
             g.setImage(bitmap)
             g.setGeometry(p.arrows, p.anchors, p.strokes, loadSelections(p, assets))
@@ -206,7 +213,6 @@ class LoopWallpaperService : WallpaperService() {
             try {
                 applyParallax(g, p, assets)
             } catch (c: CancellationException) {
-                bitmap.recycle()
                 throw c
             } catch (t: Exception) {
                 Log.w(TAG, "3D skipped", t)
@@ -214,19 +220,14 @@ class LoopWallpaperService : WallpaperService() {
             try {
                 applySubject(g, p, assets, WALLPAPER_EDGE)
             } catch (c: CancellationException) {
-                bitmap.recycle()
                 throw c
             } catch (t: Exception) {
                 Log.w(TAG, "Cutout skipped", t)
             }
-            if (egl !== e || !currentCoroutineContext().isActive) {
-                bitmap.recycle()
-                return
-            }
+            if (egl !== e || !currentCoroutineContext().isActive) return
             texts = renderTexts(p, bitmap.width)
             g.setTexts(texts)
             frame = GlTexture.empty(bitmap.width, bitmap.height, GLES30.GL_RGBA8, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE)
-            bitmap.recycle()
             project = p
         }
 

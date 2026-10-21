@@ -251,3 +251,11 @@ Verdict: NEEDS WORK (1 major, 5 minor). All Push 7 fixes verified, compile, Hilt
 | 4 | minor | Re-choosing the current wallpaper project did not reload it, and the service could read before the save | Fixed: an in-memory revision bumps after the save, the service reloads on it. |
 | 5 | minor | Export view model fields declared below init | Fixed: moved above. |
 | 6 | minor | Beat clock ignores output latency | Accepted: tens of ms on the speaker, preview only, exports are exact. |
+
+## Push 7, re-review round 3 (fcba9f7)
+
+Verdict: CLEAN (0 blocker, 0 major, 1 minor). All round 2 fixes verified.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | minor | Wallpaper bitmap not recycled when an earlier load step threw | Fixed: one try/finally around the scene load. |
