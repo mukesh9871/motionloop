@@ -368,3 +368,11 @@ Verdict: NEEDS WORK (1 major, 3 minor). All round 2 fixes verified.
 | 2 | minor | Audio track built under a cancelled job leaked | Fixed: released when cancelled. |
 | 3 | minor | Camera folder could be gone after a cache clear | Fixed: made on demand. |
 | 4 | minor | Settings button stayed after the sheet reopened | Fixed. |
+
+## Full review round 4 (d000fbb)
+
+Verdict: CLEAN (0 blocker, 0 major, 1 minor). Column counts checked at 320 to 840 dp, track release and camera folder verified.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | minor | A cancel landing in the few microseconds between the check and the handover can still drop one audio track | Accepted: rare, bounded, freed by the collector. |
