@@ -98,10 +98,10 @@ fun SkyPanel(
                     description = if (isPhoto) (if (label == "Change") "Change sky photo" else "Your own sky photo") else null,
                     preview = skyPreview(style),
                     onClick = {
-                    // The photo style needs a photo first. Tapping it again picks a different one.
-                    if (isPhoto && (sky.photoRev == 0 || sky.style == SkyStyle.PHOTO)) {
-                        onPickPhoto()
-                    } else {
+                        // The photo style needs a photo first. Tapping it again picks a different one.
+                        if (isPhoto && (sky.photoRev == 0 || sky.style == SkyStyle.PHOTO)) {
+                            onPickPhoto()
+                        } else {
                             onChange { it.copy(style = style, enabled = it.hasArea) }
                         }
                     },

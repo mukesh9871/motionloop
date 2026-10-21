@@ -397,3 +397,7 @@ Verdict: NEEDS WORK (1 major, 11 minor). Compile, exhaustive whens, alpha ranges
 | 10 | minor | Parameter order | Fixed. |
 | 11 | minor | Grade row without a scroll bar | Fixed. |
 | 12 | minor | Indentation in the Cutout tiles | Fixed. |
+
+## Effect tiles round 2 (f48a100)
+
+Verdict: CLEAN (0 blocker, 0 major, 3 minor). Items 1 to 11 verified. Indentation in the Cutout and Sky tiles fixed. Sky tile keeps showing the saved style while Replace is off: accepted, the switch sits right above the row.

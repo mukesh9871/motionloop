@@ -96,12 +96,12 @@ fun CutoutPanel(
                     description = if (isPhoto) (if (label == "Change") "Change background photo" else "Your own background photo") else null,
                     preview = backgroundPreview(mode),
                     onClick = {
-                    // Photo needs a photo first. Tapping it again picks a different one.
-                    if (isPhoto && (background.photoRev == 0 || background.mode == BackgroundMode.PHOTO)) {
-                        onPickPhoto()
-                    } else {
-                        onBackground { it.copy(mode = mode) }
-                    }
+                        // Photo needs a photo first. Tapping it again picks a different one.
+                        if (isPhoto && (background.photoRev == 0 || background.mode == BackgroundMode.PHOTO)) {
+                            onPickPhoto()
+                        } else {
+                            onBackground { it.copy(mode = mode) }
+                        }
                     },
                 )
             }
