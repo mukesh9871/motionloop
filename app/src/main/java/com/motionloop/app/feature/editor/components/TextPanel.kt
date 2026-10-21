@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.ui.components.TileRow
+import com.motionloop.app.ui.components.EffectTile
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -131,8 +133,10 @@ fun TextPanel(
             Swatches(selected.outlineColor) { c -> onChange { it.copy(outlineColor = c) } }
         }
         Label("Animation")
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextAnimation.entries.forEach { a -> Pill(a.label, active = selected.animation == a) { onChange { it.copy(animation = a) } } }
+        TileRow {
+            TextAnimation.entries.forEach { a ->
+                EffectTile(a.label, selected = selected.animation == a, preview = textAnimationPreview(a), onClick = { onChange { it.copy(animation = a) } })
+            }
         }
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {

@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.ui.components.TileRow
+import com.motionloop.app.ui.components.EffectTile
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -61,11 +63,11 @@ fun DepthPanel(
                 colors = SwitchDefaults.colors(checkedTrackColor = MlColors.Violet),
             )
         }
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TileRow {
             CameraPath.entries.forEach { path ->
-                Pill(path.label(), active = settings.path == path, enabled = !busy) {
+                EffectTile(path.label(), selected = settings.path == path && settings.enabled, enabled = !busy, preview = cameraPreview(path), onClick = {
                     onChange { it.copy(path = path, enabled = true) }
-                }
+                })
             }
         }
         LabeledSlider("Amount", settings.amount, 0f..1f, { v -> onChange { it.copy(amount = v) } })

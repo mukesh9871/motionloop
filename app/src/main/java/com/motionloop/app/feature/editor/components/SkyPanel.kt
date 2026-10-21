@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.ui.components.TileRow
+import com.motionloop.app.ui.components.EffectTile
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -84,18 +86,18 @@ fun SkyPanel(
         Spacer(Modifier.height(10.dp))
         Text("New sky", style = MaterialTheme.typography.labelMedium, color = MlColors.TextSecondary)
         Spacer(Modifier.height(4.dp))
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TileRow {
             SkyStyle.entries.forEach { style ->
                 val isPhoto = style == SkyStyle.PHOTO
-                val label = if (isPhoto && sky.photoRev != 0 && sky.style == SkyStyle.PHOTO) "Change photo" else style.label()
-                Pill(label, active = sky.style == style, enabled = !busy) {
+                val label = if (isPhoto && sky.photoRev != 0 && sky.style == SkyStyle.PHOTO) "Change" else style.label()
+                EffectTile(label, selected = sky.style == style && sky.enabled, enabled = !busy, preview = skyPreview(style), onClick = {
                     // The photo style needs a photo first. Tapping it again picks a different one.
                     if (isPhoto && (sky.photoRev == 0 || sky.style == SkyStyle.PHOTO)) {
                         onPickPhoto()
                     } else {
                         onChange { it.copy(style = style, enabled = it.hasArea) }
                     }
-                }
+                })
             }
         }
         LabeledSlider("Drift", sky.drift, 0f..1f, { v -> onChange { it.copy(drift = v) } })

@@ -1,5 +1,6 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.ui.components.EffectTile
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -111,33 +112,9 @@ private fun swatchColors(grade: ColorGrade): List<Color> = swatchSamples.map { g
 private fun GradeChip(label: String, selected: Boolean, onClick: () -> Unit, colors: () -> List<Color>) {
     // Keyed on the colors too, so a theme switch refreshes the theme-colored swatches.
     val swatch = remember(label, colors) { colors() }
-    Column(
-        Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(
-            Modifier
-                .size(52.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(MlColors.SurfaceHigh)
-                .border(2.dp, if (selected) MlColors.Mint else Color.Transparent, RoundedCornerShape(10.dp)),
-        ) {
-            Canvas(Modifier.size(52.dp)) {
-                val w = size.width / 2
-                val h = size.height / 2
-                swatch.forEachIndexed { i, c ->
-                    drawRect(c, topLeft = Offset((i % 2) * w, (i / 2) * h), size = Size(w, h))
-                }
-            }
-        }
-        Spacer(Modifier.height(4.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            color = if (selected) MlColors.Mint else MlColors.TextSecondary,
-        )
-    }
+    EffectTile(label, selected = selected, onClick = onClick, preview = {
+        val w = size.width / 2
+        val h = size.height / 2
+        swatch.forEachIndexed { i, c -> drawRect(c, topLeft = Offset((i % 2) * w, (i / 2) * h), size = Size(w, h)) }
+    })
 }

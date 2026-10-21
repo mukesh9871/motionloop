@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.ui.components.TileRow
+import com.motionloop.app.ui.components.EffectTile
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -36,15 +38,17 @@ fun SoundPanel(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxWidth()) {
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Pill("None", active = audio.source == AudioSource.NONE, enabled = !busy) { onChange { it.copy(source = AudioSource.NONE) } }
+        TileRow {
+            EffectTile("None", selected = audio.source == AudioSource.NONE, enabled = !busy, preview = NonePreview, onClick = {
+                onChange { it.copy(source = AudioSource.NONE) }
+            })
             AmbientSound.entries.forEach { s ->
-                Pill(s.label, active = audio.source == AudioSource.AMBIENT && audio.ambient == s, enabled = !busy) {
+                EffectTile(s.label, selected = audio.source == AudioSource.AMBIENT && audio.ambient == s, enabled = !busy, preview = soundPreview(s), onClick = {
                     onChange { it.copy(source = AudioSource.AMBIENT, ambient = s) }
-                }
+                })
             }
             val fileActive = audio.source == AudioSource.FILE && audio.fileRev != 0
-            Pill(if (fileActive) "Change file" else "Your audio", active = fileActive, enabled = !busy, onClick = onPickFile)
+            EffectTile(if (fileActive) "Change" else "Your audio", selected = fileActive, enabled = !busy, preview = PickPreview, onClick = onPickFile)
         }
         Spacer(Modifier.height(6.dp))
         Text(

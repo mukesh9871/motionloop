@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.ui.components.TileRow
+import com.motionloop.app.ui.components.EffectTile
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -83,18 +85,24 @@ fun CutoutPanel(
 
         Text("Background", style = MaterialTheme.typography.labelMedium, color = MlColors.TextSecondary)
         Spacer(Modifier.height(4.dp))
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TileRow {
             BackgroundMode.entries.forEach { mode ->
                 val isPhoto = mode == BackgroundMode.PHOTO
-                val label = if (isPhoto && background.mode == BackgroundMode.PHOTO) "Change photo" else mode.label()
-                Pill(label, active = background.mode == mode, enabled = !busy && (subject.hasArea || mode == BackgroundMode.NONE)) {
+                val label = if (isPhoto && background.mode == BackgroundMode.PHOTO) "Change" else mode.label()
+                EffectTile(
+                    label,
+                    selected = background.mode == mode,
+                    enabled = !busy && (subject.hasArea || mode == BackgroundMode.NONE),
+                    preview = backgroundPreview(mode),
+                    onClick = {
                     // Photo needs a photo first. Tapping it again picks a different one.
                     if (isPhoto && (background.photoRev == 0 || background.mode == BackgroundMode.PHOTO)) {
                         onPickPhoto()
                     } else {
                         onBackground { it.copy(mode = mode) }
                     }
-                }
+                    },
+                )
             }
         }
         when (background.mode) {

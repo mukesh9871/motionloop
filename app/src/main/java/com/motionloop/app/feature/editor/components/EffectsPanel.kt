@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.ui.components.TileRow
+import com.motionloop.app.ui.components.EffectTile
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -45,8 +47,11 @@ fun EffectsPanel(
 ) {
     Column(modifier.fillMaxWidth()) {
         Label("Stickers")
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StickerKind.entries.forEach { kind -> Pill("+ ${kind.label}", active = false) { onAddSticker(kind) } }
+        // Each tap adds one more sticker of that kind.
+        TileRow {
+            StickerKind.entries.forEach { kind ->
+                EffectTile(kind.label, selected = false, preview = stickerPreview(kind), onClick = { onAddSticker(kind) })
+            }
         }
         if (effects.stickers.isNotEmpty()) {
             Spacer(Modifier.height(6.dp))

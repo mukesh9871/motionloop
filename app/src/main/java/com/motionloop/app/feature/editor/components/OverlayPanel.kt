@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.ui.components.TileRow
+import com.motionloop.app.ui.components.EffectTile
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -78,7 +80,11 @@ fun OverlayPanel(
             .fillMaxWidth(),
     ) {
         SectionLabel("Particles")
-        ChipRow(ParticleType.entries, settings.particles, { it.label() }) { v -> onChange { it.copy(particles = v) } }
+        TileRow {
+            ParticleType.entries.forEach { v ->
+                EffectTile(v.label(), selected = settings.particles == v, preview = particlePreview(v), onClick = { onChange { it.copy(particles = v) } })
+            }
+        }
         if (settings.particles != ParticleType.NONE) {
             LabeledSlider("Amount", settings.density, 0.05f..1f, { v -> onChange { it.copy(density = v) } })
             LabeledSlider("Size", settings.size, 0f..1f, { v -> onChange { it.copy(size = v) } })
@@ -103,13 +109,21 @@ fun OverlayPanel(
         }
 
         SectionLabel("Light leak")
-        ChipRow(LightLeak.entries, settings.lightLeak, { it.label() }) { v -> onChange { it.copy(lightLeak = v) } }
+        TileRow {
+            LightLeak.entries.forEach { v ->
+                EffectTile(v.label(), selected = settings.lightLeak == v, preview = leakPreview(v), onClick = { onChange { it.copy(lightLeak = v) } })
+            }
+        }
         if (settings.lightLeak != LightLeak.NONE) {
             LabeledSlider("Glow", settings.leakIntensity, 0f..1f, { v -> onChange { it.copy(leakIntensity = v) } })
         }
 
         SectionLabel("Atmosphere")
-        ChipRow(Atmosphere.entries, settings.atmosphere, { it.label() }) { v -> onChange { it.copy(atmosphere = v) } }
+        TileRow {
+            Atmosphere.entries.forEach { v ->
+                EffectTile(v.label(), selected = settings.atmosphere == v, preview = atmospherePreview(v), onClick = { onChange { it.copy(atmosphere = v) } })
+            }
+        }
         if (settings.atmosphere != Atmosphere.NONE) {
             LabeledSlider("Strength", settings.atmosphereAmount, 0f..1f, { v -> onChange { it.copy(atmosphereAmount = v) } })
         }
