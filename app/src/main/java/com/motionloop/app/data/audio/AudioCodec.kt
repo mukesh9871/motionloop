@@ -82,7 +82,6 @@ object AudioDecoder {
                         // Progress means output, not accepted input: a decoder that eats input and never
                         // produces anything still hits the stall guard.
                         idle = 0
-                        idle = 0
                         val buffer = c.getOutputBuffer(outIndex)!!
                         val pcmEncoding = runCatching { c.outputFormat.getInteger(MediaFormat.KEY_PCM_ENCODING) }
                             .getOrDefault(AudioFormat.ENCODING_PCM_16BIT)

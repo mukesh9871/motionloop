@@ -7,7 +7,9 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
@@ -201,6 +203,13 @@ fun ExportSheet(onDismiss: () -> Unit, onOpenPro: () -> Unit, vm: ExportViewMode
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text("Set as live wallpaper") }
                     Spacer(Modifier.height(8.dp))
+                    if (state.storageDenied) {
+                        // After "Do not ask again" the request returns denied at once: offer the settings page.
+                        OutlinedButton(onClick = {
+                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                            runCatching { context.startActivity(intent) }
+                        }) { Text("Open app settings") }
+                    }
                     state.error?.let {
                         Text(it, color = MlColors.Coral, style = MaterialTheme.typography.bodySmall)
                         Spacer(Modifier.height(8.dp))

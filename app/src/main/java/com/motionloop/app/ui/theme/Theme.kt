@@ -68,6 +68,9 @@ object MlColors {
     /** Near-black, for text on bright accents. */
     val Ink = Color(0xFF0E0F1A)
 
+    /** Deeper violet for gradients behind white text. */
+    val VioletDeep = Color(0xFF3A2E8C)
+
     /** Text on a mint button: dark on the bright dark-theme mint, white on the deeper light-theme one. */
     val OnMint: Color @Composable @ReadOnlyComposable get() = if (LocalMlPalette.current.isDark) Ink else Color.White
 

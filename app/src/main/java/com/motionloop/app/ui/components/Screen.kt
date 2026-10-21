@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -38,9 +37,8 @@ fun SimpleScreen(title: String, onBack: () -> Unit, content: @Composable ColumnS
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .safeDrawingPadding()
-            // Forms (Contact) scroll above the keyboard instead of hiding behind it.
-            .imePadding(),
+            // safeDrawing includes the keyboard: forms (Contact) scroll above it.
+            .safeDrawingPadding(),
     ) {
         Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(MlIcons.Back, contentDescription = "Back", tint = MlColors.TextPrimary) }

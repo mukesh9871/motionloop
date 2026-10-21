@@ -30,12 +30,21 @@ class AudioLoopPlayer(private val audioManager: AudioManager) {
         }
         .build()
 
-    /** Loads [pcm] (replacing the previous loop). Null stops and frees the track. */
-    fun setLoop(pcm: Pcm?) {
-        if (pcm === loaded) return
+    /** Loads [pcm] (replacing the previous loop). Null stops and frees the track. [track] from [build], made off the main thread. */
+    fun setLoop(pcm: Pcm?, track: AudioTrack?) {
+        if (pcm === loaded) {
+            track?.release()
+            return
+        }
         release()
         loaded = pcm
-        if (pcm == null || pcm.frames < 2) return
+        if (pcm == null || track == null) return
+        this.track = track
+    }
+
+    /** Builds and fills a static track for [pcm]: hundreds of KB written, so call off the main thread. Null for silence. */
+    fun build(pcm: Pcm?): AudioTrack? {
+        if (pcm == null || pcm.frames < 2) return null
         val t = AudioTrack.Builder()
             .setAudioAttributes(attributes)
             .setAudioFormat(
@@ -50,7 +59,7 @@ class AudioLoopPlayer(private val audioManager: AudioManager) {
             .build()
         t.write(pcm.data, 0, pcm.data.size)
         t.setLoopPoints(0, pcm.frames, -1)
-        track = t
+        return t
     }
 
     fun setVolume(volume: Float) {

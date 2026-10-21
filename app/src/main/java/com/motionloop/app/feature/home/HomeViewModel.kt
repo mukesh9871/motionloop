@@ -2,6 +2,7 @@ package com.motionloop.app.feature.home
 
 import android.graphics.Bitmap
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.motionloop.app.domain.model.DemoPhoto
@@ -93,7 +94,8 @@ class HomeViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.update { it.copy(error = "$failure (${e.message})") }
+                Log.w(TAG, failure, e)
+                _state.update { it.copy(error = failure) }
             } finally {
                 _state.update { it.copy(importing = false) }
             }
@@ -111,7 +113,8 @@ class HomeViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.update { it.copy(error = "Could not prepare the app file (${e.message})") }
+                Log.w(TAG, "Could not prepare the app file", e)
+                _state.update { it.copy(error = "Could not prepare the app file.") }
             } finally {
                 _state.update { it.copy(importing = false) }
             }
@@ -139,6 +142,7 @@ class HomeViewModel @Inject constructor(
     }
 
     private companion object {
+        const val TAG = "HomeViewModel"
         // Two columns of cards: about half the screen width at high density.
         const val DEMO_THUMB_EDGE = 540
     }

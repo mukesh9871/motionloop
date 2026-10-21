@@ -192,7 +192,7 @@ class EditorViewModel @Inject constructor(
         loadedSound = key
         soundJob?.cancel()
         if (key == null) {
-            player.setLoop(null)
+            player.setLoop(null, null)
             _state.update { it.copy(beatEnvelope = null) }
             return
         }
@@ -208,7 +208,9 @@ class EditorViewModel @Inject constructor(
                     }
                 }
                 val envelope = withContext(cpu) { BeatDetector.envelope(BeatDetector.beats(pcm), pcm.seconds) }
-                player.setLoop(pcm)
+                // The track is filled off the main thread, then handed over at once (no suspension between).
+                val track = withContext(cpu) { player.build(pcm) }
+                player.setLoop(pcm, track)
                 player.setVolume(_state.value.project?.audio?.volume ?: 1f)
                 if (_state.value.playing) player.play()
                 _state.update { it.copy(beatEnvelope = envelope) }

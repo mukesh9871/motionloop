@@ -27,6 +27,11 @@ class MediaStoreSaver @Inject constructor(
 
     override suspend fun pruneCaptures() = withContext(io) { MediaIntents.pruneCaptures(context) }
 
+    override suspend fun pruneExports() = withContext(io) {
+        File(context.cacheDir, "exports").listFiles()?.forEach { it.delete() }
+        Unit
+    }
+
     override suspend fun shareableApk(): Uri = withContext(io) {
         if (!canShareApk) throw IOException("This install is split into several files and cannot be shared as one")
         val dir = File(context.cacheDir, "share").apply {

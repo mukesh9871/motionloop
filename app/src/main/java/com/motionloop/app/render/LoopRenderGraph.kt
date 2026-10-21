@@ -310,6 +310,8 @@ class LoopRenderGraph(assets: AssetManager) {
             lastSubjectStrokes = subject.strokes
             lastSubjectMask = mask
             subjectMaskBuilt = true
+            // The mask texture keeps its id across renders: the source cache needs its own signal.
+            maskVersion++
         }
     }
 
@@ -391,6 +393,7 @@ class LoopRenderGraph(assets: AssetManager) {
             lastSkyStrokes = settings.strokes
             lastSkyMask = mask
             skyMaskBuilt = true
+            maskVersion++
         }
     }
 
@@ -503,14 +506,18 @@ class LoopRenderGraph(assets: AssetManager) {
         }
         // A replaced background with no animated sky is the same every frame: render it once.
         val still = skyInput == null || !skyInput.replace
-        val key = if (still) Triple(src, skyInput, bgInput) else null
+        val key = if (still) SourceKey(src, skyInput, bgInput, maskVersion) else null
         val cached = sourcePass.texture
         if (key != null && cached != null && key == lastSourceKey) return cached.id
         lastSourceKey = key
         return sourcePass.render(src, skyInput, bgInput, phase, aspect).id
     }
 
-    private var lastSourceKey: Triple<GlTexture, SourcePass.SkyInput?, SourcePass.BackgroundInput?>? = null
+    /** Everything the still source depends on. [maskVersion] stands in for the mask texture contents. */
+    private data class SourceKey(val photo: GlTexture, val sky: SourcePass.SkyInput?, val bg: SourcePass.BackgroundInput?, val maskVersion: Int)
+
+    private var lastSourceKey: SourceKey? = null
+    private var maskVersion = 0
 
     private fun bindTarget(fbo: Int, x: Int, y: Int, width: Int, height: Int) {
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)

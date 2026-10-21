@@ -51,7 +51,7 @@ fun ProScreen(onBack: () -> Unit, vm: SettingsViewModel = hiltViewModel()) {
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(Brush.linearGradient(listOf(MlColors.Violet, Color(0xFF3A2E8C))))
+                .background(Brush.linearGradient(listOf(MlColors.Violet, MlColors.VioletDeep)))
                 .padding(20.dp),
         ) {
             // White in both themes: the violet gradient behind it does not follow the theme.

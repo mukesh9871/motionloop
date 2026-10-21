@@ -2,6 +2,7 @@ package com.motionloop.app.feature.export
 
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.motionloop.app.core.common.DefaultDispatcher
@@ -45,6 +46,8 @@ data class ExportUiState(
     val resultUri: Uri? = null,
     val resultMime: String? = null,
     val error: String? = null,
+    /** The storage permission was refused: the sheet offers the system settings page. */
+    val storageDenied: Boolean = false,
 )
 
 @HiltViewModel
@@ -139,7 +142,7 @@ class ExportViewModel @Inject constructor(
     fun setIncludeSound(on: Boolean) = updateSettings { it.copy(includeSound = on) }
 
     fun onStoragePermissionDenied() =
-        _state.update { it.copy(error = "Storage permission is needed to save to your gallery.") }
+        _state.update { it.copy(error = "Storage permission is needed to save to your gallery.", storageDenied = true) }
 
     private fun updateSettings(change: (ExportSettings) -> ExportSettings) {
         if (_state.value.running) return
@@ -152,7 +155,7 @@ class ExportViewModel @Inject constructor(
         val chosen = _state.value.settings
         val settings = if (chosen.resolution in _state.value.resolutions) chosen else chosen.copy(resolution = ExportResolution.FULL_HD)
         // Shown as chosen, so the sheet matches the file even after a fallback.
-        _state.update { it.copy(settings = settings, running = true, progress = 0f, resultUri = null, error = null) }
+        _state.update { it.copy(settings = settings, running = true, progress = 0f, resultUri = null, error = null, storageDenied = false) }
         job = viewModelScope.launch {
             val (mime, ext) = when (settings.format) {
                 ExportFormat.MP4 -> "video/mp4" to ".mp4"
@@ -162,7 +165,7 @@ class ExportViewModel @Inject constructor(
             val name = "MotionLoop_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) + ext
             val file = media.exportTempFile(name)
             // A file left by an export interrupted by process death would sit there until the OS trims the cache.
-            withContext(cpu) { file.parentFile?.listFiles()?.filter { it != file }?.forEach { it.delete() } }
+            media.pruneExports()
             try {
                 // Wait for the editor's queued saves, then read the latest state from disk.
                 projects.flush()
@@ -179,7 +182,8 @@ class ExportViewModel @Inject constructor(
                 _state.update { it.copy(running = false, progress = 0f) }
                 throw e
             } catch (e: Exception) {
-                _state.update { it.copy(running = false, error = e.message ?: "Export failed") }
+                Log.w(TAG, "Export failed", e)
+                _state.update { it.copy(running = false, error = "The export failed. Please try again.") }
             } finally {
                 withContext(NonCancellable + cpu) { file.delete() }
             }
@@ -200,5 +204,9 @@ class ExportViewModel @Inject constructor(
     fun cancel() {
         job?.cancel()
         job = null
+    }
+
+    private companion object {
+        const val TAG = "ExportViewModel"
     }
 }

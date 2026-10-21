@@ -341,3 +341,19 @@ Verdicts: render NEEDS WORK (1 major, 3 minor), export NEEDS WORK (1 major, 8 mi
 | Tests | minor | Loose upscale bound, duplicate enum test, policy test asserting nothing | Fixed, plus 11 new tests. |
 
 External checklists from android/skills and claude-android-ninja added under the review skill. First pass items fixed: shrinkResources, SideEffect for system bars, IME padding, StrictMode in debug, keep rules. Accepted for now: English-only strings, JUnit assertions, no Detekt, no ViewModel tests.
+
+## Full review round 2 (6d34ba6), four reviewers
+
+Verdicts: UI diff NEEDS WORK (1 blocker), engine diff NEEDS WORK (2 major, 5 minor), android/skills checklist NEEDS WORK (1 major release gate, 14 minor), android-ninja checklist CLEAN (13 minor).
+
+| Source | Sev | Finding | Outcome |
+|---|---|---|---|
+| UI diff | blocker | `dropUnlessResumed` has no one-argument form: the project open callback did not compile | Fixed: guarded by hand on the lifecycle state. |
+| Engine diff | major | Still-source cache missed subject and sky mask edits (mask textures keep their ids) | Fixed: a mask version in the cache key. |
+| Engine diff | major | Pruning every capture on Home start deleted a photo the camera had just taken after process death | Fixed: only captures older than an hour. |
+| Engine diff | minor | Decoder rounding could pass the size limit by one pixel, superseded CI status printed after the fetch, duplicate line, wallpaper phase wrap, window background against a forced theme | Fixed. |
+| android/skills | major | Privacy and terms links were dead placeholders (a Play release gate) | Fixed in the app: the links are hidden until real pages exist and are set from the build. Hosting the pages is still needed before release. |
+| android/skills | minor | Settings path after a refused storage permission, redundant drawer back handler, fixed grid columns on tablets, hardcoded gradient color, raw exception text shown, duplicate inset modifier | Fixed. |
+| android/skills | minor | Previews, baseline profile, ViewModel tests, Gradle wrapper, release smoke test for narrower keep rules | Accepted for now: need a machine with the SDK or a release build. |
+| android-ninja | minor | Debug id suffix, parallel Gradle, ML Kit timeout, export cleanup in the repository, camera folder off main, audio track filled off main, log stripping | Fixed. |
+| android-ninja | minor | Prefs warm-up, roles on every chip, theme shapes, lint, previews, lifecycle effect style | Accepted for now. |

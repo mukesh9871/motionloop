@@ -37,7 +37,8 @@ object BitmapDecoder {
         val longEdge = max(bounds.outWidth, bounds.outHeight)
         var sample = 1
         while (longEdge / (sample * 2) >= maxEdge) sample *= 2
-        val sampled = longEdge / sample
+        // Rounded up: scaled decoding rounds dimensions up, and the result must not pass maxEdge.
+        val sampled = (longEdge + sample - 1) / sample
         val opts = BitmapFactory.Options().apply {
             inSampleSize = sample
             inPreferredConfig = Bitmap.Config.ARGB_8888

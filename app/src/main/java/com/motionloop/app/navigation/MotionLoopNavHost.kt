@@ -1,6 +1,8 @@
 package com.motionloop.app.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -43,9 +45,15 @@ fun MotionLoopNavHost() {
     val openContact: () -> Unit = { nav.navigate(Routes.CONTACT) { launchSingleTop = true } }
     NavHost(navController = nav, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
-            // dropUnlessResumed: two quick taps on different projects would stack two editors.
+            // Only while resumed: two quick taps on different projects would stack two editors.
+            // dropUnlessResumed takes no-argument blocks, so the project id case is guarded by hand.
+            val owner = LocalLifecycleOwner.current
             HomeScreen(
-                onOpenProject = dropUnlessResumed { id -> nav.navigate(Routes.editor(id)) { launchSingleTop = true } },
+                onOpenProject = { id ->
+                    if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                        nav.navigate(Routes.editor(id)) { launchSingleTop = true }
+                    }
+                },
                 onOpenSettings = dropUnlessResumed { nav.navigate(Routes.SETTINGS) { launchSingleTop = true } },
                 onOpenHelp = dropUnlessResumed { nav.navigate(Routes.HELP) { launchSingleTop = true } },
                 onOpenPro = dropUnlessResumed { openPro() },

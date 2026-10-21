@@ -10,15 +10,23 @@ object MediaIntents {
 
     /** Temp file Uri the camera app writes the photo into. Old captures are cleared by [pruneCaptures]. */
     fun newCameraUri(context: Context): Uri {
-        val dir = File(context.cacheDir, "camera").apply { mkdirs() }
-        val file = File(dir, "capture_${System.currentTimeMillis()}.jpg")
+        // The folder is made by pruneCaptures (off the main thread) when Home opens.
+        val file = File(File(context.cacheDir, "camera"), "capture_${System.currentTimeMillis()}.jpg")
         return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     }
 
-    /** Deletes earlier captures. Disk work: call off the main thread. */
+    /**
+     * Deletes stale captures. Disk work: call off the main thread. Recent files stay: the camera
+     * app may have killed this process while writing one that Home is about to import.
+     */
     fun pruneCaptures(context: Context) {
-        File(context.cacheDir, "camera").listFiles()?.forEach { it.delete() }
+        val dir = File(context.cacheDir, "camera")
+        val cutoff = System.currentTimeMillis() - CAPTURE_MAX_AGE_MS
+        dir.listFiles()?.forEach { if (it.lastModified() < cutoff) it.delete() }
+        dir.mkdirs()
     }
+
+    private const val CAPTURE_MAX_AGE_MS = 60L * 60 * 1000
 
     fun shareText(context: Context, text: String) {
         val send = Intent(Intent.ACTION_SEND).apply {

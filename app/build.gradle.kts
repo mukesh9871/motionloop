@@ -21,6 +21,9 @@ android {
         versionName = "0.1.0"
         // Contact form recipient. Personal address until the app has a support mailbox.
         buildConfigField("String", "SUPPORT_EMAIL", "\"mukesh9871@gmail.com\"")
+        // Empty until the pages exist: the app hides the links. Play requires a real policy page before release.
+        buildConfigField("String", "PRIVACY_URL", "\"\"")
+        buildConfigField("String", "TERMS_URL", "\"\"")
 
         // MediaPipe and LiteRT ship large native libraries per CPU type. Phones are ARM, and
         // x86_64 covers the emulator. 32-bit x86 has no real devices left, so it is not packaged.
@@ -30,6 +33,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // A debug build installs next to the release one.
+            applicationIdSuffix = ".debug"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

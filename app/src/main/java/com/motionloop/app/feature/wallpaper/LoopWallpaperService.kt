@@ -275,7 +275,7 @@ class LoopWallpaperService : WallpaperService() {
             val now = SystemClock.elapsedRealtimeNanos()
             if (lastFrameNanos != 0L) {
                 val dt = ((now - lastFrameNanos) / 1e9f).coerceAtMost(0.1f)
-                phase = (phase + dt * p.loop.speed / LoopSettings.BASE_CYCLE_SECONDS) % 1000f
+                phase = (phase + dt * p.loop.speed / LoopSettings.BASE_CYCLE_SECONDS) % 1f
             }
             lastFrameNanos = now
 

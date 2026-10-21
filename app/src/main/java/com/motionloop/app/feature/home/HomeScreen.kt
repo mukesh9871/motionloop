@@ -2,7 +2,6 @@ package com.motionloop.app.feature.home
 
 import android.content.ActivityNotFoundException
 import android.net.Uri
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -131,8 +130,7 @@ fun HomeScreen(
     }
 
     // Back closes an open drawer instead of leaving the app.
-    // targetValue: during the opening animation currentValue is still Closed.
-    BackHandler(enabled = drawer.targetValue == DrawerValue.Open) { scope.launch { drawer.close() } }
+    // Back while the drawer is open: ModalNavigationDrawer handles it itself, with predictive back.
 
     ModalNavigationDrawer(
         drawerState = drawer,
@@ -158,7 +156,8 @@ fun HomeScreen(
         ) {
             // One scrolling grid for the whole page, two columns, so samples and projects scroll together.
             LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
+                // Two columns on phones, more on tablets and unfolded foldables.
+                columns = GridCells.Adaptive(minSize = 160.dp),
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),

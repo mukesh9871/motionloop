@@ -15,6 +15,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeoutOrNull
 import java.nio.ByteOrder
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -85,8 +86,9 @@ class Segmenter(private val context: Context) {
     suspend fun segmentSubject(image: Bitmap): AlphaMask {
         val input = prepare(image)
         try {
-            val result = subjectClient.process(InputImage.fromBitmap(input, 0)).await()
-            val buffer = result.foregroundConfidenceMask
+            // Play services may be downloading the model: do not keep the editor busy forever.
+            val result = withTimeoutOrNull(ML_KIT_TIMEOUT_MS) { subjectClient.process(InputImage.fromBitmap(input, 0)).await() }
+            val buffer = result?.foregroundConfidenceMask
             if (buffer != null) {
                 val values = FloatArray(input.width * input.height)
                 buffer.rewind()
@@ -146,6 +148,7 @@ class Segmenter(private val context: Context) {
     }
 
     private companion object {
+        const val ML_KIT_TIMEOUT_MS = 30_000L
         const val TAG = "Segmenter"
         const val MAGIC_TOUCH = "magic_touch.tflite"
         const val INPUT_EDGE = 768

@@ -99,8 +99,12 @@ fun SettingsScreen(
 
         SectionTitle("About")
         MenuRow("Open source licenses and photo credits", onClick = onOpenLicenses)
-        MenuRow("Privacy policy", onClick = { if (!openUrl(context, AppLinks.PRIVACY)) notice = "No app can open that link." })
-        MenuRow("Terms of use", onClick = { if (!openUrl(context, AppLinks.TERMS)) notice = "No app can open that link." })
+        if (AppLinks.PRIVACY.isNotBlank()) {
+            MenuRow("Privacy policy", onClick = { if (!openUrl(context, AppLinks.PRIVACY)) notice = "No app can open that link." })
+        }
+        if (AppLinks.TERMS.isNotBlank()) {
+            MenuRow("Terms of use", onClick = { if (!openUrl(context, AppLinks.TERMS)) notice = "No app can open that link." })
+        }
         notice?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MlColors.Coral) }
         MenuRow("Version", subtitle = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
     }

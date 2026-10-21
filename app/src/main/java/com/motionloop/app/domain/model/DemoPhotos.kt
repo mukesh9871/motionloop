@@ -49,8 +49,9 @@ object DemoPhotos {
 /** Outward links. Placeholders until the app is published. */
 object AppLinks {
     const val PLAY_STORE = "https://play.google.com/store/apps/details?id=com.motionloop.app"
-    const val PRIVACY = "https://motionloop.example/privacy"
-    const val TERMS = "https://motionloop.example/terms"
+    /** Empty until the pages exist (set in app/build.gradle.kts): screens hide the links then. */
+    val PRIVACY: String = BuildConfig.PRIVACY_URL
+    val TERMS: String = BuildConfig.TERMS_URL
     /** Contact form recipient, set in app/build.gradle.kts. */
     val SUPPORT_EMAIL: String = BuildConfig.SUPPORT_EMAIL
 }
