@@ -272,7 +272,8 @@ class VideoExporter @Inject constructor(
         private fun bitrateFor(w: Int, h: Int, fps: Int, encoder: MediaCodecInfo): Int {
             val wanted = (w.toLong() * h * fps / 5).coerceIn(2_000_000, 40_000_000).toInt()
             // Inside what this encoder accepts, or configure() may reject it.
-            val range = runCatching { encoder.getCapabilitiesForType(MIME).encoderCapabilities.bitrateRange }.getOrNull()
+            // encoderCapabilities is a nullable platform getter.
+            val range = runCatching { encoder.getCapabilitiesForType(MIME).encoderCapabilities?.bitrateRange }.getOrNull()
             return if (range != null) wanted.coerceIn(range.lower, range.upper) else wanted
         }
     }
