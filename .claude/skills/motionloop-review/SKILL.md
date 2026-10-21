@@ -51,6 +51,12 @@ Nothing is pushed until a review pass comes back with **zero blocking findings**
 ### Product
 - No copied names, icons or assets. User-facing text is clear: full words, no em dashes, no semicolons.
 
+## External checklists
+`references/android-skills-checklist.md` (Google's android/skills) and `references/android-ninja-checklist.md`
+(claude-android-ninja) hold the rules from those repositories that apply to this app, each with a grep or
+file to verify it. Every full review applies both. A milestone review applies the sections that touch the
+changed area (Compose, theming, accessibility, R8, permissions, media, coroutines, testing).
+
 ## Issue classes that slipped through before (check every one, every round)
 These came back in earlier rounds (see `docs/review-log.md`). There is no local compiler, so the ones marked *compile* reach CI unless the reviewer catches them.
 - *compile* `MlColors.*` theme colors are `@Composable` getters: grep every use and reject any inside a DrawScope, `remember {}` calculation, non-composable lambda, default argument of a plain function or a Modifier draw lambda. Read them into a `val` in the composable and pass that in.
