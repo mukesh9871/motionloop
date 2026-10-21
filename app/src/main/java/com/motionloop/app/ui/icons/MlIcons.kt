@@ -168,6 +168,86 @@ object MlIcons {
         }
     }
 
+    val Menu by lazy {
+        icon("Menu") {
+            moveTo(4f, 7f); lineTo(20f, 7f)
+            moveTo(4f, 12f); lineTo(20f, 12f)
+            moveTo(4f, 17f); lineTo(14f, 17f)
+        }
+    }
+
+    /** Pro mark: a faceted gem. */
+    val Pro by lazy {
+        icon("Pro") {
+            moveTo(7f, 4f); lineTo(17f, 4f); lineTo(21f, 9f); lineTo(12f, 20f); lineTo(3f, 9f); close()
+            moveTo(3f, 9f); lineTo(21f, 9f)
+            moveTo(9f, 4f); lineTo(12f, 9f); lineTo(15f, 4f)
+            moveTo(12f, 9f); lineTo(12f, 20f)
+        }
+    }
+
+    val Check by lazy {
+        icon("Check") {
+            moveTo(4f, 12.5f); lineTo(9.5f, 18f); lineTo(20f, 6.5f)
+        }
+    }
+
+    val Help by lazy {
+        icon("Help") {
+            circle(12f, 12f, 9f)
+            moveTo(9.5f, 9.5f); curveTo(9.5f, 6.5f, 14.5f, 6.5f, 14.5f, 9.5f)
+            curveTo(14.5f, 11.5f, 12f, 11.5f, 12f, 14f)
+            moveTo(12f, 17f); lineTo(12f, 17.2f)
+        }
+    }
+
+    val Share by lazy {
+        icon("Share") {
+            circle(6f, 12f, 2.5f)
+            circle(18f, 6f, 2.5f)
+            circle(18f, 18f, 2.5f)
+            moveTo(8.2f, 10.9f); lineTo(15.8f, 7.1f)
+            moveTo(8.2f, 13.1f); lineTo(15.8f, 16.9f)
+        }
+    }
+
+    val Star by lazy {
+        icon("Star") {
+            moveTo(12f, 3f); lineTo(14.6f, 9f); lineTo(21f, 9.5f); lineTo(16f, 13.7f); lineTo(17.6f, 20f)
+            lineTo(12f, 16.6f); lineTo(6.4f, 20f); lineTo(8f, 13.7f); lineTo(3f, 9.5f); lineTo(9.4f, 9f); close()
+        }
+    }
+
+    val Mail by lazy {
+        icon("Mail") {
+            moveTo(3f, 6f); lineTo(21f, 6f); lineTo(21f, 18f); lineTo(3f, 18f); close()
+            moveTo(3f, 6f); lineTo(12f, 13f); lineTo(21f, 6f)
+        }
+    }
+
+    val Settings by lazy {
+        icon("Settings") {
+            circle(12f, 12f, 3f)
+            // Eight short spokes around a ring read as a gear at icon size.
+            moveTo(12f, 2.5f); lineTo(12f, 5.5f)
+            moveTo(12f, 18.5f); lineTo(12f, 21.5f)
+            moveTo(2.5f, 12f); lineTo(5.5f, 12f)
+            moveTo(18.5f, 12f); lineTo(21.5f, 12f)
+            moveTo(5.3f, 5.3f); lineTo(7.4f, 7.4f)
+            moveTo(16.6f, 16.6f); lineTo(18.7f, 18.7f)
+            moveTo(5.3f, 18.7f); lineTo(7.4f, 16.6f)
+            moveTo(16.6f, 7.4f); lineTo(18.7f, 5.3f)
+            circle(12f, 12f, 6.5f)
+        }
+    }
+
+    val Lock by lazy {
+        icon("Lock") {
+            moveTo(5f, 11f); lineTo(19f, 11f); lineTo(19f, 20f); lineTo(5f, 20f); close()
+            moveTo(8f, 11f); lineTo(8f, 7.5f); curveTo(8f, 3.5f, 16f, 3.5f, 16f, 7.5f); lineTo(16f, 11f)
+        }
+    }
+
     val Boomerang by lazy {
         icon("Boomerang") {
             moveTo(4f, 9f); lineTo(20f, 9f)

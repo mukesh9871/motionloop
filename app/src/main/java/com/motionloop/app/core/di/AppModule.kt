@@ -5,6 +5,8 @@ import com.motionloop.app.core.common.IoDispatcher
 import com.motionloop.app.data.color.LutRepositoryImpl
 import com.motionloop.app.data.media.MediaStoreSaver
 import com.motionloop.app.data.project.ProjectAssetRepositoryImpl
+import com.motionloop.app.data.settings.LocalEntitlements
+import com.motionloop.app.domain.pro.Entitlements
 import com.motionloop.app.data.project.ProjectRepositoryImpl
 import com.motionloop.app.domain.repository.LutRepository
 import com.motionloop.app.domain.repository.MediaRepository
@@ -49,4 +51,9 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun projectAssetRepository(impl: ProjectAssetRepositoryImpl): ProjectAssetRepository
+
+    /** Swap for a Google Play Billing implementation when purchases go live. */
+    @Binds
+    @Singleton
+    abstract fun entitlements(impl: LocalEntitlements): Entitlements
 }

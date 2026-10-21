@@ -8,6 +8,8 @@ import com.motionloop.app.core.common.DefaultDispatcher
 import com.motionloop.app.domain.model.ExportFormat
 import com.motionloop.app.domain.model.ExportResolution
 import com.motionloop.app.domain.model.ExportSettings
+import com.motionloop.app.data.settings.AppSettings
+import com.motionloop.app.domain.pro.Entitlements
 import com.motionloop.app.domain.repository.MediaRepository
 import com.motionloop.app.domain.repository.ProjectRepository
 import com.motionloop.app.export.gif.GifExporter
@@ -47,10 +49,14 @@ class ExportViewModel @Inject constructor(
     private val videoExporter: VideoExporter,
     private val gifExporter: GifExporter,
     @DefaultDispatcher private val cpu: CoroutineDispatcher,
+    entitlements: Entitlements,
+    settings: AppSettings,
 ) : ViewModel() {
 
+    val isPro: StateFlow<Boolean> = entitlements.isPro
+
     private val projectId: String = checkNotNull(savedState[Routes.ARG_PROJECT_ID])
-    private val _state = MutableStateFlow(ExportUiState())
+    private val _state = MutableStateFlow(ExportUiState(settings = ExportSettings(resolution = settings.state.value.defaultResolution)))
     val state: StateFlow<ExportUiState> = _state.asStateFlow()
     private var job: Job? = null
 

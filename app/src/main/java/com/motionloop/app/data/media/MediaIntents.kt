@@ -16,6 +16,27 @@ object MediaIntents {
         return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     }
 
+    fun shareText(context: Context, text: String) {
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        context.startActivity(Intent.createChooser(send, null))
+    }
+
+    /** Opens the mail app. Returns false when there is none. */
+    fun email(context: Context, address: String, subject: String): Boolean = try {
+        context.startActivity(
+            Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")).apply {
+                putExtra(Intent.EXTRA_EMAIL, arrayOf(address))
+                putExtra(Intent.EXTRA_SUBJECT, subject)
+            },
+        )
+        true
+    } catch (e: android.content.ActivityNotFoundException) {
+        false
+    }
+
     fun share(context: Context, uri: Uri, mimeType: String) {
         val send = Intent(Intent.ACTION_SEND).apply {
             type = mimeType

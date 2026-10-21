@@ -6,6 +6,9 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.motionloop.app.core.common.DefaultDispatcher
+import com.motionloop.app.data.settings.AppSettings
+import com.motionloop.app.data.settings.SettingsState
+import com.motionloop.app.domain.pro.Entitlements
 import com.motionloop.app.domain.model.Adjustments
 import com.motionloop.app.domain.model.Anchor
 import com.motionloop.app.domain.model.LoopMode
@@ -48,7 +51,12 @@ class EditorViewModel @Inject constructor(
     private val assets: ProjectAssetRepository,
     private val segmenter: Segmenter,
     @DefaultDispatcher private val cpu: CoroutineDispatcher,
+    entitlements: Entitlements,
+    appSettings: AppSettings,
 ) : ViewModel() {
+
+    val isPro: StateFlow<Boolean> = entitlements.isPro
+    val settings: StateFlow<SettingsState> = appSettings.state
 
     private val projectId: String = checkNotNull(savedState[Routes.ARG_PROJECT_ID])
 
@@ -57,6 +65,7 @@ class EditorViewModel @Inject constructor(
 
     private var lutJob: Job? = null
     private var skyMaskJob: Job? = null
+    private var skyPhotoJob: Job? = null
     private val undoStack = ArrayDeque<Geometry>()
     private val redoStack = ArrayDeque<Geometry>()
 
@@ -123,13 +132,20 @@ class EditorViewModel @Inject constructor(
     private fun skyTap(p: NPoint, add: Boolean) = runModel(if (add) "Adding to the sky" else "Removing from the sky") { preview ->
         val region = withContext(cpu) { segmenter.segmentAt(preview, p.x, p.y) }
         val s = _state.value
-        val base = s.skyMask.takeIf { s.skyMaskRev == s.project?.sky?.maskRev && s.skyMaskRev != 0 }
+        val sky = s.project?.sky ?: return@runModel
+        // The stored mask may still be loading right after the editor opened: read it directly.
+        val base = when {
+            sky.maskRev == 0 -> null
+            s.skyMaskRev == sky.maskRev && s.skyMask != null -> s.skyMask
+            else -> assets.loadMask(projectId, MaskKind.SKY, sky.maskRev)
+        }
         val combined = when {
             base != null -> withContext(cpu) { base.combine(region, subtract = !add) }
             add -> region
             else -> {
-                // No model area yet: only painted strokes exist, which taps do not change.
-                _state.update { it.copy(message = "Use Erase to remove painted sky.") }
+                // No model area: taps only edit the model area, painted strokes need Erase.
+                val hint = if (sky.strokes.isNotEmpty()) "Use Erase to remove painted sky." else "There is no sky area to remove yet."
+                _state.update { it.copy(message = hint) }
                 return@runModel
             }
         }
@@ -176,7 +192,9 @@ class EditorViewModel @Inject constructor(
 
     private fun loadSkyPhoto(rev: Int) {
         if (rev == 0) return
-        viewModelScope.launch {
+        // A newer import replaces an older one still decoding.
+        skyPhotoJob?.cancel()
+        skyPhotoJob = viewModelScope.launch {
             val photo = assets.loadImage(projectId, ImageKind.SKY_PHOTO, rev, SKY_PHOTO_EDGE)
             _state.update { it.copy(skyPhoto = photo, skyPhotoRev = rev) }
         }

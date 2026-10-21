@@ -44,10 +44,26 @@ class ProjectRepositoryImpl @Inject constructor(
     private fun dir(id: String) = projectDir(context, id)
 
     override suspend fun createFromImage(source: Uri): Project = withContext(io) {
-        val bitmap = BitmapDecoder.decode(context.contentResolver, source, MAX_STORED_EDGE)
+        create(BitmapDecoder.decode(context.contentResolver, source, MAX_STORED_EDGE))
+    }
+
+    override suspend fun createFromAsset(path: String): Project = withContext(io) {
+        create(BitmapDecoder.decode(MAX_STORED_EDGE) { context.assets.open(path) })
+    }
+
+    override suspend fun loadAssetThumbnail(path: String, maxEdge: Int): Bitmap? = withContext(io) {
+        try {
+            BitmapDecoder.decode(maxEdge) { context.assets.open(path) }
+        } catch (e: IOException) {
+            null
+        }
+    }
+
+    /** Stores [bitmap] (recycled afterwards) as a new project. Runs on IO. */
+    private fun create(bitmap: Bitmap): Project {
         val id = UUID.randomUUID().toString()
         val dir = dir(id).apply { mkdirs() }
-        try {
+        return try {
             File(dir, SOURCE).outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it) }
             val thumb = BitmapDecoder.scaleToLongEdge(bitmap, THUMB_EDGE)
             File(dir, THUMB).outputStream().use { thumb.compress(Bitmap.CompressFormat.JPEG, 85, it) }

@@ -12,6 +12,12 @@ import java.io.File
 interface ProjectRepository {
     /** Copies the photo into app storage and creates a new project. */
     suspend fun createFromImage(source: Uri): Project
+
+    /** Same, from a bundled asset (sample photos). */
+    suspend fun createFromAsset(path: String): Project
+
+    /** Small preview of a bundled asset, null if the asset is missing. */
+    suspend fun loadAssetThumbnail(path: String, maxEdge: Int): Bitmap?
     suspend fun load(id: String): Project?
 
     /**
@@ -63,6 +69,9 @@ interface LutRepository {
 interface MediaRepository {
     /** Scratch file for an export in progress. The caller deletes it. */
     fun exportTempFile(name: String): File
+
+    /** A content Uri to the installed app's APK, for "share the app" without a store. */
+    suspend fun shareableApk(): Uri
 
     /** Copies [file] into the shared gallery and returns its content Uri. */
     suspend fun saveToGallery(file: File, mimeType: String, displayName: String): Uri

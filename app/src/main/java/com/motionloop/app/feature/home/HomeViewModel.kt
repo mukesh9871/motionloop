@@ -4,6 +4,10 @@ import android.graphics.Bitmap
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.motionloop.app.domain.model.DemoPhoto
+import com.motionloop.app.domain.model.DemoPhotos
+import com.motionloop.app.domain.pro.Entitlements
+import com.motionloop.app.domain.repository.MediaRepository
 import com.motionloop.app.domain.repository.ProjectRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -18,23 +22,32 @@ import javax.inject.Inject
 
 data class RecentProject(val id: String, val thumbnail: Bitmap?)
 
+data class DemoThumb(val photo: DemoPhoto, val thumbnail: Bitmap)
+
 data class HomeUiState(
     val recent: List<RecentProject> = emptyList(),
+    /** Only samples whose asset is present (a local build without the download has none). */
+    val demos: List<DemoThumb> = emptyList(),
     val importing: Boolean = false,
     val error: String? = null,
 )
 
 sealed interface HomeEvent {
     data class OpenEditor(val projectId: String) : HomeEvent
+    data class ShareApk(val uri: Uri) : HomeEvent
 }
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val projects: ProjectRepository,
+    private val media: MediaRepository,
+    entitlements: Entitlements,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeUiState())
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
+
+    val isPro: StateFlow<Boolean> = entitlements.isPro
 
     private val _events = Channel<HomeEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
@@ -42,6 +55,15 @@ class HomeViewModel @Inject constructor(
     // Ids deleted in this session. Never cleared on success: a refresh that read the disk before
     // the delete finished must not bring them back. UUIDs, so the set stays tiny.
     private val deleting = mutableSetOf<String>()
+
+    init {
+        viewModelScope.launch {
+            val demos = DemoPhotos.all.mapNotNull { photo ->
+                projects.loadAssetThumbnail(photo.assetPath, DEMO_THUMB_EDGE)?.let { DemoThumb(photo, it) }
+            }
+            _state.update { it.copy(demos = demos) }
+        }
+    }
 
     fun refresh() {
         viewModelScope.launch {
@@ -52,19 +74,35 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun importPhoto(uri: Uri) {
+    fun importPhoto(uri: Uri) = create("Could not open that photo") { projects.createFromImage(uri).id }
+
+    fun openDemo(photo: DemoPhoto) = create("Could not open the sample") { projects.createFromAsset(photo.assetPath).id }
+
+    private fun create(failure: String, block: suspend () -> String) {
         if (_state.value.importing) return
         _state.update { it.copy(importing = true, error = null) }
         viewModelScope.launch {
             try {
-                val project = projects.createFromImage(uri)
-                _events.send(HomeEvent.OpenEditor(project.id))
+                _events.send(HomeEvent.OpenEditor(block()))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.update { it.copy(error = "Could not open that photo (${e.message})") }
+                _state.update { it.copy(error = "$failure (${e.message})") }
             } finally {
                 _state.update { it.copy(importing = false) }
+            }
+        }
+    }
+
+    /** Copies the installed APK somewhere shareable, then asks the screen to open the share sheet. */
+    fun shareApk() {
+        viewModelScope.launch {
+            try {
+                _events.send(HomeEvent.ShareApk(media.shareableApk()))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(error = "Could not prepare the app file (${e.message})") }
             }
         }
     }
@@ -87,5 +125,9 @@ class HomeViewModel @Inject constructor(
                 refresh()
             }
         }
+    }
+
+    private companion object {
+        const val DEMO_THUMB_EDGE = 360
     }
 }

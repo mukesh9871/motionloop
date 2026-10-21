@@ -25,6 +25,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -32,11 +33,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.motionloop.app.domain.pro.ProFeature
+import com.motionloop.app.domain.pro.ProPolicy
 import com.motionloop.app.feature.editor.components.AdjustPanel
 import com.motionloop.app.feature.editor.components.LabeledSlider
 import com.motionloop.app.feature.editor.components.OverlayPanel
@@ -50,8 +54,19 @@ import com.motionloop.app.ui.icons.MlIcons
 import com.motionloop.app.ui.theme.MlColors
 
 @Composable
-fun EditorScreen(onBack: () -> Unit, vm: EditorViewModel = hiltViewModel()) {
+fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val isPro by vm.isPro.collectAsStateWithLifecycle()
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    // Runs the action, or opens the Pro page when the feature is locked for this user.
+    val gated: (ProFeature, () -> Unit) -> Unit = { feature, action ->
+        if (ProPolicy.isLocked(feature, isPro)) onOpenPro() else action()
+    }
+    val view = LocalView.current
+    DisposableEffect(settings.keepScreenOn) {
+        view.keepScreenOn = settings.keepScreenOn
+        onDispose { view.keepScreenOn = false }
+    }
     var showExport by rememberSaveable { mutableStateOf(false) }
     // .cube files have no registered MIME type, so accept any file and validate the contents.
     val pickCube = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -143,7 +158,9 @@ fun EditorScreen(onBack: () -> Unit, vm: EditorViewModel = hiltViewModel()) {
                         onTool = vm::setTool,
                         onChange = vm::setSky,
                         onPickPhoto = {
-                            pickSkyPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            gated(ProFeature.SKY_PHOTO) {
+                                pickSkyPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            }
                         },
                     )
                     if (state.isSkyBrush) {
@@ -161,7 +178,7 @@ fun EditorScreen(onBack: () -> Unit, vm: EditorViewModel = hiltViewModel()) {
                         hasCustom = state.hasCustomLut,
                         onChange = vm::setAdjustments,
                         onSelectGrade = vm::selectGrade,
-                        onImportCube = { pickCube.launch(arrayOf("*/*")) },
+                        onImportCube = { gated(ProFeature.CUSTOM_LUT) { pickCube.launch(arrayOf("*/*")) } },
                         onReset = vm::resetAdjustments,
                     )
                 }
@@ -194,7 +211,7 @@ fun EditorScreen(onBack: () -> Unit, vm: EditorViewModel = hiltViewModel()) {
     }
 
     if (showExport) {
-        ExportSheet(onDismiss = { showExport = false })
+        ExportSheet(onDismiss = { showExport = false }, onOpenPro = onOpenPro)
     }
 }
 

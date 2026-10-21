@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.core.content.FileProvider
 import com.motionloop.app.core.common.IoDispatcher
 import com.motionloop.app.domain.repository.MediaRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -19,6 +20,13 @@ class MediaStoreSaver @Inject constructor(
     @ApplicationContext private val context: Context,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) : MediaRepository {
+
+    override suspend fun shareableApk(): Uri = withContext(io) {
+        val dir = File(context.cacheDir, "share").apply { mkdirs() }
+        val target = File(dir, "MotionLoop.apk")
+        File(context.applicationInfo.sourceDir).copyTo(target, overwrite = true)
+        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", target)
+    }
 
     // No disk access here (called on main). Exporters create the folder on their own thread.
     override fun exportTempFile(name: String): File = File(File(context.cacheDir, "exports"), name)

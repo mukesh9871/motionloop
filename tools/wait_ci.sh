@@ -9,6 +9,10 @@ for i in $(seq 1 100); do
       git show FETCH_HEAD:status.txt
       echo "----- errors.txt -----"
       git show FETCH_HEAD:errors.txt 2>/dev/null | head -n 150
+      echo "----- models.txt -----"
+      git show FETCH_HEAD:models.txt 2>/dev/null
+      echo "----- apk-assets.txt -----"
+      git show FETCH_HEAD:apk-assets.txt 2>/dev/null
       exit 0
     fi
   fi

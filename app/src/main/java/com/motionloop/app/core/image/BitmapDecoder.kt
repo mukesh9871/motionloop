@@ -20,6 +20,9 @@ object BitmapDecoder {
         return decode(maxEdge, orientation) { resolver.openInputStream(uri) ?: throw IOException("Cannot open $uri") }
     }
 
+    /** Bundled assets: upright, no EXIF handling needed. [open] must return a fresh stream each call. */
+    fun decode(maxEdge: Int, open: () -> InputStream): Bitmap = decode(maxEdge, ExifInterface.ORIENTATION_NORMAL, open)
+
     /** Project files are stored upright already, so EXIF is not read again. */
     fun decode(file: File, maxEdge: Int): Bitmap =
         decode(maxEdge, ExifInterface.ORIENTATION_NORMAL) { file.inputStream() }

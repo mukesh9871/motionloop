@@ -37,13 +37,18 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.motionloop.app.data.media.MediaIntents
 import com.motionloop.app.domain.model.ExportFormat
+import com.motionloop.app.domain.model.ExportResolution
+import com.motionloop.app.domain.pro.ProFeature
+import com.motionloop.app.domain.pro.ProPolicy
 import com.motionloop.app.domain.model.ExportSettings
 import com.motionloop.app.ui.theme.MlColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExportSheet(onDismiss: () -> Unit, vm: ExportViewModel = hiltViewModel()) {
+fun ExportSheet(onDismiss: () -> Unit, onOpenPro: () -> Unit, vm: ExportViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val isPro by vm.isPro.collectAsStateWithLifecycle()
+    fun locked(feature: ProFeature) = ProPolicy.isLocked(feature, isPro)
     val context = LocalContext.current
     val settings = state.settings
 
@@ -93,13 +98,19 @@ fun ExportSheet(onDismiss: () -> Unit, vm: ExportViewModel = hiltViewModel()) {
             val lengths = if (settings.format == ExportFormat.GIF) ExportSettings.GIF_LENGTHS else ExportSettings.VIDEO_LENGTHS
             Section("Length") {
                 lengths.forEach { s ->
-                    Chip("${s}s", selected = settings.lengthSeconds == s, enabled = !state.running) { vm.setLength(s) }
+                    val lock = s == ExportSettings.VIDEO_LENGTHS.last() && locked(ProFeature.LONG_EXPORT)
+                    Chip(if (lock) "${s}s (Pro)" else "${s}s", selected = settings.lengthSeconds == s, enabled = !state.running) {
+                        if (lock) onOpenPro() else vm.setLength(s)
+                    }
                 }
             }
             if (settings.format == ExportFormat.MP4) {
                 Section("Resolution") {
                     state.resolutions.forEach { r ->
-                        Chip(r.label, selected = settings.resolution == r, enabled = !state.running) { vm.setResolution(r) }
+                        val lock = r == ExportResolution.UHD && locked(ProFeature.EXPORT_4K)
+                        Chip(if (lock) "${r.label} (Pro)" else r.label, selected = settings.resolution == r, enabled = !state.running) {
+                            if (lock) onOpenPro() else vm.setResolution(r)
+                        }
                     }
                 }
             } else {

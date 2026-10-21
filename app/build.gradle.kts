@@ -50,6 +50,30 @@ kotlin {
     }
 }
 
+// Sample photos (CC0, Wikimedia Commons, see DemoPhotos.kt) are downloaded at build time,
+// never committed. Same pinned-download task as the ML models (buildSrc).
+val downloadDemos = tasks.register<DownloadAssetsTask>("downloadDemos") {
+    urls.put("demos/waterfall.jpg", "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Frothy_waterfall_in_Iceland_%28Unsplash%29.jpg/1920px-Frothy_waterfall_in_Iceland_%28Unsplash%29.jpg")
+    sha256.put("demos/waterfall.jpg", "")
+    urls.put("demos/ocean.jpg", "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Ocean_waves_rippling_%28Unsplash%29.jpg/1920px-Ocean_waves_rippling_%28Unsplash%29.jpg")
+    sha256.put("demos/ocean.jpg", "")
+    urls.put("demos/mountains.jpg", "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Cloudy_Skies_Over_Mountains_%28Unsplash%29.jpg/1920px-Cloudy_Skies_Over_Mountains_%28Unsplash%29.jpg")
+    sha256.put("demos/mountains.jpg", "")
+    urls.put("demos/lake.jpg", "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Clouds_mirrored_in_a_mountain_lake_%28Unsplash%29.jpg/1920px-Clouds_mirrored_in_a_mountain_lake_%28Unsplash%29.jpg")
+    sha256.put("demos/lake.jpg", "")
+    urls.put("demos/campfire.jpg", "https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/Campfire_Cooking_%28Unsplash%29.jpg/1920px-Campfire_Cooking_%28Unsplash%29.jpg")
+    sha256.put("demos/campfire.jpg", "")
+    urls.put("demos/falls_portrait.jpg", "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Narrow_waterfall_in_Alaska_%28Unsplash%29.jpg/1920px-Narrow_waterfall_in_Alaska_%28Unsplash%29.jpg")
+    sha256.put("demos/falls_portrait.jpg", "")
+    outputDir.set(layout.buildDirectory.dir("generated/demos"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(downloadDemos, DownloadAssetsTask::outputDir)
+    }
+}
+
 dependencies {
     implementation(project(":core:ml"))
     implementation(libs.androidx.core.ktx)
