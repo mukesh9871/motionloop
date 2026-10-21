@@ -134,6 +134,7 @@ class HomeViewModel @Inject constructor(
     }
 
     private companion object {
-        const val DEMO_THUMB_EDGE = 360
+        // Two columns of cards: about half the screen width at high density.
+        const val DEMO_THUMB_EDGE = 540
     }
 }

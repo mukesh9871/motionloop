@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.motionloop.app.domain.audio.AmbientSound
 import com.motionloop.app.domain.audio.AudioSettings
 import com.motionloop.app.domain.audio.AudioSource
+import com.motionloop.app.ui.components.Pill
 import com.motionloop.app.ui.theme.MlColors
 
 @Composable
@@ -75,20 +76,3 @@ fun SoundPanel(
     }
 }
 
-@Composable
-private fun Pill(label: String, active: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    Text(
-        label,
-        style = MaterialTheme.typography.labelMedium,
-        color = when {
-            !enabled -> MlColors.TextSecondary.copy(alpha = 0.5f)
-            active -> MlColors.TextPrimary
-            else -> MlColors.TextSecondary
-        },
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(if (active) MlColors.Violet else MlColors.SurfaceHigh)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 7.dp),
-    )
-}

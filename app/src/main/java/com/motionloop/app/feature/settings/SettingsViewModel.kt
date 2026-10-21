@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.motionloop.app.data.settings.AppSettings
 import com.motionloop.app.data.settings.SettingsState
 import com.motionloop.app.domain.model.ExportResolution
+import com.motionloop.app.domain.model.ThemeMode
 import com.motionloop.app.domain.pro.Entitlements
 import com.motionloop.app.domain.pro.ProPlan
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,6 +29,7 @@ class SettingsViewModel @Inject constructor(
     val message: StateFlow<String?> = _message.asStateFlow()
 
     fun setDefaultResolution(r: ExportResolution) = settings.setDefaultResolution(r)
+    fun setTheme(mode: ThemeMode) = settings.setTheme(mode)
     fun setKeepScreenOn(on: Boolean) = settings.setKeepScreenOn(on)
     fun setSimulatePro(on: Boolean) = settings.setSimulatePro(on)
 

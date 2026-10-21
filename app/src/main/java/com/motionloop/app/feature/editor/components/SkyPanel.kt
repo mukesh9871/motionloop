@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -26,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.motionloop.app.domain.model.SkySettings
 import com.motionloop.app.domain.model.SkyStyle
 import com.motionloop.app.feature.editor.EditorTool
+import com.motionloop.app.ui.components.Pill
 import com.motionloop.app.ui.theme.MlColors
 
 private fun SkyStyle.label() = when (this) {
@@ -57,9 +57,7 @@ fun SkyPanel(
 ) {
     Column(
         modifier
-            .fillMaxWidth()
-            .heightIn(max = 280.dp)
-            .verticalScroll(rememberScrollState()),
+            .fillMaxWidth(),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Pill(if (sky.hasArea) "Detect again" else "Detect sky", active = true, enabled = !busy, onClick = onDetect)
@@ -106,20 +104,3 @@ fun SkyPanel(
     }
 }
 
-@Composable
-private fun Pill(label: String, active: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    Text(
-        label,
-        style = MaterialTheme.typography.labelMedium,
-        color = when {
-            !enabled -> MlColors.TextSecondary.copy(alpha = 0.5f)
-            active -> MlColors.TextPrimary
-            else -> MlColors.TextSecondary
-        },
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(if (active) MlColors.Violet else MlColors.SurfaceHigh)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 7.dp),
-    )
-}

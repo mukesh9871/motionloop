@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -33,6 +32,8 @@ import com.motionloop.app.domain.model.BackgroundSettings
 import com.motionloop.app.domain.model.TextAnimation
 import com.motionloop.app.domain.model.TextFont
 import com.motionloop.app.domain.model.TextLayer
+import com.motionloop.app.feature.editor.EditorTool
+import com.motionloop.app.ui.components.Pill
 import com.motionloop.app.ui.theme.MlColors
 
 @Composable
@@ -40,17 +41,19 @@ fun TextPanel(
     texts: List<TextLayer>,
     selected: TextLayer?,
     hasSubject: Boolean,
+    tool: EditorTool,
+    busy: Boolean,
     onAdd: () -> Unit,
     onSelect: (String?) -> Unit,
     onChange: ((TextLayer) -> TextLayer) -> Unit,
     onDelete: () -> Unit,
+    onFindSubject: () -> Unit,
+    onTool: (EditorTool) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier
-            .fillMaxWidth()
-            .heightIn(max = 320.dp)
-            .verticalScroll(rememberScrollState()),
+            .fillMaxWidth(),
     ) {
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Pill("+ Add text", active = false, onClick = onAdd)
@@ -58,6 +61,25 @@ fun TextPanel(
                 val label = t.text.lineSequence().firstOrNull().orEmpty().take(14).ifBlank { "Text" }
                 Pill(label, active = t.id == selected?.id) { onSelect(t.id) }
             }
+        }
+        // Text behind the subject needs a good subject outline: fix it right here, no trip to Cutout.
+        if (texts.any { it.behindSubject }) {
+            Label("Subject")
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill(if (hasSubject) "Find again" else "Find subject", active = false, enabled = !busy, onClick = onFindSubject)
+                subjectTools.forEach { (t, label) -> Pill(label, active = t == tool, enabled = !busy) { onTool(t) } }
+            }
+            Text(
+                when {
+                    tool == EditorTool.TEXT_MOVE -> "Drag a text to move it. Pick a subject tool to fix the outline."
+                    tool == EditorTool.SUBJECT_ADD -> "Tap a part of the subject to add it."
+                    tool == EditorTool.SUBJECT_REMOVE -> "Tap an area to remove it from the subject."
+                    tool == EditorTool.SUBJECT_RESTORE -> "Paint over the subject to add it."
+                    else -> "Paint to remove areas from the subject."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MlColors.TextSecondary,
+            )
         }
         if (selected == null) {
             Spacer(Modifier.height(8.dp))
@@ -89,18 +111,7 @@ fun TextPanel(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Pill("Shadow", active = selected.shadow) { onChange { it.copy(shadow = !it.shadow) } }
             Pill("Outline", active = selected.outline) { onChange { it.copy(outline = !it.outline) } }
-            Pill(
-                "Behind subject",
-                active = selected.behindSubject && hasSubject,
-                enabled = hasSubject,
-            ) { onChange { it.copy(behindSubject = !it.behindSubject) } }
-        }
-        if (!hasSubject) {
-            Text(
-                "To put text behind the subject, find the subject in Cutout first.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MlColors.TextSecondary,
-            )
+            Pill("Behind subject", active = selected.behindSubject) { onChange { it.copy(behindSubject = !it.behindSubject) } }
         }
         if (selected.outline) {
             Label("Outline color")
@@ -126,6 +137,14 @@ fun TextPanel(
     }
 }
 
+private val subjectTools = listOf(
+    EditorTool.TEXT_MOVE to "Move text",
+    EditorTool.SUBJECT_ADD to "Tap to add",
+    EditorTool.SUBJECT_REMOVE to "Tap to remove",
+    EditorTool.SUBJECT_RESTORE to "Paint",
+    EditorTool.SUBJECT_ERASE to "Erase",
+)
+
 @Composable
 private fun Label(text: String) {
     Spacer(Modifier.height(8.dp))
@@ -150,20 +169,3 @@ private fun Swatches(selected: Int, onPick: (Int) -> Unit) {
     }
 }
 
-@Composable
-private fun Pill(label: String, active: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
-    Text(
-        label,
-        style = MaterialTheme.typography.labelMedium,
-        color = when {
-            !enabled -> MlColors.TextSecondary.copy(alpha = 0.5f)
-            active -> MlColors.TextPrimary
-            else -> MlColors.TextSecondary
-        },
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(if (active) MlColors.Violet else MlColors.SurfaceHigh)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 7.dp),
-    )
-}

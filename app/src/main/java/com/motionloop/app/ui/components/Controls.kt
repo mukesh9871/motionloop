@@ -1,0 +1,92 @@
+package com.motionloop.app.ui.components
+
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.unit.dp
+import com.motionloop.app.ui.theme.MlColors
+import kotlin.math.max
+
+/** Rounded option chip used by every panel. Active: violet with white text. */
+@Composable
+fun Pill(label: String, active: Boolean, enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Text(
+        label,
+        style = MaterialTheme.typography.labelMedium,
+        color = when {
+            !enabled -> MlColors.TextSecondary.copy(alpha = 0.5f)
+            active -> Color.White
+            else -> MlColors.TextPrimary
+        },
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (active) MlColors.Violet else MlColors.SurfaceHigh)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+    )
+}
+
+/**
+ * Vertical scroll with an always-visible bar on the right whenever there is more content,
+ * so people can tell that more options sit above or below.
+ */
+@Composable
+fun Modifier.verticalScrollWithBar(state: ScrollState): Modifier {
+    val thumb = MlColors.TextSecondary.copy(alpha = 0.7f)
+    val track = MlColors.TextSecondary.copy(alpha = 0.15f)
+    // Drawn before the scroll modifier: this layer has the fixed viewport size.
+    return drawWithContent {
+        drawContent()
+        drawBar(state, vertical = true, thumb, track)
+    }
+        .verticalScroll(state)
+        .padding(end = 12.dp)
+}
+
+/** Horizontal scroll with a thin bar along the bottom when the row overflows. */
+@Composable
+fun Modifier.horizontalScrollWithBar(state: ScrollState): Modifier {
+    val thumb = MlColors.TextSecondary.copy(alpha = 0.7f)
+    val track = MlColors.TextSecondary.copy(alpha = 0.15f)
+    return drawWithContent {
+        drawContent()
+        drawBar(state, vertical = false, thumb, track)
+    }
+        .horizontalScroll(state)
+        .padding(bottom = 6.dp)
+}
+
+private fun DrawScope.drawBar(state: ScrollState, vertical: Boolean, thumb: Color, track: Color) {
+    val max = state.maxValue
+    // Int.MAX_VALUE until the first measure.
+    if (max <= 0 || max == Int.MAX_VALUE) return
+    val viewport = if (vertical) size.height else size.width
+    val thickness = 3.dp.toPx()
+    val length = max(viewport * viewport / (viewport + max), 28.dp.toPx())
+    val start = (viewport - length) * state.value / max
+    val radius = CornerRadius(thickness / 2)
+    if (vertical) {
+        val x = size.width - thickness
+        drawRoundRect(track, Offset(x, 0f), Size(thickness, viewport), radius)
+        drawRoundRect(thumb, Offset(x, start), Size(thickness, length), radius)
+    } else {
+        val y = size.height - thickness
+        drawRoundRect(track, Offset(0f, y), Size(viewport, thickness), radius)
+        drawRoundRect(thumb, Offset(start, y), Size(length, thickness), radius)
+    }
+}

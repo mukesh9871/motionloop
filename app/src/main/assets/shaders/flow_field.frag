@@ -5,11 +5,13 @@ precision highp float;
 // Velocity is in normalized uv units per loop cycle.
 
 #define MAX_ITEMS 64
+#define MAX_SEGMENTS 96
 
 in vec2 vUv;
 
 uniform int uArrowCount;
-uniform vec4 uArrows[MAX_ITEMS];   // start.xy, end.xy (normalized)
+uniform vec4 uArrows[MAX_SEGMENTS];     // segment start.xy, end.xy (normalized)
+uniform vec4 uSpeeds[MAX_SEGMENTS / 4]; // per segment: path length / segment length, 4 per vec4
 uniform int uAnchorCount;
 uniform vec4 uAnchors[MAX_ITEMS];  // center.xy, radius (fraction of width), unused
 uniform float uAspect;             // width / height
@@ -35,12 +37,14 @@ void main() {
 
     // Inverse distance weighting (Shepard, power 2). Smooth everywhere,
     // and exactly the arrow velocity on top of an arrow.
-    for (int i = 0; i < MAX_ITEMS; i++) {
+    for (int i = 0; i < MAX_SEGMENTS; i++) {
         if (i >= uArrowCount) break;
         vec4 a = uArrows[i];
         float d = segmentDistance(p, toAspect(a.xy), toAspect(a.zw));
         float w = 1.0 / (d * d + 1e-4);
-        sum += (a.zw - a.xy) * w;
+        // Along the segment, as fast as the whole path is long (1.0 for a straight arrow).
+        float speed = uSpeeds[i / 4][i % 4];
+        sum += (a.zw - a.xy) * speed * w;
         wsum += w;
     }
 

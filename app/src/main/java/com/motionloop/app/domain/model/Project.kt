@@ -7,9 +7,15 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class NPoint(val x: Float, val y: Float)
 
-/** Straight motion arrow. Its length is how far a pixel travels in one loop cycle. */
+/**
+ * Motion path: a straight arrow, or a free-hand curve in [path] (start and end included).
+ * Its length is how far a pixel travels along it in one loop cycle.
+ */
 @Serializable
-data class MotionArrow(val id: String, val start: NPoint, val end: NPoint)
+data class MotionArrow(val id: String, val start: NPoint, val end: NPoint, val path: List<NPoint> = emptyList()) {
+    /** The drawn line: the free path when there is one, otherwise start to end. */
+    val points: List<NPoint> get() = if (path.size >= 2) path else listOf(start, end)
+}
 
 /** Keeps the area around [center] still. [radius] is a fraction of image width. */
 @Serializable

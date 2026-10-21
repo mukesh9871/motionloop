@@ -37,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -207,7 +208,7 @@ fun ExportSheet(onDismiss: () -> Unit, onOpenPro: () -> Unit, vm: ExportViewMode
                     Button(
                         onClick = startExport,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MlColors.Mint, contentColor = MlColors.Background),
+                        colors = ButtonDefaults.buttonColors(containerColor = MlColors.Mint, contentColor = MlColors.OnMint),
                     ) { Text("Export ${settings.format.name}") }
                 }
             }
@@ -248,7 +249,7 @@ private fun Chip(label: String, selected: Boolean, enabled: Boolean, onClick: ()
         label = { Text(label) },
         colors = FilterChipDefaults.filterChipColors(
             selectedContainerColor = MlColors.Violet,
-            selectedLabelColor = MlColors.TextPrimary,
+            selectedLabelColor = Color.White,
         ),
     )
 }

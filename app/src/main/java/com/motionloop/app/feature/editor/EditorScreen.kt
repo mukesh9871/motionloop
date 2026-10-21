@@ -5,7 +5,6 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -37,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -59,6 +61,8 @@ import com.motionloop.app.feature.editor.components.ToolBar
 import com.motionloop.app.feature.editor.tools.EditorCanvas
 import com.motionloop.app.feature.export.ExportSheet
 import com.motionloop.app.render.editor.GlPreview
+import com.motionloop.app.ui.components.horizontalScrollWithBar
+import com.motionloop.app.ui.components.verticalScrollWithBar
 import com.motionloop.app.ui.icons.MlIcons
 import com.motionloop.app.ui.theme.MlColors
 
@@ -161,7 +165,8 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
             val project = state.project
             PanelTabs(selected = state.panel, onSelect = vm::setPanel)
             Spacer(Modifier.height(6.dp))
-            state.message?.let { msg ->
+            // A message belongs to the panel whose action produced it.
+            state.message?.takeIf { state.messagePanel == null || state.messagePanel == state.panel }?.let { msg ->
                 Text(
                     msg,
                     color = MlColors.Coral,
@@ -172,122 +177,139 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                         .padding(vertical = 4.dp),
                 )
             }
-            if (state.panel == EditorPanel.SOUND) {
-                if (project != null) {
-                    SoundPanel(
-                        audio = project.audio,
-                        busy = state.busy != null,
-                        onChange = vm::setAudio,
-                        onPickFile = { gated(ProFeature.MUSIC) { pickAudio.launch(arrayOf("audio/*")) } },
-                    )
-                }
-            } else if (state.panel == EditorPanel.TEXT) {
-                if (project != null) {
-                    TextPanel(
-                        texts = project.texts,
-                        selected = state.selectedText,
-                        hasSubject = project.subject.hasArea,
-                        onAdd = vm::addText,
-                        onSelect = vm::selectText,
-                        onChange = vm::updateSelectedText,
-                        onDelete = vm::deleteSelectedText,
-                    )
-                }
-            } else if (state.panel == EditorPanel.CUTOUT) {
-                if (project != null) {
-                    CutoutPanel(
-                        subject = project.subject,
-                        background = project.background,
-                        tool = state.tool,
-                        busy = state.busy != null,
-                        onDetect = vm::detectSubject,
-                        onTool = vm::setTool,
-                        onBackground = { change ->
-                            if (change(project.background).mode == BackgroundMode.PHOTO) {
-                                gated(ProFeature.BACKGROUND_PHOTO) { vm.setBackground(change) }
-                            } else {
-                                vm.setBackground(change)
+            // One scroll area for every panel, with a visible bar when there is more below.
+            key(state.panel) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 280.dp)
+                        .verticalScrollWithBar(rememberScrollState()),
+                ) {
+                    if (state.panel == EditorPanel.SOUND) {
+                        if (project != null) {
+                            SoundPanel(
+                                audio = project.audio,
+                                busy = state.busy != null,
+                                onChange = vm::setAudio,
+                                onPickFile = { gated(ProFeature.MUSIC) { pickAudio.launch(arrayOf("audio/*")) } },
+                            )
+                        }
+                    } else if (state.panel == EditorPanel.TEXT) {
+                        if (project != null) {
+                            TextPanel(
+                                texts = project.texts,
+                                selected = state.selectedText,
+                                hasSubject = project.subject.hasArea,
+                                tool = state.tool,
+                                busy = state.busy != null,
+                                onAdd = vm::addText,
+                                onSelect = vm::selectText,
+                                onChange = vm::updateSelectedText,
+                                onDelete = vm::deleteSelectedText,
+                                onFindSubject = vm::detectSubject,
+                                onTool = vm::setTool,
+                            )
+                            if (state.isSubjectBrush) {
+                                LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
                             }
-                        },
-                        onFeather = vm::setSubjectFeather,
-                        onPickPhoto = {
-                            gated(ProFeature.BACKGROUND_PHOTO) {
-                                pickBackgroundPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        }
+                    } else if (state.panel == EditorPanel.CUTOUT) {
+                        if (project != null) {
+                            CutoutPanel(
+                                subject = project.subject,
+                                background = project.background,
+                                tool = state.tool,
+                                busy = state.busy != null,
+                                onDetect = vm::detectSubject,
+                                onTool = vm::setTool,
+                                onBackground = { change ->
+                                    if (change(project.background).mode == BackgroundMode.PHOTO) {
+                                        gated(ProFeature.BACKGROUND_PHOTO) { vm.setBackground(change) }
+                                    } else {
+                                        vm.setBackground(change)
+                                    }
+                                },
+                                onFeather = vm::setSubjectFeather,
+                                onPickPhoto = {
+                                    gated(ProFeature.BACKGROUND_PHOTO) {
+                                        pickBackgroundPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                    }
+                                },
+                            )
+                            if (state.isSubjectBrush) {
+                                LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
                             }
-                        },
-                    )
-                    if (state.isSubjectBrush) {
+                        }
+                    } else if (state.panel == EditorPanel.DEPTH) {
+                        if (project != null) {
+                            DepthPanel(
+                                settings = project.parallax,
+                                busy = state.busy != null,
+                                onCreateDepth = { gated(ProFeature.PARALLAX) { vm.createDepth() } },
+                                // Only turning 3D on (or changing it while on) is Pro. Turning it off always works.
+                                onChange = { change ->
+                                    if (change(project.parallax).enabled) gated(ProFeature.PARALLAX) { vm.setParallax(change) } else vm.setParallax(change)
+                                },
+                            )
+                        }
+                    } else if (state.panel == EditorPanel.SKY) {
+                        if (project != null) {
+                            SkyPanel(
+                                sky = project.sky,
+                                tool = state.tool,
+                                busy = state.busy != null,
+                                onDetect = vm::detectSky,
+                                onTool = vm::setTool,
+                                onChange = vm::setSky,
+                                onPickPhoto = {
+                                    gated(ProFeature.SKY_PHOTO) {
+                                        pickSkyPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                    }
+                                },
+                            )
+                            if (state.isSkyBrush) {
+                                LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
+                            }
+                        }
+                    } else if (state.panel == EditorPanel.OVERLAY) {
+                        if (project != null) {
+                            OverlayPanel(settings = project.overlay, onChange = vm::setOverlay)
+                        }
+                    } else if (state.panel == EditorPanel.ADJUST) {
+                        if (project != null) {
+                            AdjustPanel(
+                                adjustments = project.adjustments,
+                                hasCustom = state.hasCustomLut,
+                                onChange = vm::setAdjustments,
+                                onSelectGrade = vm::selectGrade,
+                                onImportCube = { gated(ProFeature.CUSTOM_LUT) { pickCube.launch(arrayOf("*/*")) } },
+                                onReset = vm::resetAdjustments,
+                            )
+                        }
+                    } else if (state.isBrush) {
                         LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
-                    }
-                }
-            } else if (state.panel == EditorPanel.DEPTH) {
-                if (project != null) {
-                    DepthPanel(
-                        settings = project.parallax,
-                        busy = state.busy != null,
-                        onCreateDepth = { gated(ProFeature.PARALLAX) { vm.createDepth() } },
-                        // Only turning 3D on (or changing it while on) is Pro. Turning it off always works.
-                        onChange = { change ->
-                            if (change(project.parallax).enabled) gated(ProFeature.PARALLAX) { vm.setParallax(change) } else vm.setParallax(change)
-                        },
-                    )
-                }
-            } else if (state.panel == EditorPanel.SKY) {
-                if (project != null) {
-                    SkyPanel(
-                        sky = project.sky,
-                        tool = state.tool,
-                        busy = state.busy != null,
-                        onDetect = vm::detectSky,
-                        onTool = vm::setTool,
-                        onChange = vm::setSky,
-                        onPickPhoto = {
-                            gated(ProFeature.SKY_PHOTO) {
-                                pickSkyPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        LabeledSlider("Softness", 1f - state.brushHardness, 0.05f..1f, { vm.setBrushHardness(1f - it) })
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                hintFor(state.tool),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MlColors.TextSecondary,
+                                modifier = Modifier.weight(1f).padding(vertical = 6.dp),
+                            )
+                            val selecting = state.tool == EditorTool.SELECT_FREEZE || state.tool == EditorTool.SELECT_ANIMATE
+                            if (selecting && project?.selections?.isNotEmpty() == true) {
+                                Text(
+                                    "Clear",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MlColors.Mint,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable(onClick = vm::clearSelections)
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                )
                             }
-                        },
-                    )
-                    if (state.isSkyBrush) {
-                        LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
-                    }
-                }
-            } else if (state.panel == EditorPanel.OVERLAY) {
-                if (project != null) {
-                    OverlayPanel(settings = project.overlay, onChange = vm::setOverlay)
-                }
-            } else if (state.panel == EditorPanel.ADJUST) {
-                if (project != null) {
-                    AdjustPanel(
-                        adjustments = project.adjustments,
-                        hasCustom = state.hasCustomLut,
-                        onChange = vm::setAdjustments,
-                        onSelectGrade = vm::selectGrade,
-                        onImportCube = { gated(ProFeature.CUSTOM_LUT) { pickCube.launch(arrayOf("*/*")) } },
-                        onReset = vm::resetAdjustments,
-                    )
-                }
-            } else if (state.isBrush) {
-                LabeledSlider("Size", state.brushRadius, 0.01f..0.2f, vm::setBrushRadius)
-                LabeledSlider("Softness", 1f - state.brushHardness, 0.05f..1f, { vm.setBrushHardness(1f - it) })
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        hintFor(state.tool),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MlColors.TextSecondary,
-                        modifier = Modifier.weight(1f).padding(vertical = 6.dp),
-                    )
-                    val selecting = state.tool == EditorTool.SELECT_FREEZE || state.tool == EditorTool.SELECT_ANIMATE
-                    if (selecting && project?.selections?.isNotEmpty() == true) {
-                        Text(
-                            "Clear",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MlColors.Mint,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable(onClick = vm::clearSelections)
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                        )
+                        }
                     }
                 }
             }
@@ -321,20 +343,20 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
 
 @Composable
 private fun PanelTabs(selected: EditorPanel, onSelect: (EditorPanel) -> Unit) {
-    // Six panels do not fit narrow phones at a readable size: the row scrolls.
+    // Eight panels do not fit narrow phones at a readable size: the row scrolls, and its bar shows there is more.
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(MlColors.SurfaceHigh)
-            .horizontalScroll(rememberScrollState()),
+            .horizontalScrollWithBar(rememberScrollState()),
     ) {
         EditorPanel.entries.forEach { panel ->
             val active = panel == selected
             Text(
                 panel.label,
                 style = MaterialTheme.typography.labelMedium,
-                color = if (active) MlColors.TextPrimary else MlColors.TextSecondary,
+                color = if (active) Color.White else MlColors.TextPrimary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
@@ -363,7 +385,7 @@ private fun BusyBadge(label: String, modifier: Modifier = Modifier) {
 }
 
 private fun hintFor(tool: EditorTool) = when (tool) {
-    EditorTool.ARROW -> "Drag to draw arrows. Longer arrows move faster."
+    EditorTool.ARROW -> "Draw the path things should follow. Longer paths move faster."
     EditorTool.ANCHOR -> "Tap to pin points that must stay still."
     EditorTool.ERASE -> "Tap an arrow or anchor to remove it."
     EditorTool.SELECT_FREEZE -> "Tap an object to hold it still."
@@ -388,11 +410,19 @@ private fun TopBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        IconButton(onClick = onBack) { Icon(MlIcons.Back, contentDescription = "Back") }
+        IconButton(onClick = onBack) { Icon(MlIcons.Back, contentDescription = "Back", tint = MlColors.TextPrimary) }
         Spacer(Modifier.weight(1f))
-        IconButton(onClick = onUndo, enabled = canUndo) { Icon(MlIcons.Undo, contentDescription = "Undo") }
-        IconButton(onClick = onRedo, enabled = canRedo) { Icon(MlIcons.Redo, contentDescription = "Redo") }
-        Spacer(Modifier.width(4.dp))
+        // Undo and redo in one framed group, labelled, so they read as buttons.
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(50))
+                .background(MlColors.SurfaceHigh),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            HistoryButton("Undo", MlIcons.Undo, canUndo, onUndo)
+            HistoryButton("Redo", MlIcons.Redo, canRedo, onRedo)
+        }
+        Spacer(Modifier.width(8.dp))
         Row(
             Modifier
                 .clip(RoundedCornerShape(50))
@@ -401,10 +431,27 @@ private fun TopBar(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(MlIcons.Export, contentDescription = null, tint = MlColors.Background, modifier = Modifier.size(18.dp))
+            val ink = if (exportEnabled) MlColors.OnMint else MlColors.TextSecondary
+            Icon(MlIcons.Export, contentDescription = null, tint = ink, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text("Export", color = MlColors.Background, style = MaterialTheme.typography.titleMedium)
+            Text("Export", color = ink, style = MaterialTheme.typography.titleMedium)
         }
         Spacer(Modifier.width(8.dp))
+    }
+}
+
+@Composable
+private fun HistoryButton(label: String, icon: ImageVector, enabled: Boolean, onClick: () -> Unit) {
+    val color = if (enabled) MlColors.TextPrimary else MlColors.TextSecondary.copy(alpha = 0.4f)
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(50))
+            .clickable(enabled = enabled, onClickLabel = label, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = color)
     }
 }

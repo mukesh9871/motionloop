@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +23,7 @@ import com.motionloop.app.domain.model.BlendMode
 import com.motionloop.app.domain.model.LightLeak
 import com.motionloop.app.domain.model.OverlaySettings
 import com.motionloop.app.domain.model.ParticleType
+import com.motionloop.app.ui.components.Pill
 import com.motionloop.app.ui.theme.MlColors
 
 private fun ParticleType.label() = when (this) {
@@ -60,9 +60,7 @@ fun OverlayPanel(
     // Capped and scrollable so the photo keeps most of the screen.
     Column(
         modifier
-            .fillMaxWidth()
-            .heightIn(max = 280.dp)
-            .verticalScroll(rememberScrollState()),
+            .fillMaxWidth(),
     ) {
         SectionLabel("Particles")
         ChipRow(ParticleType.entries, settings.particles, { it.label() }) { v -> onChange { it.copy(particles = v) } }
@@ -107,16 +105,7 @@ private fun <T> ChipRow(options: List<T>, selected: T, label: (T) -> String, onS
     ) {
         options.forEach { option ->
             val active = option == selected
-            Text(
-                label(option),
-                style = MaterialTheme.typography.labelMedium,
-                color = if (active) MlColors.TextPrimary else MlColors.TextSecondary,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(if (active) MlColors.Violet else MlColors.SurfaceHigh)
-                    .clickable { onSelect(option) }
-                    .padding(horizontal = 14.dp, vertical = 7.dp),
-            )
+            Pill(label(option), active = active) { onSelect(option) }
         }
     }
 }

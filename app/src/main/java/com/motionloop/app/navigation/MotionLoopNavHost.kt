@@ -8,6 +8,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.motionloop.app.feature.contact.ContactScreen
 import com.motionloop.app.feature.editor.EditorScreen
 import com.motionloop.app.feature.help.HelpScreen
 import com.motionloop.app.feature.home.HomeScreen
@@ -23,6 +24,7 @@ object Routes {
     const val LICENSES = "licenses"
     const val HELP = "help"
     const val PRO = "pro"
+    const val CONTACT = "contact"
     fun editor(projectId: String) = "editor/$projectId"
 }
 
@@ -38,6 +40,7 @@ fun MotionLoopNavHost() {
     val nav = rememberNavController()
     // launchSingleTop: a double tap must not stack two copies of the same page.
     val openPro: () -> Unit = { nav.navigate(Routes.PRO) { launchSingleTop = true } }
+    val openContact: () -> Unit = { nav.navigate(Routes.CONTACT) { launchSingleTop = true } }
     NavHost(navController = nav, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
             HomeScreen(
@@ -45,6 +48,7 @@ fun MotionLoopNavHost() {
                 onOpenSettings = { nav.navigate(Routes.SETTINGS) { launchSingleTop = true } },
                 onOpenHelp = { nav.navigate(Routes.HELP) { launchSingleTop = true } },
                 onOpenPro = openPro,
+                onOpenContact = openContact,
             )
         }
         composable(
@@ -61,7 +65,8 @@ fun MotionLoopNavHost() {
             )
         }
         composable(Routes.LICENSES) { LicensesScreen(onBack = guardedBack(nav)) }
-        composable(Routes.HELP) { HelpScreen(onBack = guardedBack(nav)) }
+        composable(Routes.HELP) { HelpScreen(onBack = guardedBack(nav), onContact = openContact) }
+        composable(Routes.CONTACT) { ContactScreen(onBack = guardedBack(nav)) }
         composable(Routes.PRO) { ProScreen(onBack = guardedBack(nav)) }
     }
 }

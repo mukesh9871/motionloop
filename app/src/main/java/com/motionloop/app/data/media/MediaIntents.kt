@@ -24,12 +24,15 @@ object MediaIntents {
         context.startActivity(Intent.createChooser(send, null))
     }
 
-    /** Opens the mail app. Returns false when there is none. */
-    fun email(context: Context, address: String, subject: String): Boolean = try {
+    /** Opens the mail app with the message filled in. Returns false when there is none. */
+    fun email(context: Context, address: String, subject: String, body: String = ""): Boolean = try {
+        // Both the mailto query and the extras: some mail apps read only one of them.
+        val uri = Uri.parse("mailto:$address?subject=${Uri.encode(subject)}&body=${Uri.encode(body)}")
         context.startActivity(
-            Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")).apply {
+            Intent(Intent.ACTION_SENDTO, uri).apply {
                 putExtra(Intent.EXTRA_EMAIL, arrayOf(address))
                 putExtra(Intent.EXTRA_SUBJECT, subject)
+                putExtra(Intent.EXTRA_TEXT, body)
             },
         )
         true

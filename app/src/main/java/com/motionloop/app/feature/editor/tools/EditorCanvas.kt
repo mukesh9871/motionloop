@@ -13,6 +13,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -87,15 +88,23 @@ fun EditorCanvas(
 private fun DrawScope.toPx(p: NPoint) = Offset(p.x * size.width, p.y * size.height)
 
 private fun DrawScope.drawArrow(a: MotionArrow) {
-    val s = toPx(a.start)
-    val e = toPx(a.end)
+    val pts = a.points.map { toPx(it) }
+    val s = pts.first()
+    val e = pts.last()
     val stroke = 3.5f * density
-    drawLine(Color.Black.copy(alpha = 0.35f), s, e, strokeWidth = stroke + 3f, cap = StrokeCap.Round)
-    drawLine(MlColors.Arrow, s, e, strokeWidth = stroke, cap = StrokeCap.Round)
+    val line = Path().apply {
+        moveTo(s.x, s.y)
+        for (i in 1 until pts.size) lineTo(pts[i].x, pts[i].y)
+    }
+    drawPath(line, Color.Black.copy(alpha = 0.35f), style = Stroke(width = stroke + 3f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(line, MlColors.Arrow, style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
     drawCircle(MlColors.Arrow, radius = stroke, center = s)
 
-    val angle = atan2(e.y - s.y, e.x - s.x)
-    val head = min(14f * density, (e - s).getDistance() * 0.6f)
+    // The head points along the last piece of the path that has some length.
+    val from = pts.dropLast(1).lastOrNull { (e - it).getDistance() > stroke } ?: s
+
+    val angle = atan2(e.y - from.y, e.x - from.x)
+    val head = min(14f * density, (e - from).getDistance() * 0.6f)
     val path = Path().apply {
         moveTo(e.x, e.y)
         lineTo(e.x - head * cos(angle - 0.45f), e.y - head * sin(angle - 0.45f))

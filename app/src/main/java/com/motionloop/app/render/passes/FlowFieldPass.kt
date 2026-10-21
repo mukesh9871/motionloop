@@ -8,6 +8,7 @@ import com.motionloop.app.core.gl.GlTexture
 import com.motionloop.app.core.gl.GlUtil
 import com.motionloop.app.domain.model.Anchor
 import com.motionloop.app.domain.model.MotionArrow
+import com.motionloop.app.domain.model.MotionPaths
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -23,18 +24,22 @@ class FlowFieldPass(assets: AssetManager, private val quad: FullscreenQuad) : Re
     var texture: GlTexture? = null
         private set
 
-    private val arrowData = FloatArray(MAX_ITEMS * 4)
+    private val segmentData = FloatArray(MAX_SEGMENTS * 4)
+    private val speedData = FloatArray(MAX_SEGMENTS)
     private val anchorData = FloatArray(MAX_ITEMS * 4)
 
     fun render(aspect: Float, arrows: List<MotionArrow>, anchors: List<Anchor>) {
         val target = ensureTarget(aspect)
-        val arrowCount = minOf(arrows.size, MAX_ITEMS)
+        // Curved paths arrive as several straight segments, each with its own speed factor.
+        val segments = MotionPaths.segments(arrows, aspect, MAX_SEGMENTS)
+        val arrowCount = segments.size
         for (i in 0 until arrowCount) {
-            val a = arrows[i]
-            arrowData[i * 4] = a.start.x
-            arrowData[i * 4 + 1] = a.start.y
-            arrowData[i * 4 + 2] = a.end.x
-            arrowData[i * 4 + 3] = a.end.y
+            val s = segments[i]
+            segmentData[i * 4] = s.a.x
+            segmentData[i * 4 + 1] = s.a.y
+            segmentData[i * 4 + 2] = s.b.x
+            segmentData[i * 4 + 3] = s.b.y
+            speedData[i] = s.speed
         }
         val anchorCount = minOf(anchors.size, MAX_ITEMS)
         for (i in 0 until anchorCount) {
@@ -50,7 +55,8 @@ class FlowFieldPass(assets: AssetManager, private val quad: FullscreenQuad) : Re
         program.use()
         program.set1f("uFlipY", 0f)
         program.set1i("uArrowCount", arrowCount)
-        program.set4fv("uArrows", MAX_ITEMS, arrowData)
+        program.set4fv("uArrows", MAX_SEGMENTS, segmentData)
+        program.set4fv("uSpeeds", MAX_SEGMENTS / 4, speedData)
         program.set1i("uAnchorCount", anchorCount)
         program.set4fv("uAnchors", MAX_ITEMS, anchorData)
         program.set1f("uAspect", aspect)
@@ -81,6 +87,12 @@ class FlowFieldPass(assets: AssetManager, private val quad: FullscreenQuad) : Re
 
     companion object {
         const val MAX_ITEMS = 64
+
+        /**
+         * Straight pieces of all motion paths together. With the anchors this stays under the
+         * 224 fragment uniform vectors every GLES 3.0 device must offer. Keep in sync with flow_field.frag.
+         */
+        const val MAX_SEGMENTS = 96
 
         /** Upper bound on per-cycle displacement, only used by the RGBA8 fallback encoding. */
         const val MAX_FLOW = 1f

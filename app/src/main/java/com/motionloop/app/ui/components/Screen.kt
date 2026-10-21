@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,13 +38,13 @@ fun SimpleScreen(title: String, onBack: () -> Unit, content: @Composable ColumnS
             .safeDrawingPadding(),
     ) {
         Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(MlIcons.Back, contentDescription = "Back") }
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            IconButton(onClick = onBack) { Icon(MlIcons.Back, contentDescription = "Back", tint = MlColors.TextPrimary) }
+            Text(title, style = MaterialTheme.typography.titleMedium, color = MlColors.TextPrimary)
         }
         Column(
             Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScrollWithBar(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
             content = content,

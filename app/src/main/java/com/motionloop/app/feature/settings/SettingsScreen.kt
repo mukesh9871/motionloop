@@ -4,16 +4,13 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -22,16 +19,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.motionloop.app.BuildConfig
 import com.motionloop.app.domain.model.AppLinks
 import com.motionloop.app.domain.model.ExportResolution
+import com.motionloop.app.domain.model.ThemeMode
 import com.motionloop.app.ui.components.MenuRow
+import com.motionloop.app.ui.components.Pill
 import com.motionloop.app.ui.components.SectionTitle
 import com.motionloop.app.ui.components.SimpleScreen
 import com.motionloop.app.ui.theme.MlColors
@@ -55,22 +56,33 @@ fun SettingsScreen(
             onClick = onOpenPro,
         )
 
+        SectionTitle("Appearance")
+        Text("Theme", style = MaterialTheme.typography.bodyLarge)
+        Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ThemeMode.entries.forEach { mode ->
+                val active = state.theme == mode
+                Pill(mode.label, active = active, modifier = Modifier.semantics { role = Role.RadioButton; selected = active }) {
+                    vm.setTheme(mode)
+                }
+            }
+        }
+
         SectionTitle("Export")
         Text("Default video quality", style = MaterialTheme.typography.bodyLarge)
         Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(ExportResolution.HD, ExportResolution.FULL_HD).forEach { r ->
+            ExportResolution.entries.forEach { r ->
                 val active = state.defaultResolution == r
-                Text(
-                    r.label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (active) MlColors.TextPrimary else MlColors.TextSecondary,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(if (active) MlColors.Violet else MlColors.SurfaceHigh)
-                        .selectable(selected = active, role = Role.RadioButton) { vm.setDefaultResolution(r) }
-                        .padding(horizontal = 14.dp, vertical = 7.dp),
-                )
+                Pill(r.label, active = active, modifier = Modifier.semantics { role = Role.RadioButton; selected = active }) {
+                    vm.setDefaultResolution(r)
+                }
             }
+        }
+        if (state.defaultResolution == ExportResolution.UHD) {
+            Text(
+                "4K is used where your phone can record it. Other phones export in 1080p.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MlColors.TextSecondary,
+            )
         }
 
         SectionTitle("Editor")

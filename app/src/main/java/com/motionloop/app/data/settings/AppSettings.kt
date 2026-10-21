@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.motionloop.app.BuildConfig
 import com.motionloop.app.domain.model.ExportResolution
+import com.motionloop.app.domain.model.ThemeMode
 import com.motionloop.app.domain.pro.Entitlements
 import com.motionloop.app.domain.pro.ProPlan
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -15,6 +16,7 @@ import javax.inject.Singleton
 
 data class SettingsState(
     val defaultResolution: ExportResolution = ExportResolution.FULL_HD,
+    val theme: ThemeMode = ThemeMode.SYSTEM,
     val keepScreenOn: Boolean = true,
     /** Debug builds only: pretend to own Pro to test locked features. */
     val simulatePro: Boolean = false,
@@ -41,6 +43,7 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
     val simulatePro: StateFlow<Boolean> get() = _simulatePro.asStateFlow()
 
     fun setDefaultResolution(r: ExportResolution) = edit { it.copy(defaultResolution = r) }
+    fun setTheme(mode: ThemeMode) = edit { it.copy(theme = mode) }
     fun setKeepScreenOn(on: Boolean) = edit { it.copy(keepScreenOn = on) }
     fun setSimulatePro(on: Boolean) = edit { it.copy(simulatePro = on && BuildConfig.DEBUG) }
 
@@ -56,6 +59,7 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
         // apply() writes to disk asynchronously, so this is safe on the main thread.
         prefs.edit()
             .putString(KEY_RESOLUTION, next.defaultResolution.name)
+            .putString(KEY_THEME, next.theme.name)
             .putBoolean(KEY_SCREEN_ON, next.keepScreenOn)
             .putBoolean(KEY_SIMULATE_PRO, next.simulatePro)
             .putString(KEY_WALLPAPER, next.wallpaperProjectId)
@@ -63,11 +67,13 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
     }
 
     private fun read() = SettingsState(
-        // Only HD and Full HD can be defaults: 4K depends on the encoder and on Pro.
+        // 4K may be the default: the export sheet falls back to 1080p where the encoder cannot do it.
         defaultResolution = prefs.getString(KEY_RESOLUTION, null)
             ?.let { name -> ExportResolution.entries.firstOrNull { it.name == name } }
-            ?.takeIf { it != ExportResolution.UHD }
             ?: ExportResolution.FULL_HD,
+        theme = prefs.getString(KEY_THEME, null)
+            ?.let { name -> ThemeMode.entries.firstOrNull { it.name == name } }
+            ?: ThemeMode.SYSTEM,
         keepScreenOn = prefs.getBoolean(KEY_SCREEN_ON, true),
         simulatePro = BuildConfig.DEBUG && prefs.getBoolean(KEY_SIMULATE_PRO, false),
         wallpaperProjectId = prefs.getString(KEY_WALLPAPER, null),
@@ -75,6 +81,7 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
 
     private companion object {
         const val KEY_RESOLUTION = "default_resolution"
+        const val KEY_THEME = "theme"
         const val KEY_SCREEN_ON = "keep_screen_on"
         const val KEY_SIMULATE_PRO = "simulate_pro"
         const val KEY_WALLPAPER = "wallpaper_project"

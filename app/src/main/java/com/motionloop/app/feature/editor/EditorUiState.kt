@@ -70,6 +70,8 @@ data class EditorUiState(
     val brushHardness: Float = 0.5f,
     val playing: Boolean = false,
     val canUndo: Boolean = false,
+    /** Panel the current message belongs to. Null: show it everywhere. */
+    val messagePanel: EditorPanel? = null,
     val canRedo: Boolean = false,
     /** In-progress gesture, drawn and rendered before it is committed to history. */
     val liveArrow: MotionArrow? = null,
@@ -107,6 +109,7 @@ data class EditorUiState(
 
     val isSkyBrush: Boolean get() = tool == EditorTool.SKY_PAINT || tool == EditorTool.SKY_ERASE
     val isSubjectBrush: Boolean get() = tool == EditorTool.SUBJECT_RESTORE || tool == EditorTool.SUBJECT_ERASE
+    val isSubjectTool: Boolean get() = isSubjectBrush || tool == EditorTool.SUBJECT_ADD || tool == EditorTool.SUBJECT_REMOVE
     val isBrush: Boolean
         get() = tool == EditorTool.FREEZE || tool == EditorTool.UNFREEZE || isSkyBrush || isSubjectBrush
 
@@ -150,8 +153,11 @@ data class EditorUiState(
                 background = p.background,
                 backgroundPhoto = backgroundPhoto.takeIf { backgroundPhotoRev == p.background.photoRev },
                 // In the cutout panel, show the subject as a tint while painting or before a background is chosen.
-                subjectTintOnly = panel == EditorPanel.CUTOUT && !playing &&
-                    (liveStroke != null || p.background.mode == BackgroundMode.NONE),
+                subjectTintOnly = !playing && (
+                    (panel == EditorPanel.CUTOUT && (liveStroke != null || p.background.mode == BackgroundMode.NONE)) ||
+                        // Fixing the subject from the Text panel: show what is selected.
+                        (panel == EditorPanel.TEXT && isSubjectTool)
+                    ),
                 // Paused: show every text fully (a fade starts invisible at phase 0), animate only while playing.
                 beatEnvelope = beatEnvelope.takeIf { p.audio.beatSync },
                 beatAmount = p.audio.beatAmount,

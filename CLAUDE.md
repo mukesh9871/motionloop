@@ -11,7 +11,7 @@ Android app that turns still photos into seamless looping animations. Original n
 | Architecture | MVVM + unidirectional state (`StateFlow<UiState>`, one-shot events via `Channel`) |
 | DI | Hilt |
 | Rendering | OpenGL ES 3.0 (GLSL `#version 300 es`), no compute shaders (those need 3.1) |
-| Video export | MediaCodec (H.264) with an input Surface + MediaMuxer. Media3 Transformer added in Phase 6 for audio muxing |
+| Video export | MediaCodec (H.264) with an input Surface + MediaMuxer, own AAC encoder for the sound track (Phase 6) |
 | GIF export | Own encoder: one global median-cut palette, 4x4 ordered dither, LZW. Runs on the default dispatcher |
 | Persistence | Project folder per project: `project.json` (kotlinx.serialization, includes mask strokes) + `source.jpg` + `thumb.jpg` |
 | Images | Photo Picker (`PickVisualMedia`) for gallery, `TakePicture` + FileProvider for camera |
@@ -189,7 +189,7 @@ app/src/test, core/ml/src/test    JVM unit tests
 | Ambient sounds | Synthesized in code (rain, waves, wind, fire) | Original, loop exactly |
 | MP4 audio | Own AAC MediaCodec encoder + the existing MediaMuxer | Replaces the earlier Media3 Transformer idea: one pipeline |
 
-All ML inference runs on `@DefaultDispatcher`, behind a `Mutex` (MediaPipe tasks are not thread safe). Results are saved as PNG masks in the project folder (`sky_mask.png`, `subject_mask.png`, `depth.png`, `selection_<id>.png`) so they are computed once.
+All ML inference runs on `@DefaultDispatcher`, behind a `Mutex` (MediaPipe tasks are not thread safe). Results are saved in the project folder as revisioned `.mask` files (own deflate format, `MaskCodec`), for example `sky_3.mask`, so they are computed once and undo can point at older revisions.
 
 ### Render chain from Phase 4
 

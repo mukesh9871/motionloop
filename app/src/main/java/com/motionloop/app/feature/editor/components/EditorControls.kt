@@ -1,8 +1,10 @@
 package com.motionloop.app.feature.editor.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -31,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import com.motionloop.app.domain.model.LoopMode
 import com.motionloop.app.domain.model.LoopSettings
 import com.motionloop.app.feature.editor.EditorTool
+import com.motionloop.app.ui.components.horizontalScrollWithBar
 import com.motionloop.app.ui.icons.MlIcons
 import com.motionloop.app.ui.theme.MlColors
 
@@ -48,29 +51,24 @@ private val tools = listOf(
 
 @Composable
 fun ToolBar(selected: EditorTool, onSelect: (EditorTool) -> Unit, modifier: Modifier = Modifier) {
-    // Seven tools do not fit narrow phones: let the row scroll.
-    Row(modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+    // Seven tools do not fit narrow phones: the row scrolls, and its bar shows there is more.
+    Row(modifier.fillMaxWidth().horizontalScrollWithBar(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         tools.forEach { spec ->
             val active = spec.tool == selected
+            // The active tool is a filled violet tile, so the current mode is clear at a glance.
+            val content = if (active) Color.White else MlColors.TextSecondary
             Column(
                 Modifier
                     .clip(RoundedCornerShape(14.dp))
-                    .clickable { onSelect(spec.tool) }
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                    .background(if (active) MlColors.Violet else Color.Transparent)
+                    .border(1.dp, if (active) Color.Transparent else MlColors.SurfaceHigh, RoundedCornerShape(14.dp))
+                    .selectable(selected = active, role = Role.Tab) { onSelect(spec.tool) }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Icon(
-                    spec.icon,
-                    contentDescription = spec.label,
-                    tint = if (active) MlColors.Mint else MlColors.TextSecondary,
-                    modifier = Modifier.size(26.dp),
-                )
+                Icon(spec.icon, contentDescription = null, tint = content, modifier = Modifier.size(24.dp))
                 Spacer(Modifier.height(4.dp))
-                Text(
-                    spec.label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (active) MlColors.Mint else MlColors.TextSecondary,
-                )
+                Text(spec.label, style = MaterialTheme.typography.labelMedium, color = content)
             }
         }
     }
@@ -153,10 +151,12 @@ private fun ModeToggle(mode: LoopMode, onMode: (LoopMode) -> Unit) {
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                val content = if (active) Color.White else MlColors.TextPrimary
+                Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(20.dp))
                 Text(
                     if (m == LoopMode.CONTINUOUS) "Loop" else "Bounce",
                     style = MaterialTheme.typography.labelMedium,
+                    color = content,
                     textAlign = TextAlign.Center,
                 )
             }

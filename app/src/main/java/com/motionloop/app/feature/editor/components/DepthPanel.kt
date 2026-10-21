@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.motionloop.app.domain.model.CameraPath
 import com.motionloop.app.domain.model.ParallaxSettings
+import com.motionloop.app.ui.components.Pill
 import com.motionloop.app.ui.theme.MlColors
 
 private fun CameraPath.label() = when (this) {
@@ -45,7 +46,7 @@ fun DepthPanel(
                 color = MlColors.TextSecondary,
             )
             Spacer(Modifier.height(8.dp))
-            Chip("Create depth map", active = true, enabled = !busy, onClick = onCreateDepth)
+            Pill("Create depth map", active = true, enabled = !busy, onClick = onCreateDepth)
             return@Column
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -58,7 +59,7 @@ fun DepthPanel(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CameraPath.entries.forEach { path ->
-                Chip(path.label(), active = settings.path == path, enabled = !busy) {
+                Pill(path.label(), active = settings.path == path, enabled = !busy) {
                     onChange { it.copy(path = path, enabled = true) }
                 }
             }
@@ -73,16 +74,3 @@ fun DepthPanel(
     }
 }
 
-@Composable
-private fun Chip(label: String, active: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    Text(
-        label,
-        style = MaterialTheme.typography.labelMedium,
-        color = if (active) MlColors.TextPrimary else MlColors.TextSecondary,
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(if (active) MlColors.Violet else MlColors.SurfaceHigh)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 7.dp),
-    )
-}

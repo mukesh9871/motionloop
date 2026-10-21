@@ -17,6 +17,7 @@ import com.motionloop.app.domain.model.MaskKind
 import com.motionloop.app.domain.model.MaskMode
 import com.motionloop.app.domain.model.MaskStroke
 import com.motionloop.app.domain.model.MotionArrow
+import com.motionloop.app.domain.model.MotionPaths
 import com.motionloop.app.domain.model.NPoint
 import com.motionloop.app.domain.model.OverlaySettings
 import com.motionloop.app.domain.model.Project
@@ -208,7 +209,7 @@ class EditorViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 loadedSound = null
-                _state.update { it.copy(message = "Could not play that sound: ${e.message}") }
+                _state.update { it.copy(messagePanel = messageOrigin(), message = "Could not play that sound: ${e.message}") }
             }
         }
     }
@@ -225,17 +226,19 @@ class EditorViewModel @Inject constructor(
     fun addText() {
         val p = _state.value.project ?: return
         if (p.texts.size >= TextLayer.MAX_LAYERS) {
-            _state.update { it.copy(message = "Up to ${TextLayer.MAX_LAYERS} text layers.") }
+            _state.update { it.copy(messagePanel = messageOrigin(), message = "Up to ${TextLayer.MAX_LAYERS} text layers.") }
             return
         }
+        // Behind the subject by default. Without a subject it simply draws over the photo until
+        // one is found, so find it now: the panel offers tap and paint fixes if it is wrong.
         val layer = TextLayer(
             id = UUID.randomUUID().toString(),
-            // Behind the subject only makes sense when there is one.
-            behindSubject = p.subject.hasArea,
+            behindSubject = true,
             y = 0.3f + 0.08f * p.texts.size,
         )
         setTexts(p.texts + layer)
         _state.update { it.copy(selectedTextId = layer.id) }
+        if (!p.subject.hasArea) detectSubject()
     }
 
     fun selectText(id: String?) = _state.update { it.copy(selectedTextId = id) }
@@ -358,7 +361,7 @@ class EditorViewModel @Inject constructor(
     fun detectSubject() = runModel("Finding the subject") { preview ->
         val mask = withContext(cpu) { segmenter.segmentSubject(preview) }
         if (mask.coverage() < 0.005f) {
-            _state.update { it.copy(message = "No clear subject found. Tap the subject to select it.") }
+            _state.update { it.copy(messagePanel = messageOrigin(), message = "No clear subject found. Tap it or paint it to select it.") }
             return@runModel
         }
         val rev = assets.saveMask(projectId, MaskKind.SUBJECT, mask)
@@ -382,7 +385,7 @@ class EditorViewModel @Inject constructor(
                 add -> region
                 else -> {
                     val hint = if (subject.strokes.isNotEmpty()) "Use Erase to remove painted areas." else "There is no subject to remove from yet."
-                    _state.update { it.copy(message = hint) }
+                    _state.update { it.copy(messagePanel = messageOrigin(), message = hint) }
                     return@runModel
                 }
             }
@@ -426,7 +429,7 @@ class EditorViewModel @Inject constructor(
                 val p = _state.value.project ?: return@launch
                 if (p.subject.maskRev == rev) {
                     val updated = p.copy(subject = p.subject.copy(maskRev = 0))
-                    _state.update { it.copy(project = updated, message = "The subject mask is missing. Find the subject again in Cutout.") }
+                    _state.update { it.copy(project = updated, messagePanel = messageOrigin(), message = "The subject mask is missing. Find the subject again in Cutout.") }
                     persist(updated)
                 }
                 return@launch
@@ -456,7 +459,7 @@ class EditorViewModel @Inject constructor(
                 // Regions whose files are gone cannot be shown: remove them rather than keep invisible ones.
                 val p = _state.value.project ?: return@launch
                 val updated = p.copy(selections = p.selections.filterNot { it.rev in lost })
-                _state.update { it.copy(project = updated, message = "Some selected objects could not be loaded and were removed.") }
+                _state.update { it.copy(project = updated, messagePanel = messageOrigin(), message = "Some selected objects could not be loaded and were removed.") }
                 persist(updated)
             }
         }
@@ -489,7 +492,7 @@ class EditorViewModel @Inject constructor(
             if (depth == null) {
                 // The file is gone or damaged: offer to create it again instead of a dead 3D panel.
                 setParallax { it.copy(depthRev = 0, enabled = false) }
-                _state.update { it.copy(message = "The depth map is missing. Create it again in the 3D panel.") }
+                _state.update { it.copy(messagePanel = messageOrigin(), message = "The depth map is missing. Create it again in the 3D panel.") }
                 return@launch
             }
             _state.update { it.copy(depth = depth, depthRev = rev) }
@@ -512,7 +515,7 @@ class EditorViewModel @Inject constructor(
     fun detectSky() = runModel("Finding the sky") { preview ->
         val mask = withContext(cpu) { segmenter.segmentSky(preview) }
         if (mask == null) {
-            _state.update { it.copy(message = "No clear sky found. Tap the sky to select it.") }
+            _state.update { it.copy(messagePanel = messageOrigin(), message = "No clear sky found. Tap the sky to select it.") }
             return@runModel
         }
         val rev = assets.saveMask(projectId, MaskKind.SKY, mask)
@@ -539,7 +542,7 @@ class EditorViewModel @Inject constructor(
             else -> {
                 // No model area: taps only edit the model area, painted strokes need Erase.
                 val hint = if (sky.strokes.isNotEmpty()) "Use Erase to remove painted sky." else "There is no sky area to remove yet."
-                _state.update { it.copy(message = hint) }
+                _state.update { it.copy(messagePanel = messageOrigin(), message = hint) }
                 return@runModel
             }
         }
@@ -560,15 +563,18 @@ class EditorViewModel @Inject constructor(
         val preview = _state.value.preview ?: return
         if (_state.value.busy != null) return
         _state.update { it.copy(busy = label, playing = false) }
+        val origin = _state.value.panel
         viewModelScope.launch {
             try {
+                modelOrigin = origin
                 block(preview)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 val reason = e.message ?: e.javaClass.simpleName
-                _state.update { it.copy(message = "That did not work: $reason") }
+                _state.update { it.copy(messagePanel = messageOrigin(), message = "That did not work: $reason") }
             } finally {
+                modelOrigin = null
                 _state.update { it.copy(busy = null) }
             }
         }
@@ -599,7 +605,9 @@ class EditorViewModel @Inject constructor(
     // region color
 
     fun setPanel(panel: EditorPanel) =
-        _state.update { it.copy(panel = panel, tool = panel.defaultTool, liveArrow = null, liveStroke = null) }
+        _state.update {
+            it.copy(panel = panel, tool = panel.defaultTool, liveArrow = null, liveStroke = null, message = null, messagePanel = null)
+        }
 
     /** Slider changes. Not part of undo history: they are cheap to drag back and reset. */
     fun setAdjustments(change: (Adjustments) -> Adjustments) {
@@ -637,12 +645,18 @@ class EditorViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.update { it.copy(message = e.message ?: "Could not import that file") }
+                _state.update { it.copy(messagePanel = messageOrigin(), message = e.message ?: "Could not import that file") }
             }
         }
     }
 
-    fun dismissMessage() = _state.update { it.copy(message = null) }
+    fun dismissMessage() = _state.update { it.copy(message = null, messagePanel = null) }
+
+    // Panel where the running model action started: its result message belongs there,
+    // even if the user switched panels while it ran.
+    private var modelOrigin: EditorPanel? = null
+
+    private fun messageOrigin(): EditorPanel = modelOrigin ?: _state.value.panel
 
     /** Bakes or loads the LUT for the current grade off the main thread. Latest request wins. */
     private fun refreshLut() {
@@ -657,7 +671,7 @@ class EditorViewModel @Inject constructor(
             val lut = luts.resolve(projectId, p.adjustments)
             _state.update { it.copy(lut = lut, lutGradeId = if (lut != null) gradeId else null) }
             if (lut == null && gradeId == Adjustments.CUSTOM_LUT_ID) {
-                _state.update { it.copy(message = "The imported LUT file is missing. Import it again.") }
+                _state.update { it.copy(messagePanel = messageOrigin(), message = "The imported LUT file is missing. Import it again.") }
             }
         }
     }
@@ -694,7 +708,7 @@ class EditorViewModel @Inject constructor(
         _state.update { it.copy(playing = false) }
         when (s.tool) {
             EditorTool.ARROW ->
-                _state.update { it.copy(liveArrow = MotionArrow(UUID.randomUUID().toString(), p, p)) }
+                _state.update { it.copy(liveArrow = MotionArrow(UUID.randomUUID().toString(), p, p, path = listOf(p))) }
 
             // The flow shader takes at most MAX_ITEMS anchors, so do not accept more than it can use.
             EditorTool.ANCHOR -> if (project.anchors.size < FlowFieldPass.MAX_ITEMS) {
@@ -736,7 +750,12 @@ class EditorViewModel @Inject constructor(
         }
         _state.update { s ->
             when {
-                s.liveArrow != null -> s.copy(liveArrow = s.liveArrow.copy(end = p))
+                s.liveArrow != null -> {
+                    // Free-hand: the path follows the finger. Tiny moves are skipped to keep it short.
+                    val last = s.liveArrow.path.lastOrNull() ?: s.liveArrow.start
+                    if (hypot(p.x - last.x, p.y - last.y) < MIN_PATH_STEP) s.copy(liveArrow = s.liveArrow.copy(end = p))
+                    else s.copy(liveArrow = s.liveArrow.copy(end = p, path = s.liveArrow.path + p))
+                }
                 s.liveStroke != null -> {
                     val last = s.liveStroke.points.last()
                     // Skip sub-pixel moves so long strokes stay small.
@@ -755,11 +774,19 @@ class EditorViewModel @Inject constructor(
         }
         val s = _state.value
         val project = s.project ?: return
-        s.liveArrow?.let { arrow ->
+        s.liveArrow?.let { live ->
             _state.update { it.copy(liveArrow = null) }
-            val len = distance(arrow.start, arrow.end, project.aspect)
-            if (len >= MIN_ARROW_LENGTH && project.arrows.size < FlowFieldPass.MAX_ITEMS) {
-                commit(current(project).let { it.copy(arrows = it.arrows + arrow) })
+            val raw = if (live.path.lastOrNull() == live.end) live.path else live.path + live.end
+            val pts = MotionPaths.simplify(raw, project.aspect)
+            // A path that is nearly straight is stored as a plain arrow.
+            val arrow = live.copy(path = if (pts.size > 2) pts else emptyList())
+            val len = MotionPaths.length(arrow.points, project.aspect)
+            val budget = FlowFieldPass.MAX_SEGMENTS - MotionPaths.segmentCount(project.arrows)
+            when {
+                len < MIN_ARROW_LENGTH -> Unit
+                arrow.points.size - 1 > budget ->
+                    _state.update { it.copy(messagePanel = EditorPanel.ANIMATE, message = "That is as many motion paths as fit. Erase one to draw more.") }
+                else -> commit(current(project).let { it.copy(arrows = it.arrows + arrow) })
             }
         }
         s.liveStroke?.let { stroke ->
@@ -777,8 +804,8 @@ class EditorViewModel @Inject constructor(
 
     private fun eraseNear(project: Project, p: NPoint) {
         val aspect = project.aspect
-        val arrow = project.arrows.minByOrNull { distanceToSegment(p, it.start, it.end, aspect) }
-            ?.takeIf { distanceToSegment(p, it.start, it.end, aspect) < ERASE_RADIUS }
+        val arrow = project.arrows.minByOrNull { MotionPaths.distanceTo(it, p, aspect) }
+            ?.takeIf { MotionPaths.distanceTo(it, p, aspect) < ERASE_RADIUS }
         val anchor = project.anchors.minByOrNull { distance(p, it.center, aspect) }
             ?.takeIf { distance(p, it.center, aspect) < ERASE_RADIUS }
         val g = current(project)
@@ -866,6 +893,7 @@ class EditorViewModel @Inject constructor(
         const val PREVIEW_EDGE = 2048
         const val MIN_ARROW_LENGTH = 0.01f
         const val MIN_STROKE_STEP = 0.003f
+        const val MIN_PATH_STEP = 0.006f
         const val ERASE_RADIUS = 0.04f
         const val MAX_HISTORY = 100
         const val SKY_PHOTO_EDGE = 2048

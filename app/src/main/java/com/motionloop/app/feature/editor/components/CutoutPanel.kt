@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +30,7 @@ import com.motionloop.app.domain.model.BackgroundMode
 import com.motionloop.app.domain.model.BackgroundSettings
 import com.motionloop.app.domain.model.SubjectSettings
 import com.motionloop.app.feature.editor.EditorTool
+import com.motionloop.app.ui.components.Pill
 import com.motionloop.app.ui.theme.MlColors
 
 private fun BackgroundMode.label() = when (this) {
@@ -64,9 +64,7 @@ fun CutoutPanel(
 ) {
     Column(
         modifier
-            .fillMaxWidth()
-            .heightIn(max = 300.dp)
-            .verticalScroll(rememberScrollState()),
+            .fillMaxWidth(),
     ) {
         Pill(if (subject.hasArea) "Detect again" else "Find the subject", active = true, enabled = !busy, onClick = onDetect)
         Spacer(Modifier.height(8.dp))
@@ -129,20 +127,3 @@ private fun Swatches(label: String, selected: Int, onPick: (Int) -> Unit) {
     }
 }
 
-@Composable
-private fun Pill(label: String, active: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    Text(
-        label,
-        style = MaterialTheme.typography.labelMedium,
-        color = when {
-            !enabled -> MlColors.TextSecondary.copy(alpha = 0.5f)
-            active -> MlColors.TextPrimary
-            else -> MlColors.TextSecondary
-        },
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(if (active) MlColors.Violet else MlColors.SurfaceHigh)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 7.dp),
-    )
-}

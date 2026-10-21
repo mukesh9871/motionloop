@@ -98,7 +98,7 @@ fun ProScreen(onBack: () -> Unit, vm: SettingsViewModel = hiltViewModel()) {
                 onClick = { vm.purchase(plan) },
                 enabled = vm.purchasesAvailable,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = MlColors.Mint, contentColor = MlColors.Background),
+                colors = ButtonDefaults.buttonColors(containerColor = MlColors.Mint, contentColor = MlColors.OnMint),
             ) { Text("Continue") }
             if (!vm.purchasesAvailable) {
                 Text(
