@@ -23,7 +23,7 @@ object LoopTiming {
      * second, values 0..1), then the whole clip is rescaled so it still holds exactly [cycles]
      * cycles. Frame [frameCount] would land on a whole cycle again, so the loop stays seamless.
      */
-    fun beatPhases(frameCount: Int, fps: Int, cycles: Int, envelope: FloatArray, envelopeRate: Int, amount: Float): FloatArray {
+    fun beatPhases(frameCount: Int, fps: Float, cycles: Int, envelope: FloatArray, envelopeRate: Int, amount: Float): FloatArray {
         val speeds = FloatArray(frameCount) { i ->
             val e = if (envelope.isEmpty()) 0f else envelope[((i.toFloat() / fps) * envelopeRate).toInt().coerceIn(0, envelope.lastIndex)]
             // Up to 3x speed on a strong beat at full amount.

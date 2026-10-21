@@ -11,7 +11,7 @@ uniform float uAlpha;
 uniform float uGlowAlpha;
 uniform float uReveal;      // 0..1 share of characters shown
 uniform int uUseOrder;
-uniform int uAlphaOnly;     // 1: write coverage only (alpha mask for PNG cutouts)
+uniform int uAlphaOnly;     // 1: write coverage only
 
 out vec4 fragColor;
 

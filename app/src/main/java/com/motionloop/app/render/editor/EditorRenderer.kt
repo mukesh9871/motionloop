@@ -60,7 +60,8 @@ class EditorRenderer(private val assets: AssetManager) : GLSurfaceView.Renderer 
             val dt = ((now - lastFrameNanos) / 1e9f).coerceAtMost(0.1f)
             val env = s.beatEnvelope
             val pulse = if (env != null && env.isNotEmpty()) {
-                audioTime = (audioTime + dt) % (env.size.toFloat() / BeatDetector.ENVELOPE_RATE)
+                // The audible position when the sound plays, so pulses land on the beats you hear.
+                audioTime = s.audioClock?.seconds() ?: ((audioTime + dt) % (env.size.toFloat() / BeatDetector.ENVELOPE_RATE))
                 env[(audioTime * BeatDetector.ENVELOPE_RATE).toInt().coerceIn(0, env.lastIndex)]
             } else {
                 0f

@@ -202,3 +202,39 @@ Verdict: NEEDS WORK (5 major + 1 design major, 5 minor). Compile, GLSL, geometry
 | 9 | minor | A full render per slider tick | Fixed: 40 ms debounce per layer. |
 | 10 | minor | Per-frame allocations in TextPass | Fixed: texture sync skipped for the same list, index loops. |
 | 11 | minor | Hit test ignored draw order and raster padding | Fixed. |
+
+## Push 7, combined re-review (f08f8dc..9e321c6)
+
+Verdict: NEEDS WORK (1 blocker, 3 major, 6 minor).
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | blocker | Wallpaper drew into a viewport the size of the scaled photo: huge frames, crash past the max texture size | Fixed: graph renders at the loaded photo size (at most 2048), the crop is blitted to the window. |
+| 2 | major | Running wallpaper ignored a newly chosen project | Fixed: the engine watches the chosen project and reloads. |
+| 3 | major | Wallpaper load job was not tracked, could build graphs without a context or orphan them | Fixed: job kept and cancelled, context checked after every suspension. |
+| 4 | major | PNG cutout text: coverage merged into the subject mask and smoothstepped, photo fringe on text edges | Fixed: text layers composited separately (behind and front), text alpha not feathered. |
+| 5-10 | minor | Wallpaper choice saved asynchronously, text job keys, mask union recomputed per frame, text drawn twice in cutout frames, and related | Fixed. |
+
+## Push 7, sound milestone round 1 (6d78496)
+
+Verdict: NEEDS WORK (3 major, 14 minor). Muxing, loop seams, export shapes and both test files verified by hand.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | major | Preview sound kept playing on Home, screen off, pickers and the Pro screen | Fixed: pause on lifecycle pause and before opening Pro. |
+| 2 | major | Beat pulse clock drifted from the audible sound | Fixed: the renderer reads the player position. |
+| 3 | major | An undecodable file broke every MP4 export, even silent ones | Fixed: import decodes first, exporters build sound only when heard or beat-synced, beat sync alone falls back to plain timing. |
+| 4 | minor | Decoder applied the buffer offset twice | Fixed. |
+| 5 | minor | Float PCM output rejected | Fixed: converted to 16 bit. |
+| 6 | minor | 5.1 sources lost center and surrounds, truncation instead of rounding | Fixed: downmix at -3 dB, rounded. |
+| 7 | minor | Decoder always read up to the maximum length | Fixed: reads only what the clip needs. |
+| 8 | minor | Decode and encode could not be cancelled, stall check only after the last input | Fixed: cancellation polled, idle counted throughout. |
+| 9 | minor | Beats detected on the faded clip, fades read as beats | Fixed: detected on the source and mapped through loops and trims (tested). |
+| 10 | minor | 4K availability ignored the chosen shape | Fixed: rechecked on shape change. |
+| 11 | minor | GIF ignored beat sync, sky and subject sized to the GIF instead of the drawn photo | Fixed. |
+| 12 | minor | Overlays are cropped with the photo in 1:1, 4:5, 9:16 | Accepted: consistent with the photo crop. |
+| 13 | minor | Old audio imports deleted before the project pointed at the new one, 100 MB cap | Fixed: pruned when the editor opens, cap 30 MB. |
+| 14 | minor | About 25 ms AAC encoder delay at the clip start | Accepted: standard for AAC, players handle it. |
+| 15 | minor | Fit rounded the long edge up | Fixed: floored. |
+| 16 | minor | Shape chips overflow narrow screens | Fixed: the row scrolls. |
+| 17 | minor | No audio focus | Fixed: transient focus, pause on loss. |

@@ -206,7 +206,7 @@ class LoopRenderGraph(assets: AssetManager) {
             val layers = ArrayList<MaskPass.Layer>()
             if (animateOnly.isNotEmpty()) {
                 // Small masks (segmenter resolution), joined once per change, not per frame.
-                animateOnlyTexture.set(if (animateOnly.size == 1) animateOnly[0] else unionOf(animateOnly))
+                animateOnlyTexture.set(if (animateOnly.size == 1) animateOnly[0] else cachedUnion(animateOnly))
                 layers += MaskPass.Layer(animateOnlyTexture.id, MaskPass.LayerMode.ADD_INVERTED)
             } else {
                 animateOnlyTexture.set(null)
@@ -270,12 +270,19 @@ class LoopRenderGraph(assets: AssetManager) {
         quad.draw()
     }
 
-    /** Adds text coverage to an alpha target drawn by [drawSubjectMask] (PNG cutouts keep their text). */
-    fun drawTextAlpha(fbo: Int, width: Int, height: Int, phase: Float) {
-        if (texts.isEmpty()) return
+    /**
+     * Draws the behind (or front) text layers alone, premultiplied, over transparent black into [fbo].
+     * PNG cutouts composite them with the subject themselves, so text keeps its own colors at the edges.
+     */
+    fun drawTextLayers(fbo: Int, width: Int, height: Int, behind: Boolean, phase: Float) {
         bindTarget(fbo, 0, 0, width, height)
-        textPass.drawAlpha(texts, phase, aspect)
+        GLES30.glClearColor(0f, 0f, 0f, 0f)
+        GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+        if (texts.isNotEmpty()) textPass.drawLayers(texts, subjectMaskTextureId != 0, behind, phase, aspect)
     }
+
+    /** Texts are not drawn into frames while this is false (PNG cutouts draw them separately). */
+    var drawTextsInFrame = true
 
     /** Refined subject mask (model + strokes), for text behind the subject. 0 when there is none. */
     val subjectMaskTextureId: Int
@@ -352,9 +359,10 @@ class LoopRenderGraph(assets: AssetManager) {
         // Behind text and parallax move with the photo, front text sits on top of the 3D move.
         // Color is per pixel and overlays stay in screen space.
         val hasSubject = subjectMaskTextureId != 0
-        if (texts.any { textPass.isBehind(it, hasSubject) }) stages += behindTextStage
+        val frameTexts = drawTextsInFrame && texts.isNotEmpty()
+        if (frameTexts && texts.any { textPass.isBehind(it, hasSubject) }) stages += behindTextStage
         if (parallax.isActive && depthMask.id != 0) stages += parallaxStage
-        if (texts.any { !textPass.isBehind(it, hasSubject) }) stages += frontTextStage
+        if (frameTexts && texts.any { !textPass.isBehind(it, hasSubject) }) stages += frontTextStage
         if (!adjustments.isIdentity || overlay.isActive) stages += colorStage
         if (!overlay.isActive) overlayPass.releaseLayer()
 
@@ -471,8 +479,18 @@ class LoopRenderGraph(assets: AssetManager) {
         quad.release()
     }
 
-    private fun unionOf(masks: List<AlphaMask>): AlphaMask =
-        masks.drop(1).fold(masks.first()) { acc, m -> acc.combine(m, subtract = false) }
+    // Brush strokes rebuild the freeze mask on every move: keep the joined mask while its inputs are the same objects.
+    private var unionInputs: List<AlphaMask> = emptyList()
+    private var unionResult: AlphaMask? = null
+
+    private fun cachedUnion(masks: List<AlphaMask>): AlphaMask {
+        val cached = unionResult
+        if (cached != null && masks.size == unionInputs.size && masks.indices.all { masks[it] === unionInputs[it] }) return cached
+        return masks.drop(1).fold(masks.first()) { acc, m -> acc.combine(m, subtract = false) }.also {
+            unionInputs = masks
+            unionResult = it
+        }
+    }
 
     /** Uploads a model mask once per mask object. */
     private class MaskTexture {

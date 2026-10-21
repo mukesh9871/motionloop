@@ -78,7 +78,7 @@ class AudioTest {
         val fps = 24
         val n = 5 * fps
         val env = BeatDetector.envelope(floatArrayOf(0.5f, 1.3f, 2.2f, 4.1f), 5f)
-        val phases = LoopTiming.beatPhases(n, fps, cycles = 2, env, BeatDetector.ENVELOPE_RATE, amount = 1f)
+        val phases = LoopTiming.beatPhases(n, fps.toFloat(), cycles = 2, env, BeatDetector.ENVELOPE_RATE, amount = 1f)
         assertEquals(0f, phases[0], 1e-6f)
         // Monotonic, and the next frame after the end would be exactly 2 cycles.
         for (i in 1 until n) assertTrue(phases[i] > phases[i - 1])
@@ -102,6 +102,15 @@ class AudioTest {
         assertEquals(0, clip.data[(clip.frames - 1) * 2].toInt()) // faded out
         val half = ClipAudio.fit(src, 1f, volume = 0.5f)
         assertEquals(5_000, half.data[Pcm.RATE / 2 * 2].toInt())
+    }
+
+    @Test
+    fun beatsMapThroughLoopsAndTrims() {
+        // A 2 s source with beats at 0.5 and 1.5 s, looped into a 5 s clip.
+        val mapped = ClipAudio.mapBeats(floatArrayOf(0.5f, 1.5f), 2f, 5f).toList()
+        assertEquals(listOf(0.5f, 1.5f, 2.5f, 3.5f, 4.5f), mapped)
+        // Trimmed: beats past the clip end are dropped.
+        assertEquals(listOf(0.5f), ClipAudio.mapBeats(floatArrayOf(0.5f, 6f), 10f, 3f).toList())
     }
 
     @Test

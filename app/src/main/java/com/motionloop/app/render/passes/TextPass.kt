@@ -50,11 +50,16 @@ class TextPass(assets: AssetManager, private val quad: FullscreenQuad) : RenderP
         endBlend()
     }
 
-    /** Adds the coverage of every layer to an alpha target (PNG cutouts keep their text). */
-    fun drawAlpha(texts: List<TextDraw>, phase: Float, aspect: Float) {
+    /**
+     * Draws only the behind (or only the front) layers, premultiplied, into the bound target, which
+     * the caller cleared to transparent. PNG cutouts stack these with the subject on the CPU.
+     */
+    fun drawLayers(texts: List<TextDraw>, hasSubject: Boolean, behind: Boolean, phase: Float, aspect: Float) {
         syncTextures(texts)
         beginBlend()
-        for (i in texts.indices) drawText(texts[i], phase, aspect, flipY = false, alphaOnly = true)
+        for (i in texts.indices) {
+            if (isBehind(texts[i], hasSubject) == behind) drawText(texts[i], phase, aspect, flipY = false, alphaOnly = false)
+        }
         endBlend()
     }
 

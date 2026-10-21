@@ -51,6 +51,7 @@ interface ProjectAssetRepository {
     /** Copies an audio file into the project as is, returns its revision. */
     suspend fun importAudio(projectId: String, source: Uri): Int
     fun audioFile(projectId: String, rev: Int): File?
+    suspend fun pruneAudio(projectId: String, keep: Set<Int>)
 
     /** Deletes revisions of [kind] that are not in [keep]. */
     suspend fun prune(projectId: String, kind: MaskKind, keep: Set<Int>)

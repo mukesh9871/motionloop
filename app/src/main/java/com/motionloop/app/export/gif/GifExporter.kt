@@ -17,10 +17,13 @@ import com.motionloop.app.export.loadSelections
 import com.motionloop.app.export.renderTexts
 import com.motionloop.app.render.passes.TextDraw
 import com.motionloop.app.export.applySky
+import com.motionloop.app.export.buildClipAudio
+import com.motionloop.app.export.clipPhases
 import com.motionloop.app.domain.repository.ProjectRepository
 import com.motionloop.app.export.OffscreenLoop
 import com.motionloop.app.render.LoopRenderGraph
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -53,10 +56,24 @@ class GifExporter @Inject constructor(
                 srcW = cropW, srcH = cropH, align = 2,
             )
             val viewport = OffscreenLoop.coverViewport(project.imageWidth, project.imageHeight, w, h)
+            val drawEdge = max(viewport[2], viewport[3])
             val delay = ExportSettings.GIF_DELAY_CS
             val frameCount = (settings.lengthSeconds * 100f / delay).roundToInt()
             val cycles = LoopTiming.cyclesForClip(settings.lengthSeconds.toFloat(), project.loop.speed)
 
+            // Beat sync shapes GIF motion too (the GIF itself has no sound). Plain timing if the sound fails.
+            val sound = if (project.audio.beatSync) {
+                try {
+                    buildClipAudio(project, settings.lengthSeconds, assets, cpu)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                }
+            } else {
+                null
+            }
+            val phases = clipPhases(project, frameCount, 100f / delay, cycles, sound)
             var egl: EglCore? = null
             var graph: LoopRenderGraph? = null
             var texts: List<TextDraw> = emptyList()
@@ -73,9 +90,9 @@ class GifExporter @Inject constructor(
                 g.setGeometry(project.arrows, project.anchors, project.strokes, loadSelections(project, assets))
                 g.setColor(project.adjustments, luts.resolve(project.id, project.adjustments))
                 g.setOverlay(project.overlay)
-                applySky(g, project, assets, max(w, h))
+                applySky(g, project, assets, drawEdge)
                 applyParallax(g, project, assets)
-                applySubject(g, project, assets, max(w, h))
+                applySubject(g, project, assets, drawEdge)
                 texts = renderTexts(project, viewport[2])
                 g.setTexts(texts)
                 bitmap.recycle() // uploaded to the GPU, the CPU copy is no longer needed
@@ -85,7 +102,7 @@ class GifExporter @Inject constructor(
                 fun renderFrame(i: Int): ByteArray {
                     g.draw(
                         fbo = t.framebuffer(), x = viewport[0], y = viewport[1], width = viewport[2], height = viewport[3],
-                        phase = LoopTiming.phaseForFrame(i, frameCount, cycles),
+                        phase = phases[i],
                         mode = project.loop.mode,
                         amount = 1f,
                         maskOverlay = 0f,

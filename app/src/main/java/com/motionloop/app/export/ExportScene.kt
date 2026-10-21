@@ -9,6 +9,7 @@ import com.motionloop.app.domain.audio.Pcm
 import com.motionloop.app.domain.model.BackgroundMode
 import com.motionloop.app.domain.model.LoopTiming
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import com.motionloop.app.domain.model.MaskKind
 import com.motionloop.app.domain.model.TextAnimation
@@ -70,19 +71,28 @@ internal fun renderTexts(project: Project, outputWidth: Int, animated: Boolean =
         TextDraw(layer, TextRasterizer.render(layer, maxOf(1440, outputWidth)))
     }
 
+/** A clip's sound and the beat times in it (seconds). */
+internal class ClipSound(val pcm: Pcm, val beats: FloatArray)
+
 /**
  * The project's sound fitted to exactly [seconds], or null when it has none. Ambient sounds are
  * generated at the clip length, so they loop as seamlessly as the picture. CPU work on [cpu].
  */
-internal suspend fun buildClipAudio(project: Project, seconds: Int, assets: ProjectAssetRepository, cpu: CoroutineDispatcher): Pcm? {
+internal suspend fun buildClipAudio(project: Project, seconds: Int, assets: ProjectAssetRepository, cpu: CoroutineDispatcher): ClipSound? {
     val audio = project.audio
     if (!audio.hasSound) return null
     return withContext(cpu) {
+        val job = coroutineContext[Job]
         when (audio.source) {
-            AudioSource.AMBIENT -> ClipAudio.scaled(AmbientSynth.generate(audio.ambient, seconds.toFloat()), audio.volume)
+            AudioSource.AMBIENT -> {
+                val pcm = ClipAudio.scaled(AmbientSynth.generate(audio.ambient, seconds.toFloat()), audio.volume)
+                ClipSound(pcm, BeatDetector.beats(pcm))
+            }
             AudioSource.FILE -> {
                 val file = assets.audioFile(project.id, audio.fileRev) ?: error("The audio file is missing. Choose it again in Sound.")
-                ClipAudio.fit(AudioDecoder.decode(file), seconds.toFloat(), audio.volume)
+                val source = AudioDecoder.decode(file, maxSeconds = seconds) { job?.isActive == false }
+                val beats = ClipAudio.mapBeats(BeatDetector.beats(source), source.seconds, seconds.toFloat())
+                ClipSound(ClipAudio.fit(source, seconds.toFloat(), audio.volume), beats)
             }
             AudioSource.NONE -> null
         }
@@ -90,11 +100,11 @@ internal suspend fun buildClipAudio(project: Project, seconds: Int, assets: Proj
 }
 
 /** Per-frame phases, beat-synced when the project asks for it, otherwise the plain whole-cycle ramp. */
-internal fun clipPhases(project: Project, frameCount: Int, fps: Int, cycles: Int, clipAudio: Pcm?): FloatArray {
-    if (clipAudio == null || !project.audio.beatSync) {
+internal fun clipPhases(project: Project, frameCount: Int, fps: Float, cycles: Int, sound: ClipSound?): FloatArray {
+    if (sound == null || !project.audio.beatSync) {
         return FloatArray(frameCount) { LoopTiming.phaseForFrame(it, frameCount, cycles) }
     }
-    val envelope = BeatDetector.envelope(BeatDetector.beats(clipAudio), clipAudio.seconds)
+    val envelope = BeatDetector.envelope(sound.beats, sound.pcm.seconds)
     return LoopTiming.beatPhases(frameCount, fps, cycles, envelope, BeatDetector.ENVELOPE_RATE, project.audio.beatAmount)
 }
 

@@ -68,13 +68,9 @@ class ExportViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             val project = projects.load(projectId) ?: return@launch
-            // Offer 4K only where the hardware encoder really supports it. Codec queries are slow.
-            val available = withContext(cpu) {
-                ExportResolution.entries.filter {
-                    it != ExportResolution.UHD || VideoExporter.supportsNominal(project, it)
-                }
-            }
-            _state.update { it.copy(resolutions = available, hasSound = project.audio.hasSound) }
+            photoAspect = project.aspect
+            _state.update { it.copy(hasSound = project.audio.hasSound) }
+            refreshResolutions()
         }
     }
 
@@ -91,7 +87,31 @@ class ExportViewModel @Inject constructor(
 
     fun setLength(seconds: Int) = updateSettings { it.copy(lengthSeconds = seconds) }
     fun setResolution(r: ExportResolution) = updateSettings { it.copy(resolution = r) }
-    fun setAspect(a: ExportAspect) = updateSettings { it.copy(aspect = a) }
+    fun setAspect(a: ExportAspect) {
+        updateSettings { it.copy(aspect = a) }
+        refreshResolutions()
+    }
+
+    private var photoAspect = 1f
+    private var resolutionJob: Job? = null
+
+    /** Offer 4K only where the hardware encoder supports it for the chosen shape. Codec queries are slow. */
+    private fun refreshResolutions() {
+        resolutionJob?.cancel()
+        val aspect = _state.value.settings.aspect.widthOverHeight(photoAspect)
+        resolutionJob = viewModelScope.launch {
+            val available = withContext(cpu) {
+                ExportResolution.entries.filter { it != ExportResolution.UHD || VideoExporter.supportsNominal(aspect, it) }
+            }
+            _state.update { s ->
+                val keep = s.settings.resolution in available
+                s.copy(
+                    resolutions = available,
+                    settings = if (keep) s.settings else s.settings.copy(resolution = ExportResolution.FULL_HD),
+                )
+            }
+        }
+    }
     fun setIncludeSound(on: Boolean) = updateSettings { it.copy(includeSound = on) }
 
     fun onStoragePermissionDenied() =
@@ -139,11 +159,10 @@ class ExportViewModel @Inject constructor(
 
     /** Remembers this project for the live wallpaper. The screen then opens the system picker. */
     fun chooseForWallpaper() {
-        viewModelScope.launch {
-            // Latest edits on disk first: the wallpaper service reads the project file.
-            projects.flush()
-            settings.setWallpaperProject(projectId)
-        }
+        // Set before the system picker opens, so its preview already shows this project.
+        settings.setWallpaperProject(projectId)
+        // Queued edits reach the file the service reads shortly after.
+        viewModelScope.launch { projects.flush() }
     }
 
     fun cancel() {

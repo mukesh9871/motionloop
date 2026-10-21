@@ -190,6 +190,24 @@ object ClipAudio {
         return Pcm(source.sampleRate, out)
     }
 
+    /**
+     * Beat times detected on the source, mapped into a clip that loops or trims it. Detecting on
+     * the source (not the faded clip) keeps the click-free fades from reading as beats.
+     */
+    fun mapBeats(sourceBeats: FloatArray, sourceSeconds: Float, clipSeconds: Float): FloatArray {
+        if (sourceSeconds <= 0f) return FloatArray(0)
+        val out = ArrayList<Float>()
+        var offset = 0f
+        while (offset < clipSeconds) {
+            for (b in sourceBeats) {
+                val t = b + offset
+                if (t < clipSeconds && b < sourceSeconds) out += t
+            }
+            offset += sourceSeconds
+        }
+        return out.sorted().toFloatArray()
+    }
+
     fun scaled(pcm: Pcm, volume: Float): Pcm {
         val g = volume.coerceIn(0f, 1f)
         return Pcm(pcm.sampleRate, ShortArray(pcm.data.size) { (pcm.data[it] * g).roundToInt().toShort() })

@@ -8,6 +8,7 @@ import com.motionloop.app.domain.model.MotionArrow
 import com.motionloop.app.domain.model.Project
 import com.motionloop.app.domain.model.BackgroundMode
 import com.motionloop.app.domain.model.SelectionRegion
+import com.motionloop.app.render.AudioClock
 import com.motionloop.app.render.RenderScene
 import com.motionloop.app.domain.model.TextAnimation
 import com.motionloop.app.domain.model.TextLayer
@@ -100,6 +101,7 @@ data class EditorUiState(
     val selectedTextId: String? = null,
     /** Beat envelope of the preview loop, null without sound or beat sync. */
     val beatEnvelope: FloatArray? = null,
+    val audioClock: AudioClock? = null,
 ) {
     val selectedText: TextLayer? get() = project?.texts?.firstOrNull { it.id == selectedTextId }
 
@@ -153,6 +155,7 @@ data class EditorUiState(
                 // Paused: show every text fully (a fade starts invisible at phase 0), animate only while playing.
                 beatEnvelope = beatEnvelope.takeIf { p.audio.beatSync },
                 beatAmount = p.audio.beatAmount,
+                audioClock = audioClock,
                 texts = p.texts.mapNotNull { t ->
                     renderedTexts[t.id]?.let { TextDraw(if (playing) t else t.copy(animation = TextAnimation.NONE), it) }
                 },

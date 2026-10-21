@@ -53,4 +53,11 @@ data class RenderScene(
     /** Beat pulse envelope for the preview sound loop (BeatDetector.ENVELOPE_RATE per second), null when off. */
     val beatEnvelope: FloatArray? = null,
     val beatAmount: Float = 0f,
+    /** Where the audible preview sound is (seconds into its loop), read on the render thread. */
+    val audioClock: AudioClock? = null,
 )
+
+/** Position of the audible preview sound, null while nothing plays. */
+fun interface AudioClock {
+    fun seconds(): Float?
+}

@@ -106,11 +106,16 @@ class ProjectAssetRepositoryImpl @Inject constructor(
                 throw e
             }
             if (!tmp.renameTo(target)) throw IOException("Could not store the audio file")
-            // Only the newest import is kept.
-            dir.listFiles().orEmpty()
-                .filter { revOf(it.name, AUDIO_PREFIX, AUDIO_EXT)?.let { r -> r != rev } == true }
-                .forEach { it.delete() }
+            // Older imports are pruned when the editor next opens, after the project points here.
             rev
+        }
+    }
+
+    override suspend fun pruneAudio(projectId: String, keep: Set<Int>) = lock.withLock {
+        withContext(io) {
+            dir(projectId).listFiles().orEmpty()
+                .filter { revOf(it.name, AUDIO_PREFIX, AUDIO_EXT)?.let { rev -> rev !in keep } == true }
+                .forEach { it.delete() }
         }
     }
 
@@ -136,7 +141,8 @@ class ProjectAssetRepositoryImpl @Inject constructor(
         private const val MAX_IMAGE_EDGE = 2048
         private const val AUDIO_PREFIX = "audio"
         private const val AUDIO_EXT = ".audio"
-        private const val MAX_AUDIO_BYTES = 100L * 1024 * 1024
+        // A minute of lossless stereo is about 10 MB, compressed files far less.
+        private const val MAX_AUDIO_BYTES = 30L * 1024 * 1024
 
         /** "sky_12.mask" -> 12 for prefix "sky". "sky_photo_3.jpg" is not a "sky" mask. Internal for tests. */
         fun revOf(name: String, prefix: String, ext: String): Int? {

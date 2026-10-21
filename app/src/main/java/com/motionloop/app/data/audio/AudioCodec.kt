@@ -11,7 +11,9 @@ import com.motionloop.app.domain.audio.Pcm
 import java.io.File
 import java.io.IOException
 import java.nio.ByteOrder
+import kotlinx.coroutines.CancellationException
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /** Decodes any audio file Android can read to 44.1 kHz stereo 16-bit PCM. Blocking: call off the main thread. */
 object AudioDecoder {
@@ -19,11 +21,14 @@ object AudioDecoder {
     /** Longest stretch kept: loops are short, and this bounds memory (60 s is about 10 MB). */
     const val MAX_SECONDS = 60
 
-    fun decode(context: Context, uri: Uri): Pcm = decode { it.setDataSource(context, uri, null) }
+    /** [maxSeconds] bounds work and memory to what the caller needs. [cancelled] is polled between buffers. */
+    fun decode(context: Context, uri: Uri, maxSeconds: Int = MAX_SECONDS, cancelled: () -> Boolean = { false }): Pcm =
+        decode(maxSeconds, cancelled) { it.setDataSource(context, uri, null) }
 
-    fun decode(file: File): Pcm = decode { it.setDataSource(file.path) }
+    fun decode(file: File, maxSeconds: Int = MAX_SECONDS, cancelled: () -> Boolean = { false }): Pcm =
+        decode(maxSeconds, cancelled) { it.setDataSource(file.path) }
 
-    private fun decode(open: (MediaExtractor) -> Unit): Pcm {
+    private fun decode(maxSeconds: Int, cancelled: () -> Boolean, open: (MediaExtractor) -> Unit): Pcm {
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
         try {
@@ -43,9 +48,11 @@ object AudioDecoder {
             val out = ShortArrayBuilder()
             val info = MediaCodec.BufferInfo()
             var inputDone = false
-            var maxFrames = rate * MAX_SECONDS
+            val seconds = maxSeconds.coerceIn(1, MAX_SECONDS)
+            var maxFrames = rate * seconds
             var idle = 0
             while (true) {
+                if (cancelled()) throw CancellationException("Decoding cancelled")
                 if (!inputDone) {
                     val inIndex = c.dequeueInputBuffer(10_000)
                     if (inIndex >= 0) {
@@ -58,29 +65,40 @@ object AudioDecoder {
                             c.queueInputBuffer(inIndex, 0, size, extractor.sampleTime, 0)
                             extractor.advance()
                         }
+                        idle = 0
                     }
                 }
                 val outIndex = c.dequeueOutputBuffer(info, 10_000)
                 when {
                     outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> {
-                        // 10 ms per try: give up after 5 s without output once all input is in.
-                        if (inputDone && ++idle > 500) throw IOException("The audio decoder stopped responding")
+                        // 10 ms per try: give up after 10 s without any progress, before or after the last input.
+                        if (++idle > 1000) throw IOException("The audio decoder stopped responding")
                     }
                     outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                         rate = c.outputFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
                         channels = c.outputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-                        maxFrames = rate * MAX_SECONDS
+                        maxFrames = rate * seconds
                     }
                     outIndex >= 0 -> {
                         idle = 0
                         val buffer = c.getOutputBuffer(outIndex)!!
                         val pcmEncoding = runCatching { c.outputFormat.getInteger(MediaFormat.KEY_PCM_ENCODING) }
                             .getOrDefault(AudioFormat.ENCODING_PCM_16BIT)
-                        if (pcmEncoding != AudioFormat.ENCODING_PCM_16BIT) throw IOException("Unsupported audio sample format")
-                        val shorts = buffer.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
-                        shorts.position(info.offset / 2)
-                        shorts.limit((info.offset + info.size) / 2)
-                        while (shorts.hasRemaining() && out.size / channels < maxFrames) out.add(shorts.get())
+                        // getOutputBuffer already limits the buffer to this packet's data.
+                        buffer.order(ByteOrder.LITTLE_ENDIAN)
+                        when (pcmEncoding) {
+                            AudioFormat.ENCODING_PCM_16BIT -> {
+                                val shorts = buffer.asShortBuffer()
+                                while (shorts.hasRemaining() && out.size / channels < maxFrames) out.add(shorts.get())
+                            }
+                            AudioFormat.ENCODING_PCM_FLOAT -> {
+                                val floats = buffer.asFloatBuffer()
+                                while (floats.hasRemaining() && out.size / channels < maxFrames) {
+                                    out.add((floats.get().coerceIn(-1f, 1f) * 32767f).roundToInt().toShort())
+                                }
+                            }
+                            else -> throw IOException("Unsupported audio sample format")
+                        }
                         c.releaseOutputBuffer(outIndex, false)
                         val full = out.size / channels >= maxFrames
                         if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0 || full) break
@@ -98,22 +116,28 @@ object AudioDecoder {
         }
     }
 
-    /** Mixes or duplicates channels to stereo and resamples linearly to 44.1 kHz. */
+    /**
+     * To stereo (mono duplicated, 5.1 and up downmixed with center and surrounds at -3 dB, other
+     * layouts take their first two channels) and resampled linearly to 44.1 kHz.
+     */
     internal fun toStereo44k(samples: ShortArray, rate: Int, channels: Int): Pcm {
         val frames = samples.size / channels
         val outFrames = (frames.toLong() * Pcm.RATE / rate).toInt().coerceAtLeast(1)
         val out = ShortArray(outFrames * 2)
-        fun sample(frame: Int, ch: Int): Float {
-            val f = frame.coerceIn(0, frames - 1)
-            return samples[f * channels + min(ch, channels - 1)].toFloat()
+        fun raw(frame: Int, ch: Int): Float = samples[frame.coerceIn(0, frames - 1) * channels + ch].toFloat()
+        // Order for 5.1: FL, FR, C, LFE, BL, BR.
+        fun sample(frame: Int, side: Int): Float = when {
+            channels == 1 -> raw(frame, 0)
+            channels >= 6 -> (raw(frame, side) + 0.707f * raw(frame, 2) + 0.707f * raw(frame, 4 + side)) / 2.414f
+            else -> raw(frame, side)
         }
         for (i in 0 until outFrames) {
             val src = i.toDouble() * rate / Pcm.RATE
             val f0 = src.toInt()
             val t = (src - f0).toFloat()
-            for (ch in 0..1) {
-                val v = sample(f0, ch) * (1 - t) + sample(f0 + 1, ch) * t
-                out[i * 2 + ch] = v.toInt().coerceIn(-32768, 32767).toShort()
+            for (side in 0..1) {
+                val v = sample(f0, side) * (1 - t) + sample(f0 + 1, side) * t
+                out[i * 2 + side] = v.roundToInt().coerceIn(-32768, 32767).toShort()
             }
         }
         return Pcm(Pcm.RATE, out)
@@ -143,7 +167,8 @@ object AudioEncoder {
     private const val MIME = MediaFormat.MIMETYPE_AUDIO_AAC
     private const val BITRATE = 128_000
 
-    fun encode(pcm: Pcm): EncodedAudio {
+    /** [cancelled] is polled between buffers, so cancelling an export does not wait for the encoder. */
+    fun encode(pcm: Pcm, cancelled: () -> Boolean = { false }): EncodedAudio {
         val format = MediaFormat.createAudioFormat(MIME, pcm.sampleRate, 2).apply {
             setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
             setInteger(MediaFormat.KEY_BIT_RATE, BITRATE)
@@ -160,6 +185,7 @@ object AudioEncoder {
             var inputDone = false
             var idle = 0
             while (true) {
+                if (cancelled()) throw CancellationException("Encoding cancelled")
                 if (!inputDone) {
                     val inIndex = codec.dequeueInputBuffer(10_000)
                     if (inIndex >= 0) {
@@ -176,12 +202,14 @@ object AudioEncoder {
                             codec.queueInputBuffer(inIndex, 0, count * 4, pts, 0)
                             frame += count
                         }
+                        idle = 0
                     }
                 }
                 val outIndex = codec.dequeueOutputBuffer(info, 10_000)
                 when {
                     outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> outFormat = codec.outputFormat
-                    outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> if (inputDone && ++idle > 500) throw IOException("Audio encoder did not finish")
+                    // 10 ms per try: no progress at all for 10 s means the encoder is stuck.
+                    outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> if (++idle > 1000) throw IOException("Audio encoder did not finish")
                     outIndex >= 0 -> {
                         idle = 0
                         val buffer = codec.getOutputBuffer(outIndex)!!

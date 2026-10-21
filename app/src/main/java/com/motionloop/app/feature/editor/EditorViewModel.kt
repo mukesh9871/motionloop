@@ -43,7 +43,9 @@ import javax.inject.Inject
 import kotlin.math.hypot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import android.media.AudioManager
 import com.motionloop.app.data.audio.AudioDecoder
+import com.motionloop.app.render.AudioClock
 import com.motionloop.app.data.audio.AudioLoopPlayer
 import com.motionloop.app.domain.audio.AmbientSynth
 import com.motionloop.app.domain.audio.AudioSettings
@@ -70,6 +72,7 @@ class EditorViewModel @Inject constructor(
     private val segmenter: Segmenter,
     private val depthEstimator: DepthEstimator,
     @DefaultDispatcher private val cpu: CoroutineDispatcher,
+    audioManager: AudioManager,
     entitlements: Entitlements,
     appSettings: AppSettings,
 ) : ViewModel() {
@@ -79,7 +82,9 @@ class EditorViewModel @Inject constructor(
 
     private val projectId: String = checkNotNull(savedState[Routes.ARG_PROJECT_ID])
 
-    private val _state = MutableStateFlow(EditorUiState())
+    // Above _state and init: the initial state reads it, and init starts a collector that uses it.
+    private val player = AudioLoopPlayer(audioManager)
+    private val _state = MutableStateFlow(EditorUiState(audioClock = AudioClock { player.positionSeconds() }))
     val state: StateFlow<EditorUiState> = _state.asStateFlow()
 
     private var lutJob: Job? = null
@@ -88,8 +93,7 @@ class EditorViewModel @Inject constructor(
     private var subjectMaskJob: Job? = null
     private var backgroundPhotoJob: Job? = null
     private val textJobs = HashMap<String, Job>()
-    // Above init: init starts a collector that uses the player right away.
-    private val player = AudioLoopPlayer()
+    private val textJobKeys = HashMap<String, TextLayer>()
     private var soundJob: Job? = null
     private var loadedSound: Pair<AudioSource, Any>? = null
     private var dragStart: NPoint? = null
@@ -114,6 +118,7 @@ class EditorViewModel @Inject constructor(
             assets.prune(projectId, MaskKind.SUBJECT, setOf(project.subject.maskRev))
             assets.prune(projectId, MaskKind.SELECTION, project.selections.map { it.rev }.toSet())
             assets.pruneImages(projectId, ImageKind.BACKGROUND, setOf(project.background.photoRev))
+            assets.pruneAudio(projectId, setOf(project.audio.fileRev))
             val preview = try {
                 projects.loadImage(projectId, PREVIEW_EDGE)
             } catch (e: CancellationException) {
@@ -162,6 +167,9 @@ class EditorViewModel @Inject constructor(
 
     fun importAudio(uri: Uri) = runModel("Loading the sound") {
         val rev = assets.importAudio(projectId, uri)
+        // Check that it decodes before the project points at it: an unreadable file would break exports.
+        val file = assets.audioFile(projectId, rev) ?: error("The audio file could not be stored")
+        withContext(cpu) { AudioDecoder.decode(file, maxSeconds = 2) }
         setAudio { it.copy(source = AudioSource.FILE, fileRev = rev) }
     }
 
@@ -187,7 +195,7 @@ class EditorViewModel @Inject constructor(
                     } else {
                         val file = assets.audioFile(projectId, audio.fileRev) ?: error("The audio file is missing")
                         // The preview loops the first seconds: a static audio buffer must stay small.
-                        ClipAudio.fit(AudioDecoder.decode(file), minOf(PREVIEW_SOUND_SECONDS, AudioDecoder.MAX_SECONDS.toFloat()), 1f)
+                        ClipAudio.fit(AudioDecoder.decode(file, maxSeconds = PREVIEW_SOUND_SECONDS.toInt()), PREVIEW_SOUND_SECONDS, 1f)
                     }
                 }
                 val envelope = withContext(cpu) { BeatDetector.envelope(BeatDetector.beats(pcm), pcm.seconds) }
@@ -242,6 +250,7 @@ class EditorViewModel @Inject constructor(
         val p = _state.value.project ?: return
         val id = _state.value.selectedTextId ?: return
         textJobs.remove(id)?.cancel()
+        textJobKeys.remove(id)
         setTexts(p.texts.filterNot { it.id == id })
         _state.update { it.copy(selectedTextId = null, renderedTexts = it.renderedTexts - id) }
     }
@@ -258,9 +267,16 @@ class EditorViewModel @Inject constructor(
     private fun rasterizeTexts(texts: List<TextLayer>) {
         for (layer in texts) {
             val key = layer.renderKey()
-            // Cancel first: a change and its undo inside one render must not let the older job land.
+            if (_state.value.renderedTexts[layer.id]?.key == key) {
+                // Already showing this look: a pending render of another look is stale.
+                textJobs.remove(layer.id)?.cancel()
+                textJobKeys.remove(layer.id)
+                continue
+            }
+            // Already rendering exactly this look (for example during a drag): let it finish.
+            if (textJobKeys[layer.id] == key && textJobs[layer.id]?.isActive == true) continue
             textJobs[layer.id]?.cancel()
-            if (_state.value.renderedTexts[layer.id]?.key == key) continue
+            textJobKeys[layer.id] = key
             textJobs[layer.id] = viewModelScope.launch {
                 // Slider drags and typing change the look many times a second: draw only the last one.
                 delay(TEXT_DEBOUNCE_MS)

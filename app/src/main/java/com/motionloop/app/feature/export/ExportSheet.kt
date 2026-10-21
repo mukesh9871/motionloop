@@ -10,7 +10,9 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -232,7 +234,8 @@ private fun openWallpaperPicker(context: Context) {
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
     Text(title, style = MaterialTheme.typography.labelMedium, color = MlColors.TextSecondary)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+    // Scrolls: four shape chips do not fit narrow screens or large font sizes.
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { content() }
     Spacer(Modifier.height(10.dp))
 }
 

@@ -42,11 +42,8 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
     fun setKeepScreenOn(on: Boolean) = edit { it.copy(keepScreenOn = on) }
     fun setSimulatePro(on: Boolean) = edit { it.copy(simulatePro = on && BuildConfig.DEBUG) }
 
-    /** Uses commit, not apply: the wallpaper service may read it right after, in another component. */
-    fun setWallpaperProject(id: String) {
-        _state.value = _state.value.copy(wallpaperProjectId = id)
-        prefs.edit().putString(KEY_WALLPAPER, id).commit()
-    }
+    /** In memory at once (the wallpaper service runs in this process and reads it from here). */
+    fun setWallpaperProject(id: String) = edit { it.copy(wallpaperProjectId = id) }
 
     private fun edit(change: (SettingsState) -> SettingsState) {
         val next = change(_state.value)
@@ -57,6 +54,7 @@ class AppSettings @Inject constructor(@ApplicationContext context: Context) {
             .putString(KEY_RESOLUTION, next.defaultResolution.name)
             .putBoolean(KEY_SCREEN_ON, next.keepScreenOn)
             .putBoolean(KEY_SIMULATE_PRO, next.simulatePro)
+            .putString(KEY_WALLPAPER, next.wallpaperProjectId)
             .apply()
     }
 

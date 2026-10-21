@@ -22,7 +22,9 @@ import com.motionloop.app.data.audio.EncodedAudio
 import com.motionloop.app.export.applyParallax
 import com.motionloop.app.export.buildClipAudio
 import com.motionloop.app.export.clipPhases
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
 import com.motionloop.app.export.applySubject
@@ -63,10 +65,27 @@ class VideoExporter @Inject constructor(
             val frameCount = settings.lengthSeconds * fps
             val cycles = LoopTiming.cyclesForClip(settings.lengthSeconds.toFloat(), project.loop.speed)
 
-            // Sound first (CPU, small): it also drives beat-synced motion even when it is not included.
-            val clipAudio = buildClipAudio(project, settings.lengthSeconds, assets, cpu)
-            val phases = clipPhases(project, frameCount, fps, cycles, clipAudio)
-            val encodedAudio = if (settings.includeSound && clipAudio != null) withContext(cpu) { AudioEncoder.encode(clipAudio) } else null
+            // Sound first (CPU, small). Only built when it is heard or drives beat sync. A sound that
+            // only drives beat sync and cannot be decoded falls back to plain timing instead of failing.
+            val needSound = project.audio.hasSound && (settings.includeSound || project.audio.beatSync)
+            val sound = if (!needSound) {
+                null
+            } else {
+                try {
+                    buildClipAudio(project, settings.lengthSeconds, assets, cpu)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (settings.includeSound) throw e else null
+                }
+            }
+            val phases = clipPhases(project, frameCount, fps.toFloat(), cycles, sound)
+            val encodedAudio = if (settings.includeSound && sound != null) {
+                val job = currentCoroutineContext()[Job]
+                withContext(cpu) { AudioEncoder.encode(sound.pcm) { job?.isActive == false } }
+            } else {
+                null
+            }
 
             val format = MediaFormat.createVideoFormat(MIME, w, h).apply {
                 setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
@@ -219,10 +238,10 @@ class VideoExporter @Inject constructor(
             return null
         }
 
-        /** True if the encoder can do [resolution] at its nominal size. Used to hide 4K. Slow, call off main. */
-        fun supportsNominal(project: Project, resolution: ExportResolution): Boolean {
+        /** True if the encoder can do [resolution] at [aspect] at its nominal size. Used to hide 4K. Slow, call off main. */
+        fun supportsNominal(aspect: Float, resolution: ExportResolution): Boolean {
             val caps = avcEncoder()?.getCapabilitiesForType(MIME)?.videoCapabilities ?: return false
-            val (w, h) = OffscreenLoop.fit(project.aspect, resolution.shortEdge, true, Int.MAX_VALUE, Int.MAX_VALUE, 16)
+            val (w, h) = OffscreenLoop.fit(aspect, resolution.shortEdge, true, Int.MAX_VALUE, Int.MAX_VALUE, 16)
             return caps.isSizeSupported(w, h)
         }
 

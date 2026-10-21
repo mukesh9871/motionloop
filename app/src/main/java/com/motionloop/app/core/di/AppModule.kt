@@ -15,7 +15,10 @@ import com.motionloop.app.domain.repository.ProjectRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
+import android.content.Context
+import android.media.AudioManager
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +34,9 @@ object DispatcherModule {
     @Provides
     @DefaultDispatcher
     fun defaultDispatcher(): CoroutineDispatcher = Dispatchers.Default
+
+    @Provides
+    fun audioManager(@ApplicationContext context: Context): AudioManager = context.getSystemService(AudioManager::class.java)
 }
 
 @Module

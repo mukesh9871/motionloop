@@ -40,6 +40,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.motionloop.app.domain.model.BackgroundMode
 import com.motionloop.app.domain.pro.ProFeature
@@ -67,8 +69,15 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
     val settings by vm.settings.collectAsStateWithLifecycle()
     // Runs the action, or opens the Pro page when the feature is locked for this user.
     val gated: (ProFeature, () -> Unit) -> Unit = { feature, action ->
-        if (ProPolicy.isLocked(feature, isPro)) onOpenPro() else action()
+        if (ProPolicy.isLocked(feature, isPro)) {
+            vm.setPlaying(false)
+            onOpenPro()
+        } else {
+            action()
+        }
     }
+    // Leaving the screen (Home, screen off, pickers, other pages) stops the preview and its sound.
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { vm.setPlaying(false) }
     val view = LocalView.current
     DisposableEffect(settings.keepScreenOn) {
         view.keepScreenOn = settings.keepScreenOn
@@ -300,7 +309,13 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
     }
 
     if (showExport) {
-        ExportSheet(onDismiss = { showExport = false }, onOpenPro = onOpenPro)
+        ExportSheet(
+            onDismiss = { showExport = false },
+            onOpenPro = {
+                vm.setPlaying(false)
+                onOpenPro()
+            },
+        )
     }
 }
 

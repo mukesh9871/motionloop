@@ -53,7 +53,8 @@ internal object OffscreenLoop {
         short = minOf(short, minOf(srcW, srcH).toFloat())
         val long = short * ratio
         val s = max(align, (short / align).toInt() * align)
-        val l = max(align, (long / align).roundToInt() * align)
+        // Floor both edges: rounding up could ask for a few pixels more than the source has.
+        val l = max(align, (long / align).toInt() * align)
         return if (landscape) l to s else s to l
     }
 }
