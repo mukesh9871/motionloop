@@ -415,3 +415,16 @@ Verdicts: UI NEEDS WORK (1 blocker, 1 major, 8 minor), engine NEEDS WORK (2 majo
 | Engine | major | Subject mask could become the lake when ML Kit was not ready, cached for good | Fixed: the person's known spot is tapped with the interactive model, mask version bumped. |
 | Engine | major | Card cache keyed on a version code that never changes | Fixed: keyed on the install time of each build. |
 | Engine | minor | All masks computed before the first card, EGL leak on a failed graph, job lost at the idle timeout, foreign cancellation ending the worker, failed mask write discarding the mask, unpinned downloads, Help loops for still pictures | Fixed. Pins taken from a local download, CI fails loudly on a mismatch. |
+
+## Reference photo and futuristic UI round 2 (e81db98)
+
+Verdict: NEEDS WORK (1 major, 5 minor). All round 1 fixes verified, compile checks pass.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | major | A loop stored after its own eviction pass escaped tracking and leaked its frames | Fixed: stored first, then the pass. |
+| 2 | minor | A refused graph was rebuilt on every request | Fixed. |
+| 3 | minor | A job arriving at the idle timeout was dropped | Fixed: select with onTimeout never loses it. |
+| 4 | minor | Text "None" asked for a loop | Fixed. |
+| 5 | minor | Unused animation imports | Fixed. |
+| 6 | minor | Comment said a failed mask stays failed for the session | Fixed wording. |

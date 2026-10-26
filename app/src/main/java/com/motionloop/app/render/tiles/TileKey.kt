@@ -17,7 +17,8 @@ sealed interface TileKey {
     /** False for effects that look the same at every moment: no loop is worth rendering for them. */
     val moves: Boolean
         get() = when (this) {
-            is Sky, is Camera, is Sticker, is Text, Flow, Water, Disperse -> true
+            is Sky, is Camera, is Sticker, Flow, Water, Disperse -> true
+            is Text -> animation != TextAnimation.NONE
             is Particles -> type != ParticleType.NONE
             is Leak -> leak != LightLeak.NONE
             is Air -> atmosphere != Atmosphere.NONE

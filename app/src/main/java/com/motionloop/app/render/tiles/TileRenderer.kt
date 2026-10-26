@@ -1,5 +1,8 @@
 package com.motionloop.app.render.tiles
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.currentCoroutineContext
 import android.content.Context
@@ -59,7 +62,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -93,8 +95,7 @@ class TileRenderer @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + gl)
     private val queued = ConcurrentHashMap.newKeySet<String>()
 
-    // A job lost when the idle timeout cancels receive() must not stay marked as queued forever.
-    private val queue = Channel<Job>(Channel.UNLIMITED, onUndeliveredElement = { queued.remove(tag(it.request, it.animated)) })
+    private val queue = Channel<Job>(Channel.UNLIMITED)
 
     /** How many tiles on screen currently play each loop. Loops still in use are never evicted. */
     private val inUse = ConcurrentHashMap<TileRequest, Int>()
@@ -114,7 +115,7 @@ class TileRenderer @Inject constructor(
     private val texts = HashMap<TextLayer, TextDraw>()
     private val animatedOrder = ArrayDeque<TileRequest>()
 
-    /** The photo, and its masks once a tile needs them. A mask that failed stays null for the session. */
+    /** The photo, and its masks once a tile needs them. A mask that failed stays null until the next idle release. */
     private class References(val photo: Bitmap) {
         val masks = HashMap<String, AlphaMask?>()
         var subjectBox: FloatArray? = null
@@ -144,10 +145,16 @@ class TileRenderer @Inject constructor(
 
     private fun tag(r: TileRequest, animated: Boolean) = "${r.shape}_${r.key.id}_$animated"
 
+    // onTimeout in select is still marked experimental.
+    @OptIn(ExperimentalCoroutinesApi::class)
     private suspend fun work() {
         while (true) {
             // Nothing asked for a while: free the GL context and the photo until the next request.
-            val job = withTimeoutOrNull(IDLE_MS) { queue.receive() }
+            // select, not withTimeoutOrNull(receive): a job arriving as the timeout fires is never lost.
+            val job = select<Job?> {
+                queue.onReceive { it }
+                onTimeout(IDLE_MS) { null }
+            }
             if (job == null) {
                 releaseGl()
                 val next = queue.receive()
@@ -171,8 +178,9 @@ class TileRenderer @Inject constructor(
                 val phases = List(FRAMES) { it.toFloat() / FRAMES }
                 val frames = render(r, phases)?.map { it.asImageBitmap() }
                 if (frames != null) {
-                    keepFramesFor(r)
+                    // Stored before the eviction pass, so the pass sees this loop like any other.
                     _images.update { it + (r to TileImage(have.still, frames)) }
+                    keepFramesFor(r)
                 }
             }
         } catch (e: CancellationException) {
@@ -342,6 +350,7 @@ class TileRenderer @Inject constructor(
 
     private fun ensureGraph(refs: References): LoopRenderGraph? {
         graph?.let { return it }
+        if (unavailable) return null
         val e = EglCore(EglCore.Kind.PBUFFER).also { egl = it }
         return try {
             e.makeCurrentPbuffer()

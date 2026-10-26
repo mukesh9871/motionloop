@@ -10,9 +10,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.AnimatedContent
 import com.motionloop.app.render.tiles.LocalTileRenderer
 import androidx.compose.runtime.CompositionLocalProvider
