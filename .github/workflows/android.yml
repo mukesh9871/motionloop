@@ -68,7 +68,7 @@ jobs:
           fi
           # Confirms the downloaded models and demo photos really ship inside the APK.
           if ls app/build/outputs/apk/debug/*.apk >/dev/null 2>&1; then
-            unzip -l app/build/outputs/apk/debug/*.apk | grep -E "tflite|demos/" > "$out/apk-assets.txt" || true
+            unzip -l app/build/outputs/apk/debug/*.apk | grep -E "tflite|demos/|reference/|res/font|font/" > "$out/apk-assets.txt" || true
             ls -l app/build/outputs/apk/debug/*.apk >> "$out/apk-assets.txt"
           fi
           cd "$out"

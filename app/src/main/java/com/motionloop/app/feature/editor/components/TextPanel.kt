@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.render.tiles.rememberTile
+import com.motionloop.app.render.tiles.TileKey
 import com.motionloop.app.ui.components.TileRow
 import com.motionloop.app.ui.components.EffectTile
 import androidx.compose.foundation.background
@@ -135,7 +137,14 @@ fun TextPanel(
         Label("Animation")
         TileRow {
             TextAnimation.entries.forEach { a ->
-                EffectTile(a.label, selected = selected.animation == a, preview = textAnimationPreview(a), onClick = { onChange { it.copy(animation = a) } })
+                val chosen = selected.animation == a
+                EffectTile(
+                    a.label,
+                    selected = chosen,
+                    rendered = rememberTile(TileKey.Text(a), animated = chosen),
+                    preview = textAnimationPreview(a),
+                    onClick = { onChange { it.copy(animation = a) } },
+                )
             }
         }
         Spacer(Modifier.height(10.dp))

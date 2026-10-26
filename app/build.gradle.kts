@@ -81,12 +81,28 @@ val downloadDemos = tasks.register<DownloadAssetsTask>("downloadDemos") {
     sha256.put("demos/campfire.jpg", "6c5a584d02c78cf2c6901cbbae363ecaaf4aa968b12132433decd0c9550d4977")
     urls.put("demos/falls_portrait.jpg", "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Narrow_waterfall_in_Alaska_%28Unsplash%29.jpg/1920px-Narrow_waterfall_in_Alaska_%28Unsplash%29.jpg")
     sha256.put("demos/falls_portrait.jpg", "71d26ae0e433400c296044db8b9d806c6e09763488f24bbecd21a47ef364802c")
+    // The reference photo every effect card and Help picture is rendered from. CC0, Paola Chaaya.
+    urls.put("reference/pier.jpg", "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Admiring_the_lake_from_a_pier_%28Unsplash%29.jpg/1280px-Admiring_the_lake_from_a_pier_%28Unsplash%29.jpg")
+    sha256.put("reference/pier.jpg", "")
     outputDir.set(layout.buildDirectory.dir("generated/demos"))
+}
+
+// Space Grotesk (SIL Open Font License 1.1), as font resources. Static weights: no variable font APIs needed.
+val downloadFonts = tasks.register<DownloadAssetsTask>("downloadFonts") {
+    val base = "https://raw.githubusercontent.com/floriankarsten/space-grotesk/master/fonts/ttf/static"
+    urls.put("font/space_grotesk_regular.ttf", "$base/SpaceGrotesk-Regular.ttf")
+    sha256.put("font/space_grotesk_regular.ttf", "")
+    urls.put("font/space_grotesk_medium.ttf", "$base/SpaceGrotesk-Medium.ttf")
+    sha256.put("font/space_grotesk_medium.ttf", "")
+    urls.put("font/space_grotesk_bold.ttf", "$base/SpaceGrotesk-Bold.ttf")
+    sha256.put("font/space_grotesk_bold.ttf", "")
+    outputDir.set(layout.buildDirectory.dir("generated/fonts"))
 }
 
 androidComponents {
     onVariants { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(downloadDemos, DownloadAssetsTask::outputDir)
+        variant.sources.res?.addGeneratedSourceDirectory(downloadFonts, DownloadAssetsTask::outputDir)
     }
 }
 

@@ -1,5 +1,10 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.ui.components.tileScene
+import com.motionloop.app.ui.components.TileRow
+import com.motionloop.app.domain.model.AdjustPreset
+import com.motionloop.app.render.tiles.rememberTile
+import com.motionloop.app.render.tiles.TileKey
 import com.motionloop.app.ui.components.lazyScrollBarHorizontal
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.motionloop.app.ui.components.EffectTile
@@ -60,6 +65,23 @@ fun AdjustPanel(
     val high = MlColors.SurfaceHigh
     val gradeList = rememberLazyListState()
     Column(modifier.fillMaxWidth()) {
+        // One tap for a starting look, the sliders below for fine tuning.
+        Text("Look", style = MaterialTheme.typography.labelMedium, color = MlColors.TextSecondary)
+        TileRow {
+            AdjustPreset.entries.forEach { preset ->
+                val chosen = preset.matches(adjustments)
+                EffectTile(
+                    preset.label,
+                    selected = chosen,
+                    rendered = rememberTile(TileKey.Adjust(preset)),
+                    // Until the render is ready: the drawn landscape.
+                    preview = { tileScene() },
+                    onClick = { onChange { preset.applyTo(it) } },
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text("Grade", style = MaterialTheme.typography.labelMedium, color = MlColors.TextSecondary)
         // The same scroll bar as every other tile row.
         LazyRow(
             state = gradeList,
@@ -67,12 +89,12 @@ fun AdjustPanel(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item {
-                GradeChip("None", selected = adjustments.gradeId == null, onClick = { onSelectGrade(null) }) {
+                GradeChip("None", selected = adjustments.gradeId == null, onClick = { onSelectGrade(null) }, key = TileKey.Grade(null)) {
                     swatchSamples.map { it.toColor() }
                 }
             }
             items(ColorGrades.all, key = { it.id }) { grade ->
-                GradeChip(grade.name, selected = adjustments.gradeId == grade.id, onClick = { onSelectGrade(grade.id) }) {
+                GradeChip(grade.name, selected = adjustments.gradeId == grade.id, onClick = { onSelectGrade(grade.id) }, key = TileKey.Grade(grade.id)) {
                     swatchColors(grade)
                 }
             }
@@ -117,10 +139,12 @@ fun AdjustPanel(
 private fun swatchColors(grade: ColorGrade): List<Color> = swatchSamples.map { grade.transform(it.copyOf()).toColor() }
 
 @Composable
-private fun GradeChip(label: String, selected: Boolean, onClick: () -> Unit, colors: () -> List<Color>) {
+private fun GradeChip(label: String, selected: Boolean, onClick: () -> Unit, key: TileKey? = null, colors: () -> List<Color>) {
     // Keyed on the colors too, so a theme switch refreshes the theme-colored swatches.
     val swatch = remember(label, colors) { colors() }
-    EffectTile(label, selected = selected, onClick = onClick, preview = {
+    // Built-in grades show on the photo. A custom .cube is the user's own: its swatch stays.
+    val rendered = if (key != null) rememberTile(key) else null
+    EffectTile(label, selected = selected, onClick = onClick, rendered = rendered, preview = {
         val w = size.width / 2
         val h = size.height / 2
         swatch.forEachIndexed { i, c -> drawRect(c, topLeft = Offset((i % 2) * w, (i / 2) * h), size = Size(w, h)) }

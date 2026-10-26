@@ -1,5 +1,18 @@
 package com.motionloop.app.feature.help
 
+import kotlin.math.roundToInt
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.graphics.FilterQuality
+import com.motionloop.app.domain.model.TextAnimation
+import com.motionloop.app.domain.model.StickerKind
+import com.motionloop.app.domain.model.SkyStyle
+import com.motionloop.app.domain.model.ParticleType
+import com.motionloop.app.domain.model.CameraPath
+import com.motionloop.app.domain.model.BackgroundMode
+import com.motionloop.app.domain.model.AdjustPreset
+import com.motionloop.app.render.tiles.rememberTile
+import com.motionloop.app.render.tiles.TileShape
+import com.motionloop.app.render.tiles.TileKey
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -48,8 +61,26 @@ private val Finger = Color(0xFFFFFFFF)
  * Small looping demo of a tool: a stylized photo plus the gesture that uses the tool.
  * Drawn in code, so it costs no asset and follows the help text exactly.
  */
+/** What each Help picture renders on the reference photo, the same photo every effect card uses. */
+fun Illus.tileKey(): TileKey = when (this) {
+    Illus.PATH, Illus.SPEED -> TileKey.Flow
+    Illus.ANCHOR, Illus.FREEZE, Illus.UNFREEZE, Illus.ERASE, Illus.SOUND, Illus.EXPORT -> TileKey.Photo
+    Illus.HOLD, Illus.ONLY_THIS -> TileKey.SubjectTint
+    Illus.SKY -> TileKey.Sky(SkyStyle.SUNSET)
+    Illus.DEPTH -> TileKey.Camera(CameraPath.CIRCLE)
+    Illus.CUTOUT -> TileKey.Background(BackgroundMode.TRANSPARENT)
+    Illus.TEXT -> TileKey.Text(TextAnimation.SLIDE_IN)
+    Illus.ADJUST -> TileKey.Adjust(AdjustPreset.WARM)
+    Illus.OVERLAY -> TileKey.Particles(ParticleType.SNOW)
+    Illus.STICKER -> TileKey.Sticker(StickerKind.BUTTERFLY)
+    Illus.DISPERSE -> TileKey.Disperse
+    Illus.WATER -> TileKey.Water
+}
+
 @Composable
 fun HelpIllustration(kind: Illus, modifier: Modifier = Modifier) {
+    // The real effect on the reference photo, playing. Drawn pictures stand in until it is ready.
+    val rendered = rememberTile(kind.tileKey(), TileShape.WIDE, animated = true)
     val transition = rememberInfiniteTransition(label = "help")
     val t by transition.animateFloat(
         initialValue = 0f,
@@ -59,6 +90,13 @@ fun HelpIllustration(kind: Illus, modifier: Modifier = Modifier) {
     )
     val measurer = rememberTextMeasurer()
     Canvas(modifier) {
+        if (rendered != null) {
+            val frames = rendered.frames
+            val image = if (frames != null) frames[(t * frames.size).toInt().coerceIn(0, frames.lastIndex)] else rendered.still
+            drawImage(image, dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()), filterQuality = FilterQuality.Medium)
+            gesture(kind, t)
+            return@Canvas
+        }
         when (kind) {
             Illus.SKY -> scene(skyShift = (sin(t * 2 * PI).toFloat() + 1) / 2)
             Illus.DEPTH -> depthScene(t)
@@ -89,6 +127,34 @@ fun HelpIllustration(kind: Illus, modifier: Modifier = Modifier) {
             Illus.WATER -> water(t)
             else -> Unit
         }
+    }
+}
+
+/**
+ * The hand's part over a real render: where to tap, drag or paint. The effect itself is in the
+ * render, so nothing of the scene is drawn here. The person stands right of center in the photo.
+ */
+private fun DrawScope.gesture(kind: Illus, t: Float) {
+    val person = Offset(size.width * 0.77f, size.height * 0.58f)
+    when (kind) {
+        Illus.PATH -> pathDemo(t)
+        Illus.ANCHOR -> anchors(t)
+        Illus.FREEZE -> brush(t, erase = false)
+        Illus.UNFREEZE -> brush(t, erase = true)
+        Illus.ERASE -> erase(t)
+        Illus.HOLD, Illus.ONLY_THIS -> {
+            if (kind == Illus.ONLY_THIS && t > 0.35f) {
+                // Everything but the person dims: only it will move.
+                drawRect(Color.Black.copy(alpha = 0.35f))
+            }
+            if (t in 0.15f..0.45f) finger(person)
+        }
+        Illus.SPEED -> speed(t)
+        Illus.SOUND -> bars(t)
+        Illus.EXPORT -> shapes(t)
+        Illus.WATER -> if (t in 0.05f..0.3f) finger(Offset(size.width * 0.25f, size.height * 0.62f))
+        Illus.STICKER -> if (t < 0.3f) finger(Offset(size.width * 0.6f, size.height * 0.5f))
+        Illus.SKY, Illus.DEPTH, Illus.CUTOUT, Illus.TEXT, Illus.ADJUST, Illus.OVERLAY, Illus.DISPERSE -> Unit
     }
 }
 

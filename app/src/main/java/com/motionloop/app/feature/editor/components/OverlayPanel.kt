@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.render.tiles.rememberTile
+import com.motionloop.app.render.tiles.TileKey
 import com.motionloop.app.ui.components.TileRow
 import com.motionloop.app.ui.components.EffectTile
 import androidx.compose.foundation.background
@@ -82,7 +84,15 @@ fun OverlayPanel(
         SectionLabel("Particles")
         TileRow {
             ParticleType.entries.forEach { v ->
-                EffectTile(v.label(), selected = settings.particles == v, preview = particlePreview(v), onClick = { onChange { it.copy(particles = v) } })
+                val chosen = settings.particles == v
+                EffectTile(
+                    v.label(),
+                    selected = chosen,
+                    rendered = rememberTile(TileKey.Particles(v), animated = chosen),
+                    overlay = if (v == ParticleType.NONE) NoneOverlay else null,
+                    preview = particlePreview(v),
+                    onClick = { onChange { it.copy(particles = v) } },
+                )
             }
         }
         if (settings.particles != ParticleType.NONE) {
@@ -111,7 +121,15 @@ fun OverlayPanel(
         SectionLabel("Light leak")
         TileRow {
             LightLeak.entries.forEach { v ->
-                EffectTile(v.label(), selected = settings.lightLeak == v, preview = leakPreview(v), onClick = { onChange { it.copy(lightLeak = v) } })
+                val chosen = settings.lightLeak == v
+                EffectTile(
+                    v.label(),
+                    selected = chosen,
+                    rendered = rememberTile(TileKey.Leak(v), animated = chosen),
+                    overlay = if (v == LightLeak.NONE) NoneOverlay else null,
+                    preview = leakPreview(v),
+                    onClick = { onChange { it.copy(lightLeak = v) } },
+                )
             }
         }
         if (settings.lightLeak != LightLeak.NONE) {
@@ -121,7 +139,15 @@ fun OverlayPanel(
         SectionLabel("Atmosphere")
         TileRow {
             Atmosphere.entries.forEach { v ->
-                EffectTile(v.label(), selected = settings.atmosphere == v, preview = atmospherePreview(v), onClick = { onChange { it.copy(atmosphere = v) } })
+                val chosen = settings.atmosphere == v
+                EffectTile(
+                    v.label(),
+                    selected = chosen,
+                    rendered = rememberTile(TileKey.Air(v), animated = chosen),
+                    overlay = if (v == Atmosphere.NONE) NoneOverlay else null,
+                    preview = atmospherePreview(v),
+                    onClick = { onChange { it.copy(atmosphere = v) } },
+                )
             }
         }
         if (settings.atmosphere != Atmosphere.NONE) {

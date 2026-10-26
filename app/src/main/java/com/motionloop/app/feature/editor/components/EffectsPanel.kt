@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.render.tiles.rememberTile
+import com.motionloop.app.render.tiles.TileKey
 import androidx.compose.ui.semantics.Role
 import com.motionloop.app.ui.components.TileRow
 import com.motionloop.app.ui.components.EffectTile
@@ -56,6 +58,7 @@ fun EffectsPanel(
                     selected = false,
                     role = Role.Button,
                     description = "Add ${kind.label.lowercase()} sticker",
+                    rendered = rememberTile(TileKey.Sticker(kind)),
                     preview = stickerPreview(kind),
                     onClick = { onAddSticker(kind) },
                 )

@@ -1,6 +1,9 @@
 package com.motionloop.app.ui.components
 
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -26,10 +29,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.IntSize
+import com.motionloop.app.render.tiles.TileImage
+import kotlin.math.roundToInt
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -50,8 +62,10 @@ import com.motionloop.app.ui.theme.MlColors
 typealias TilePreview = DrawScope.(t: Float) -> Unit
 
 /**
- * Square effect choice: a small drawn preview with the name under it. The selected tile has a
- * violet frame and its preview plays, so it is clear what is chosen and what it does.
+ * Square effect choice: the effect on the reference photo, with the name under it. The selected
+ * tile has a glowing frame and plays its loop, so it is clear what is chosen and what it does.
+ * [rendered] is the real render (see TileRenderer). Until it is ready, [preview] is drawn instead.
+ * [overlay] is drawn over the render, for tiles that show something the photo cannot (sound, pick a file).
  */
 @Composable
 fun EffectTile(
@@ -64,9 +78,18 @@ fun EffectTile(
     role: Role = Role.RadioButton,
     /** Spoken name when the short label alone is unclear ("Change" becomes "Change sky photo"). */
     description: String? = null,
+    rendered: TileImage? = null,
+    overlay: TilePreview? = null,
     preview: TilePreview,
 ) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(16.dp)
+    val haptics = LocalHapticFeedback.current
+    // Unselected tiles sit back a little: the chosen one reads first without any extra chrome.
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1f else 0.94f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
+        label = "tileScale",
+    )
     // Only the selected tile animates: a row of always-running previews costs battery for nothing.
     // The value is read in the draw block, so the tile redraws without recomposing.
     val time: State<Float>? = if (selected) {
@@ -83,18 +106,42 @@ fun EffectTile(
         modifier
             .width(TILE_WIDTH)
             .alpha(if (enabled) 1f else 0.4f)
-            .selectable(selected = selected, enabled = enabled, role = role, onClick = onClick)
+            .selectable(selected = selected, enabled = enabled, role = role) {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onClick()
+            }
             .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             Modifier
                 .size(TILE_SIZE)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
                 .clip(shape)
                 .background(MlColors.SurfaceHigh)
-                .border(if (selected) 2.5.dp else 1.dp, if (selected) MlColors.Violet else MlColors.SurfaceHigh, shape),
+                .border(
+                    width = if (selected) 2.dp else 1.dp,
+                    brush = if (selected) SelectedFrame else SolidColor(MlColors.TextSecondary.copy(alpha = 0.18f)),
+                    shape = shape,
+                ),
         ) {
-            Canvas(Modifier.size(TILE_SIZE)) { preview(time?.value ?: STILL_T) }
+            Canvas(Modifier.size(TILE_SIZE)) {
+                val t = time?.value ?: STILL_T
+                val frames = rendered?.frames
+                val image = when {
+                    frames != null && time != null -> frames[(t * frames.size).toInt().coerceIn(0, frames.lastIndex)]
+                    else -> rendered?.still
+                }
+                if (image != null) {
+                    drawImage(image, dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()), filterQuality = FilterQuality.Medium)
+                    overlay?.invoke(this, t)
+                } else {
+                    preview(t)
+                }
+            }
         }
         Spacer(Modifier.height(4.dp))
         Text(
@@ -125,6 +172,9 @@ fun TileRow(content: @Composable () -> Unit) {
 }
 
 val TILE_SIZE = 64.dp
+
+/** Violet into mint: the one accent, used for every chosen tile. */
+private val SelectedFrame = Brush.linearGradient(listOf(MlColors.Violet, MlColors.Arrow))
 
 /** Wider than the picture, so labels have room. */
 private val TILE_WIDTH = 76.dp

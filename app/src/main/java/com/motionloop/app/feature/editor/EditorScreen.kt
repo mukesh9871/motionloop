@@ -1,5 +1,19 @@
 package com.motionloop.app.feature.editor
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.border
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedContent
+import com.motionloop.app.render.tiles.LocalTileRenderer
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -115,268 +129,283 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
         uri?.let(vm::importBackgroundPhoto)
     }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .safeDrawingPadding(),
-    ) {
-        TopBar(
-            // A model run started from one history state must land on it: no undo meanwhile.
-            canUndo = state.canUndo && state.busy == null,
-            canRedo = state.canRedo && state.busy == null,
-            exportEnabled = state.project != null && state.preview != null,
-            onBack = onBack,
-            onUndo = vm::undo,
-            onRedo = vm::redo,
-            onExport = {
-                vm.setPlaying(false)
-                showExport = true
-            },
-        )
-
-        Box(
-            Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            val project = state.project
-            when {
-                state.loading -> CircularProgressIndicator()
-                state.error != null -> Text(state.error ?: "", color = MlColors.Coral)
-                // No rounded clip: clipping does not apply to a SurfaceView.
-                project != null -> Box(Modifier.aspectRatio(project.aspect)) {
-                    // The GL view and the touch layer share the exact photo bounds.
-                    GlPreview(scene = state.scene, modifier = Modifier.fillMaxSize())
-                    EditorCanvas(
-                        tool = state.tool,
-                        arrows = state.visibleArrows,
-                        anchors = project.anchors,
-                        showGuides = !state.playing && state.panel == EditorPanel.ANIMATE,
-                        enabled = touchPanel && state.busy == null,
-                        brushRadius = state.brushRadius,
-                        highlight = state.selectedSticker
-                            ?.takeIf { state.panel == EditorPanel.EFFECTS && !state.playing }
-                            ?.let { NPoint(it.x, it.y) to it.size / 2f },
-                        onDown = vm::pointerDown,
-                        onMove = vm::pointerMove,
-                        onUp = vm::pointerUp,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                    state.busy?.let { label -> BusyBadge(label, Modifier.align(Alignment.BottomCenter)) }
-                }
-            }
-        }
-
+    // Effect cards render on the shared reference photo.
+    CompositionLocalProvider(LocalTileRenderer provides vm.tiles) {
         Column(
             Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surface)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .safeDrawingPadding(),
         ) {
-            val project = state.project
-            PanelTabs(selected = state.panel, onSelect = vm::setPanel)
-            Spacer(Modifier.height(6.dp))
-            // A message belongs to the panel whose action produced it.
-            state.message?.takeIf { state.messagePanel == null || state.messagePanel == state.panel }?.let { msg ->
-                Text(
-                    msg,
-                    color = MlColors.Coral,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = vm::dismissMessage)
-                        .padding(vertical = 4.dp),
-                )
+            TopBar(
+                // A model run started from one history state must land on it: no undo meanwhile.
+                canUndo = state.canUndo && state.busy == null,
+                canRedo = state.canRedo && state.busy == null,
+                exportEnabled = state.project != null && state.preview != null,
+                onBack = onBack,
+                onUndo = vm::undo,
+                onRedo = vm::redo,
+                onExport = {
+                    vm.setPlaying(false)
+                    showExport = true
+                },
+            )
+
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                val project = state.project
+                when {
+                    state.loading -> CircularProgressIndicator()
+                    state.error != null -> Text(state.error ?: "", color = MlColors.Coral)
+                    // No rounded clip: clipping does not apply to a SurfaceView.
+                    project != null -> Box(Modifier.aspectRatio(project.aspect)) {
+                        // The GL view and the touch layer share the exact photo bounds.
+                        GlPreview(scene = state.scene, modifier = Modifier.fillMaxSize())
+                        EditorCanvas(
+                            tool = state.tool,
+                            arrows = state.visibleArrows,
+                            anchors = project.anchors,
+                            showGuides = !state.playing && state.panel == EditorPanel.ANIMATE,
+                            enabled = touchPanel && state.busy == null,
+                            brushRadius = state.brushRadius,
+                            highlight = state.selectedSticker
+                                ?.takeIf { state.panel == EditorPanel.EFFECTS && !state.playing }
+                                ?.let { NPoint(it.x, it.y) to it.size / 2f },
+                            onDown = vm::pointerDown,
+                            onMove = vm::pointerMove,
+                            onUp = vm::pointerUp,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                        state.busy?.let { label -> BusyBadge(label, Modifier.align(Alignment.BottomCenter)) }
+                    }
+                }
             }
-            // One scroll area for every panel, with a visible bar when there is more below.
-            key(state.panel) {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 280.dp)
-                        .verticalScrollWithBar(rememberScrollState()),
-                ) {
-                    if (state.panel == EditorPanel.SOUND) {
-                        if (project != null) {
-                            SoundPanel(
-                                audio = project.audio,
-                                busy = state.busy != null,
-                                onChange = vm::setAudio,
-                                onPickFile = { gated(ProFeature.MUSIC) { pickAudio.launch(arrayOf("audio/*")) } },
-                            )
-                        }
-                    } else if (state.panel == EditorPanel.TEXT) {
-                        if (project != null) {
-                            TextPanel(
-                                texts = project.texts,
-                                selected = state.selectedText,
-                                hasSubject = project.subject.hasArea,
-                                tool = state.tool,
-                                busy = state.busy != null,
-                                onAdd = vm::addText,
-                                onSelect = vm::selectText,
-                                onChange = vm::updateSelectedText,
-                                onDelete = vm::deleteSelectedText,
-                                onFindSubject = vm::detectSubject,
-                                onTool = vm::setTool,
-                            )
-                            if (state.isSubjectBrush) {
-                                BrushControls(state, vm)
-                            }
-                        }
-                    } else if (state.panel == EditorPanel.CUTOUT) {
-                        if (project != null) {
-                            CutoutPanel(
-                                subject = project.subject,
-                                background = project.background,
-                                tool = state.tool,
-                                busy = state.busy != null,
-                                onDetect = vm::detectSubject,
-                                onTool = vm::setTool,
-                                onBackground = { change ->
-                                    if (change(project.background).mode == BackgroundMode.PHOTO) {
-                                        gated(ProFeature.BACKGROUND_PHOTO) { vm.setBackground(change) }
-                                    } else {
-                                        vm.setBackground(change)
-                                    }
-                                },
-                                onFeather = vm::setSubjectFeather,
-                                onPickPhoto = {
-                                    gated(ProFeature.BACKGROUND_PHOTO) {
-                                        pickBackgroundPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                                    }
-                                },
-                            )
-                            if (state.isSubjectBrush) {
-                                BrushControls(state, vm)
-                            }
-                        }
-                    } else if (state.panel == EditorPanel.DEPTH) {
-                        if (project != null) {
-                            DepthPanel(
-                                settings = project.parallax,
-                                busy = state.busy != null,
-                                onCreateDepth = { gated(ProFeature.PARALLAX) { vm.createDepth() } },
-                                // Only turning 3D on (or changing it while on) is Pro. Turning it off always works.
-                                onChange = { change ->
-                                    if (change(project.parallax).enabled) gated(ProFeature.PARALLAX) { vm.setParallax(change) } else vm.setParallax(change)
-                                },
-                            )
-                        }
-                    } else if (state.panel == EditorPanel.SKY) {
-                        if (project != null) {
-                            SkyPanel(
-                                sky = project.sky,
-                                tool = state.tool,
-                                busy = state.busy != null,
-                                onDetect = vm::detectSky,
-                                onTool = vm::setTool,
-                                // Choosing the photo style again (after another style) must pass the gate too.
-                                onChange = { change ->
-                                    val next = change(project.sky)
-                                    if (next.style == SkyStyle.PHOTO && project.sky.style != SkyStyle.PHOTO) {
-                                        gated(ProFeature.SKY_PHOTO) { vm.setSky(change) }
-                                    } else {
-                                        vm.setSky(change)
-                                    }
-                                },
-                                onPickPhoto = {
-                                    gated(ProFeature.SKY_PHOTO) {
-                                        pickSkyPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                                    }
-                                },
-                            )
-                            if (state.isSkyBrush) {
-                                BrushControls(state, vm)
-                            }
-                        }
-                    } else if (state.panel == EditorPanel.OVERLAY) {
-                        if (project != null) {
-                            OverlayPanel(
-                                settings = project.overlay,
-                                tool = state.tool,
-                                onChange = vm::setOverlay,
-                                onTool = vm::setTool,
-                                onClearArea = vm::clearOverlayArea,
-                            )
-                            if (state.isOverlayBrush && project.overlay.particles != ParticleType.NONE) {
-                                BrushControls(state, vm)
-                            }
-                        }
-                    } else if (state.panel == EditorPanel.EFFECTS) {
-                        if (project != null) {
-                            EffectsPanel(
-                                effects = project.effects,
-                                selected = state.selectedSticker,
-                                tool = state.tool,
-                                busy = state.busy != null,
-                                waterCount = project.selections.count { it.mode == SelectionMode.RIPPLE },
-                                onTool = vm::setTool,
-                                onChange = vm::setEffects,
-                                onAddSticker = vm::addSticker,
-                                onSelectSticker = vm::selectSticker,
-                                onChangeSticker = vm::updateSelectedSticker,
-                                onDeleteSticker = vm::deleteSelectedSticker,
-                                onClearDispersion = vm::clearDispersion,
-                                onClearWater = vm::clearWater,
-                            )
-                            if (state.isEffectBrush) {
-                                BrushControls(state, vm)
-                            }
-                        }
-                    } else if (state.panel == EditorPanel.ADJUST) {
-                        if (project != null) {
-                            AdjustPanel(
-                                adjustments = project.adjustments,
-                                hasCustom = state.hasCustomLut,
-                                onChange = vm::setAdjustments,
-                                onSelectGrade = vm::selectGrade,
-                                onImportCube = { gated(ProFeature.CUSTOM_LUT) { pickCube.launch(arrayOf("*/*")) } },
-                                onReset = vm::resetAdjustments,
-                            )
-                        }
-                    } else if (state.isBrush) {
-                        BrushControls(state, vm)
-                    } else {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                hintFor(state.tool),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MlColors.TextSecondary,
-                                modifier = Modifier.weight(1f).padding(vertical = 6.dp),
-                            )
-                            val selecting = state.tool == EditorTool.SELECT_FREEZE || state.tool == EditorTool.SELECT_ANIMATE
-                            if (selecting && project?.selections?.any { it.mode != SelectionMode.RIPPLE } == true) {
-                                Text(
-                                    "Clear",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MlColors.Mint,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable(onClick = vm::clearSelections)
-                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+
+            // Glass panel: lifted off the edges, rounded on top, a hairline of the accent along its rim.
+            val panelShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp)
+                    .clip(panelShape)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
+                    .border(1.dp, Brush.verticalGradient(listOf(MlColors.Violet.copy(alpha = 0.55f), Color.Transparent)), panelShape)
+                    .animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            ) {
+                val project = state.project
+                PanelTabs(selected = state.panel, onSelect = vm::setPanel)
+                Spacer(Modifier.height(6.dp))
+                // A message belongs to the panel whose action produced it.
+                state.message?.takeIf { state.messagePanel == null || state.messagePanel == state.panel }?.let { msg ->
+                    Text(
+                        msg,
+                        color = MlColors.Coral,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = vm::dismissMessage)
+                            .padding(vertical = 4.dp),
+                    )
+                }
+                // One scroll area for every panel, with a visible bar when there is more below.
+                AnimatedContent(
+                    targetState = state.panel,
+                    transitionSpec = {
+                        (fadeIn(tween(220)) + slideInVertically(tween(260)) { it / 8 }) togetherWith fadeOut(tween(120))
+                    },
+                    label = "panel",
+                ) { panel ->
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 280.dp)
+                            .verticalScrollWithBar(rememberScrollState()),
+                    ) {
+                        if (panel == EditorPanel.SOUND) {
+                            if (project != null) {
+                                SoundPanel(
+                                    audio = project.audio,
+                                    busy = state.busy != null,
+                                    onChange = vm::setAudio,
+                                    onPickFile = { gated(ProFeature.MUSIC) { pickAudio.launch(arrayOf("audio/*")) } },
                                 )
+                            }
+                        } else if (panel == EditorPanel.TEXT) {
+                            if (project != null) {
+                                TextPanel(
+                                    texts = project.texts,
+                                    selected = state.selectedText,
+                                    hasSubject = project.subject.hasArea,
+                                    tool = state.tool,
+                                    busy = state.busy != null,
+                                    onAdd = vm::addText,
+                                    onSelect = vm::selectText,
+                                    onChange = vm::updateSelectedText,
+                                    onDelete = vm::deleteSelectedText,
+                                    onFindSubject = vm::detectSubject,
+                                    onTool = vm::setTool,
+                                )
+                                if (state.isSubjectBrush) {
+                                    BrushControls(state, vm)
+                                }
+                            }
+                        } else if (panel == EditorPanel.CUTOUT) {
+                            if (project != null) {
+                                CutoutPanel(
+                                    subject = project.subject,
+                                    background = project.background,
+                                    tool = state.tool,
+                                    busy = state.busy != null,
+                                    onDetect = vm::detectSubject,
+                                    onTool = vm::setTool,
+                                    onBackground = { change ->
+                                        if (change(project.background).mode == BackgroundMode.PHOTO) {
+                                            gated(ProFeature.BACKGROUND_PHOTO) { vm.setBackground(change) }
+                                        } else {
+                                            vm.setBackground(change)
+                                        }
+                                    },
+                                    onFeather = vm::setSubjectFeather,
+                                    onPickPhoto = {
+                                        gated(ProFeature.BACKGROUND_PHOTO) {
+                                            pickBackgroundPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                        }
+                                    },
+                                )
+                                if (state.isSubjectBrush) {
+                                    BrushControls(state, vm)
+                                }
+                            }
+                        } else if (panel == EditorPanel.DEPTH) {
+                            if (project != null) {
+                                DepthPanel(
+                                    settings = project.parallax,
+                                    busy = state.busy != null,
+                                    onCreateDepth = { gated(ProFeature.PARALLAX) { vm.createDepth() } },
+                                    // Only turning 3D on (or changing it while on) is Pro. Turning it off always works.
+                                    onChange = { change ->
+                                        if (change(project.parallax).enabled) gated(ProFeature.PARALLAX) { vm.setParallax(change) } else vm.setParallax(change)
+                                    },
+                                )
+                            }
+                        } else if (panel == EditorPanel.SKY) {
+                            if (project != null) {
+                                SkyPanel(
+                                    sky = project.sky,
+                                    tool = state.tool,
+                                    busy = state.busy != null,
+                                    onDetect = vm::detectSky,
+                                    onTool = vm::setTool,
+                                    // Choosing the photo style again (after another style) must pass the gate too.
+                                    onChange = { change ->
+                                        val next = change(project.sky)
+                                        if (next.style == SkyStyle.PHOTO && project.sky.style != SkyStyle.PHOTO) {
+                                            gated(ProFeature.SKY_PHOTO) { vm.setSky(change) }
+                                        } else {
+                                            vm.setSky(change)
+                                        }
+                                    },
+                                    onPickPhoto = {
+                                        gated(ProFeature.SKY_PHOTO) {
+                                            pickSkyPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                        }
+                                    },
+                                )
+                                if (state.isSkyBrush) {
+                                    BrushControls(state, vm)
+                                }
+                            }
+                        } else if (panel == EditorPanel.OVERLAY) {
+                            if (project != null) {
+                                OverlayPanel(
+                                    settings = project.overlay,
+                                    tool = state.tool,
+                                    onChange = vm::setOverlay,
+                                    onTool = vm::setTool,
+                                    onClearArea = vm::clearOverlayArea,
+                                )
+                                if (state.isOverlayBrush && project.overlay.particles != ParticleType.NONE) {
+                                    BrushControls(state, vm)
+                                }
+                            }
+                        } else if (panel == EditorPanel.EFFECTS) {
+                            if (project != null) {
+                                EffectsPanel(
+                                    effects = project.effects,
+                                    selected = state.selectedSticker,
+                                    tool = state.tool,
+                                    busy = state.busy != null,
+                                    waterCount = project.selections.count { it.mode == SelectionMode.RIPPLE },
+                                    onTool = vm::setTool,
+                                    onChange = vm::setEffects,
+                                    onAddSticker = vm::addSticker,
+                                    onSelectSticker = vm::selectSticker,
+                                    onChangeSticker = vm::updateSelectedSticker,
+                                    onDeleteSticker = vm::deleteSelectedSticker,
+                                    onClearDispersion = vm::clearDispersion,
+                                    onClearWater = vm::clearWater,
+                                )
+                                if (state.isEffectBrush) {
+                                    BrushControls(state, vm)
+                                }
+                            }
+                        } else if (panel == EditorPanel.ADJUST) {
+                            if (project != null) {
+                                AdjustPanel(
+                                    adjustments = project.adjustments,
+                                    hasCustom = state.hasCustomLut,
+                                    onChange = vm::setAdjustments,
+                                    onSelectGrade = vm::selectGrade,
+                                    onImportCube = { gated(ProFeature.CUSTOM_LUT) { pickCube.launch(arrayOf("*/*")) } },
+                                    onReset = vm::resetAdjustments,
+                                )
+                            }
+                        } else if (state.isBrush) {
+                            BrushControls(state, vm)
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    hintFor(state.tool),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MlColors.TextSecondary,
+                                    modifier = Modifier.weight(1f).padding(vertical = 6.dp),
+                                )
+                                val selecting = state.tool == EditorTool.SELECT_FREEZE || state.tool == EditorTool.SELECT_ANIMATE
+                                if (selecting && project?.selections?.any { it.mode != SelectionMode.RIPPLE } == true) {
+                                    Text(
+                                        "Clear",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MlColors.Mint,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable(onClick = vm::clearSelections)
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
-            if (project != null) {
-                PlaybackBar(
-                    playing = state.playing,
-                    speed = project.loop.speed,
-                    mode = project.loop.mode,
-                    onTogglePlay = vm::togglePlay,
-                    onSpeed = vm::setSpeed,
-                    onMode = vm::setLoopMode,
-                )
-            }
-            if (state.panel == EditorPanel.ANIMATE) {
-                Spacer(Modifier.height(8.dp))
-                ToolBar(selected = state.tool, onSelect = vm::setTool)
+                if (project != null) {
+                    PlaybackBar(
+                        playing = state.playing,
+                        speed = project.loop.speed,
+                        mode = project.loop.mode,
+                        onTogglePlay = vm::togglePlay,
+                        onSpeed = vm::setSpeed,
+                        onMode = vm::setLoopMode,
+                    )
+                }
+                if (state.panel == EditorPanel.ANIMATE) {
+                    Spacer(Modifier.height(8.dp))
+                    ToolBar(selected = state.tool, onSelect = vm::setTool)
+                }
             }
         }
     }
@@ -398,20 +427,23 @@ private fun PanelTabs(selected: EditorPanel, onSelect: (EditorPanel) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MlColors.SurfaceHigh)
+            .clip(RoundedCornerShape(50))
+            .background(MlColors.SurfaceHigh.copy(alpha = 0.7f))
             .horizontalScrollWithBar(rememberScrollState()),
     ) {
         EditorPanel.entries.forEach { panel ->
             val active = panel == selected
+            // The highlight glides between tabs instead of jumping.
+            val fill by animateColorAsState(if (active) MlColors.Violet else Color.Transparent, tween(220), label = "tabFill")
+            val ink by animateColorAsState(if (active) Color.White else MlColors.TextSecondary, tween(220), label = "tabInk")
             Text(
                 panel.label,
                 style = MaterialTheme.typography.labelMedium,
-                color = if (active) Color.White else MlColors.TextPrimary,
+                color = ink,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (active) MlColors.Violet else Color.Transparent)
+                    .clip(RoundedCornerShape(50))
+                    .background(fill)
                     .selectable(selected = active, role = Role.Tab) { onSelect(panel) }
                     .heightIn(min = 44.dp)
                     .wrapContentHeight()

@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.render.tiles.rememberTile
+import com.motionloop.app.render.tiles.TileKey
 import com.motionloop.app.ui.components.TileRow
 import com.motionloop.app.ui.components.EffectTile
 import androidx.compose.foundation.background
@@ -96,6 +98,9 @@ fun SkyPanel(
                     selected = sky.style == style,
                     enabled = !busy,
                     description = if (isPhoto) (if (label == "Change") "Change sky photo" else "Your own sky photo") else null,
+                    // Your own photo cannot be shown in advance: the plain photo with a plus.
+                    rendered = rememberTile(if (isPhoto) TileKey.Photo else TileKey.Sky(style), animated = sky.style == style),
+                    overlay = if (isPhoto) PickOverlay else null,
                     preview = skyPreview(style),
                     onClick = {
                         // The photo style needs a photo first. Tapping it again picks a different one.

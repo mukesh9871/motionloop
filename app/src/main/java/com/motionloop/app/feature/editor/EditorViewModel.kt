@@ -1,5 +1,6 @@
 package com.motionloop.app.feature.editor
 
+import com.motionloop.app.render.tiles.TileRenderer
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
@@ -78,6 +79,8 @@ class EditorViewModel @Inject constructor(
     private val depthEstimator: DepthEstimator,
     @DefaultDispatcher private val cpu: CoroutineDispatcher,
     audioManager: AudioManager,
+    /** Renders the effect cards on the reference photo. App-wide, shared with Help. */
+    val tiles: TileRenderer,
     entitlements: Entitlements,
     appSettings: AppSettings,
 ) : ViewModel() {

@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.render.tiles.rememberTile
+import com.motionloop.app.render.tiles.TileKey
 import com.motionloop.app.ui.components.TileRow
 import com.motionloop.app.ui.components.EffectTile
 import androidx.compose.foundation.background
@@ -65,9 +67,15 @@ fun DepthPanel(
         }
         TileRow {
             CameraPath.entries.forEach { path ->
-                EffectTile(path.label(), selected = settings.path == path && settings.enabled, enabled = !busy, preview = cameraPreview(path), onClick = {
-                    onChange { it.copy(path = path, enabled = true) }
-                })
+                val chosen = settings.path == path && settings.enabled
+                EffectTile(
+                    path.label(),
+                    selected = chosen,
+                    enabled = !busy,
+                    rendered = rememberTile(TileKey.Camera(path), animated = chosen),
+                    preview = cameraPreview(path),
+                    onClick = { onChange { it.copy(path = path, enabled = true) } },
+                )
             }
         }
         LabeledSlider("Amount", settings.amount, 0f..1f, { v -> onChange { it.copy(amount = v) } })

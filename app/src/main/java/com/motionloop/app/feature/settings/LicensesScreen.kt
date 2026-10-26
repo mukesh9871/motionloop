@@ -21,6 +21,7 @@ private val libraries = listOf(
     License("LiteRT (TensorFlow Lite)", "Apache License 2.0", "https://ai.google.dev/edge/litert"),
     License("MiDaS v2.1 small depth model", "MIT License", "https://github.com/isl-org/MiDaS"),
     License("ML Kit Subject Segmentation", "ML Kit terms of service", "https://developers.google.com/ml-kit/terms"),
+    License("Space Grotesk font", "SIL Open Font License 1.1", "https://github.com/floriankarsten/space-grotesk"),
 )
 
 @Composable
@@ -42,6 +43,12 @@ fun LicensesScreen(onBack: () -> Unit) {
             DemoPhotos.all.forEach { photo ->
                 MenuRow(photo.title, subtitle = "Photo by ${photo.author}, CC0", onClick = { openUrl(context, photo.sourceUrl) })
             }
+            // The photo every effect card and Help picture is rendered from.
+            MenuRow(
+                "Effect cards and Help",
+                subtitle = "Photo by Paola Chaaya, CC0",
+                onClick = { openUrl(context, "https://commons.wikimedia.org/wiki/File:Admiring_the_lake_from_a_pier_(Unsplash).jpg") },
+            )
         }
         SectionTitle("Skies, effects and sounds")
         Text(

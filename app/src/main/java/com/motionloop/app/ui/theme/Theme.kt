@@ -1,5 +1,7 @@
 package com.motionloop.app.ui.theme
 
+import androidx.compose.ui.text.font.FontFamily
+import com.motionloop.app.R
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
@@ -119,10 +121,37 @@ private fun scheme(p: MlPalette) = if (p.isDark) {
     )
 }
 
+/** Space Grotesk (SIL Open Font License), downloaded at build time into font resources. */
+private val SpaceGrotesk = FontFamily(
+    Font(R.font.space_grotesk_regular, FontWeight.Normal),
+    Font(R.font.space_grotesk_medium, FontWeight.Medium),
+    // No semibold file: medium stands in, bold is the next step up.
+    Font(R.font.space_grotesk_medium, FontWeight.SemiBold),
+    Font(R.font.space_grotesk_bold, FontWeight.Bold),
+    Font(R.font.space_grotesk_bold, FontWeight.Black),
+)
+
+private fun TextStyle.grotesk() = copy(fontFamily = SpaceGrotesk)
+
+private val base = Typography()
+
+// One geometric family everywhere: the single biggest step toward the clean, technical look.
 private val typography = Typography(
-    headlineMedium = TextStyle(fontWeight = FontWeight.Bold, fontSize = 28.sp, letterSpacing = (-0.5).sp),
-    titleMedium = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 16.sp),
-    labelMedium = TextStyle(fontWeight = FontWeight.Medium, fontSize = 12.sp),
+    displayLarge = base.displayLarge.grotesk(),
+    displayMedium = base.displayMedium.grotesk(),
+    displaySmall = base.displaySmall.grotesk(),
+    headlineLarge = base.headlineLarge.grotesk(),
+    headlineMedium = TextStyle(fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, fontSize = 28.sp, letterSpacing = (-0.5).sp),
+    headlineSmall = base.headlineSmall.grotesk(),
+    titleLarge = base.titleLarge.grotesk(),
+    titleMedium = TextStyle(fontFamily = SpaceGrotesk, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, letterSpacing = 0.1.sp),
+    titleSmall = base.titleSmall.grotesk(),
+    bodyLarge = base.bodyLarge.grotesk(),
+    bodyMedium = base.bodyMedium.grotesk(),
+    bodySmall = base.bodySmall.grotesk(),
+    labelLarge = base.labelLarge.grotesk(),
+    labelMedium = TextStyle(fontFamily = SpaceGrotesk, fontWeight = FontWeight.Medium, fontSize = 12.sp, letterSpacing = 0.3.sp),
+    labelSmall = base.labelSmall.grotesk(),
 )
 
 @Composable

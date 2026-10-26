@@ -186,6 +186,8 @@ app/src/test, core/ml/src/test    JVM unit tests
 | Auto subject | ML Kit Subject Segmentation (Play services, on device, no model file) | Fallback: interactive segmenter at the image center |
 | Depth | MiDaS v2.1 small `model_opt.tflite` (63 MB, MIT) via LiteRT 1.4.x `Interpreter` | Input 1x256x256x3 float (ImageNet normalized), output 1x256x256 inverse depth |
 | Model and demo photo delivery | `buildSrc` `DownloadAssetsTask` downloads into generated assets, SHA-256 pinned | Nothing binary in git. CI logs `ASSET_SHA256` lines (ci-status `models.txt`) for pinning, and lists the APK assets in `apk-assets.txt` |
+| Effect cards and Help pictures | One CC0 reference photo (`reference/pier.jpg`), every effect rendered on it by `render/tiles/TileRenderer` | Real renders through `LoopRenderGraph` on a long-lived GL thread, stills cached on disk per app version, the selected card plays a 16 frame loop. Reference masks (sky, subject, depth, water) computed once on device |
+| Font | Space Grotesk (SIL OFL 1.1), static weights downloaded into generated font resources | Credited in Licenses |
 | Ambient sounds | Synthesized in code (rain, waves, wind, fire) | Original, loop exactly |
 | MP4 audio | Own AAC MediaCodec encoder + the existing MediaMuxer | Replaces the earlier Media3 Transformer idea: one pipeline |
 

@@ -1,5 +1,8 @@
 package com.motionloop.app.feature.help
 
+import com.motionloop.app.render.tiles.LocalTileRenderer
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.compose.runtime.CompositionLocalProvider
 import android.graphics.ImageDecoder
 import android.graphics.drawable.AnimatedImageDrawable
 import android.graphics.drawable.Drawable
@@ -120,7 +123,12 @@ private val groups = listOf(
 )
 
 @Composable
-fun HelpScreen(onBack: () -> Unit, onContact: () -> Unit) {
+fun HelpScreen(onBack: () -> Unit, onContact: () -> Unit, vm: HelpViewModel = hiltViewModel()) {
+    CompositionLocalProvider(LocalTileRenderer provides vm.tiles) { HelpContent(onBack, onContact) }
+}
+
+@Composable
+private fun HelpContent(onBack: () -> Unit, onContact: () -> Unit) {
     val context = LocalContext.current
     // Recorded demos, listed once off the main thread.
     // Null until known, so a card does not show the drawing and then swap to a recorded demo.

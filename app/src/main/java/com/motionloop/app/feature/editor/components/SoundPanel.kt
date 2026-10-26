@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.render.tiles.rememberTile
+import com.motionloop.app.render.tiles.TileKey
 import androidx.compose.ui.semantics.Role
 import com.motionloop.app.ui.components.TileRow
 import com.motionloop.app.ui.components.EffectTile
@@ -40,13 +42,27 @@ fun SoundPanel(
 ) {
     Column(modifier.fillMaxWidth()) {
         TileRow {
-            EffectTile("None", selected = audio.source == AudioSource.NONE, enabled = !busy, preview = NonePreview, onClick = {
-                onChange { it.copy(source = AudioSource.NONE) }
-            })
+            // Sound has no picture of its own: the photo, with the sound's motion drawn over it.
+            val photo = rememberTile(TileKey.Photo)
+            EffectTile(
+                "None",
+                selected = audio.source == AudioSource.NONE,
+                enabled = !busy,
+                rendered = photo,
+                overlay = NoneOverlay,
+                preview = NonePreview,
+                onClick = { onChange { it.copy(source = AudioSource.NONE) } },
+            )
             AmbientSound.entries.forEach { s ->
-                EffectTile(s.label, selected = audio.source == AudioSource.AMBIENT && audio.ambient == s, enabled = !busy, preview = soundPreview(s), onClick = {
-                    onChange { it.copy(source = AudioSource.AMBIENT, ambient = s) }
-                })
+                EffectTile(
+                    s.label,
+                    selected = audio.source == AudioSource.AMBIENT && audio.ambient == s,
+                    enabled = !busy,
+                    rendered = photo,
+                    overlay = soundOverlay(s),
+                    preview = soundPreview(s),
+                    onClick = { onChange { it.copy(source = AudioSource.AMBIENT, ambient = s) } },
+                )
             }
             val fileActive = audio.source == AudioSource.FILE && audio.fileRev != 0
             EffectTile(
@@ -55,6 +71,8 @@ fun SoundPanel(
                 enabled = !busy,
                 role = Role.Button,
                 description = if (fileActive) "Change your audio file" else "Pick your own audio",
+                rendered = photo,
+                overlay = PickOverlay,
                 preview = PickPreview,
                 onClick = onPickFile,
             )

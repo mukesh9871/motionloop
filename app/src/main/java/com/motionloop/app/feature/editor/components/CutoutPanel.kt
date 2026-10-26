@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.render.tiles.rememberTile
+import com.motionloop.app.render.tiles.TileKey
 import com.motionloop.app.ui.components.TileRow
 import com.motionloop.app.ui.components.EffectTile
 import androidx.compose.foundation.background
@@ -94,6 +96,8 @@ fun CutoutPanel(
                     selected = background.mode == mode,
                     enabled = !busy && (subject.hasArea || mode == BackgroundMode.NONE),
                     description = if (isPhoto) (if (label == "Change") "Change background photo" else "Your own background photo") else null,
+                    rendered = rememberTile(if (isPhoto) TileKey.Photo else TileKey.Background(mode), animated = background.mode == mode),
+                    overlay = if (isPhoto) PickOverlay else null,
                     preview = backgroundPreview(mode),
                     onClick = {
                         // Photo needs a photo first. Tapping it again picks a different one.

@@ -39,8 +39,13 @@ private val DrawScope.u: Float get() = size.minDimension / 64f
 private val White = Color.White
 
 /** "Nothing chosen": the plain scene, dimmed, with a slash. */
-val NonePreview: TilePreview = {
+val NonePreview: TilePreview = { t ->
     tileScene()
+    NoneOverlay(this, t)
+}
+
+/** The "nothing chosen" mark alone, for drawing over a rendered photo. */
+val NoneOverlay: TilePreview = {
     drawRect(Color.Black.copy(alpha = 0.35f))
     val r = size.minDimension * 0.22f
     val c = center
@@ -49,8 +54,13 @@ val NonePreview: TilePreview = {
 }
 
 /** A plus on the scene, for actions that pick a file (your own photo or audio). */
-val PickPreview: TilePreview = {
+val PickPreview: TilePreview = { t ->
     tileScene()
+    PickOverlay(this, t)
+}
+
+/** The plus alone, for drawing over a rendered photo. */
+val PickOverlay: TilePreview = {
     drawRect(Color.Black.copy(alpha = 0.4f))
     val r = size.minDimension * 0.2f
     drawLine(White, Offset(center.x - r, center.y), Offset(center.x + r, center.y), strokeWidth = 4f * u, cap = StrokeCap.Round)
@@ -282,6 +292,11 @@ fun textAnimationPreview(animation: TextAnimation): TilePreview = { t ->
 
 fun soundPreview(sound: AmbientSound): TilePreview = { t ->
     tileScene()
+    soundOverlay(sound)(this, t)
+}
+
+/** The sound's motion alone, for drawing over a rendered photo. */
+fun soundOverlay(sound: AmbientSound): TilePreview = { t ->
     drawRect(Color.Black.copy(alpha = 0.25f))
     val w = size.width
     val h = size.height
