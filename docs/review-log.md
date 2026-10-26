@@ -428,3 +428,7 @@ Verdict: NEEDS WORK (1 major, 5 minor). All round 1 fixes verified, compile chec
 | 4 | minor | Text "None" asked for a loop | Fixed. |
 | 5 | minor | Unused animation imports | Fixed. |
 | 6 | minor | Comment said a failed mask stays failed for the session | Fixed wording. |
+
+## Reference photo and futuristic UI round 3 (9eed31c)
+
+Verdict: CLEAN. All round 2 fixes verified, select with onTimeout checked against the coroutines source.
