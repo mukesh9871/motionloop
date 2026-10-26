@@ -1,5 +1,7 @@
 package com.motionloop.app.render.tiles
 
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.currentCoroutineContext
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -7,7 +9,6 @@ import android.opengl.GLES30
 import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import com.motionloop.app.BuildConfig
 import com.motionloop.app.core.common.DefaultDispatcher
 import com.motionloop.app.core.common.IoDispatcher
 import com.motionloop.app.core.gl.EglCore
@@ -90,8 +91,10 @@ class TileRenderer @Inject constructor(
 ) {
     private val gl = Executors.newSingleThreadExecutor { Thread(it, "ml-tiles") }.asCoroutineDispatcher()
     private val scope = CoroutineScope(SupervisorJob() + gl)
-    private val queue = Channel<Job>(Channel.UNLIMITED)
     private val queued = ConcurrentHashMap.newKeySet<String>()
+
+    // A job lost when the idle timeout cancels receive() must not stay marked as queued forever.
+    private val queue = Channel<Job>(Channel.UNLIMITED, onUndeliveredElement = { queued.remove(tag(it.request, it.animated)) })
 
     /** How many tiles on screen currently play each loop. Loops still in use are never evicted. */
     private val inUse = ConcurrentHashMap<TileRequest, Int>()
@@ -111,15 +114,12 @@ class TileRenderer @Inject constructor(
     private val texts = HashMap<TextLayer, TextDraw>()
     private val animatedOrder = ArrayDeque<TileRequest>()
 
-    private class References(
-        val photo: Bitmap,
-        val sky: AlphaMask?,
-        val subject: AlphaMask?,
-        val depth: AlphaMask?,
-        val water: AlphaMask?,
-        /** Subject bounds in normalized photo coordinates: left, top, right, bottom. */
-        val subjectBox: FloatArray?,
-    )
+    /** The photo, and its masks once a tile needs them. A mask that failed stays null for the session. */
+    private class References(val photo: Bitmap) {
+        val masks = HashMap<String, AlphaMask?>()
+        var subjectBox: FloatArray? = null
+        var subjectBoxDone = false
+    }
 
     init {
         scope.launch { work() }
@@ -166,7 +166,8 @@ class TileRenderer @Inject constructor(
                 if (still != null) _images.update { it + (r to TileImage(still.asImageBitmap())) }
             }
             val have = _images.value[r]
-            if (job.animated && have != null && have.frames == null) {
+            // Still pictures need no loop: sixteen identical frames would only take memory.
+            if (job.animated && r.key.moves && have != null && have.frames == null) {
                 val phases = List(FRAMES) { it.toFloat() / FRAMES }
                 val frames = render(r, phases)?.map { it.asImageBitmap() }
                 if (frames != null) {
@@ -175,7 +176,9 @@ class TileRenderer @Inject constructor(
                 }
             }
         } catch (e: CancellationException) {
-            throw e
+            // A Play services task cancelled under us must not end the worker for the app's lifetime.
+            if (!currentCoroutineContext().isActive) throw e
+            Log.w(TAG, "Tile ${job.request.key.id} cancelled", e)
         } catch (e: Exception) {
             // A tile that cannot be rendered keeps its drawn picture: never worth a crash.
             Log.w(TAG, "Tile ${job.request.key.id} failed", e)
@@ -254,22 +257,27 @@ class TileRenderer @Inject constructor(
         var background = BackgroundSettings()
         var tint = false
         var textDraws = emptyList<TextDraw>()
+        // Only the masks this tile needs: the others are never loaded or computed for it.
+        var skyMask: AlphaMask? = null
+        var subjectMask: AlphaMask? = null
+        var depthMask: AlphaMask? = null
 
         when (key) {
             is TileKey.Sky -> {
-                if (key.style == SkyStyle.PHOTO || refs.sky == null) return false
+                if (key.style == SkyStyle.PHOTO) return false
+                skyMask = mask(refs, "sky") ?: return false
                 sky = SkySettings(enabled = true, style = key.style, maskRev = REF_REV, drift = 0.6f)
             }
             is TileKey.Background -> {
                 if (key.mode == BackgroundMode.PHOTO) return false
                 if (key.mode != BackgroundMode.NONE) {
-                    if (refs.subject == null) return false
+                    subjectMask = mask(refs, "subject") ?: return false
                     subject = SubjectSettings(maskRev = REF_REV)
                     background = BackgroundSettings(mode = key.mode)
                 }
             }
             is TileKey.Camera -> {
-                if (refs.depth == null) return false
+                depthMask = mask(refs, "depth") ?: return false
                 parallax = ParallaxSettings(enabled = true, path = key.path, amount = 1f, focus = 0.35f, depthRev = REF_REV)
             }
             is TileKey.Particles -> if (key.type != ParticleType.NONE) overlay = OverlaySettings(particles = key.type, density = 0.55f, size = 0.6f)
@@ -277,7 +285,8 @@ class TileRenderer @Inject constructor(
             is TileKey.Air -> overlay = OverlaySettings(atmosphere = key.atmosphere, atmosphereAmount = 0.8f)
             is TileKey.Sticker -> effects = EffectsSettings(stickers = listOf(Sticker("tile", key.kind, x = FOCUS_X, y = 0.36f, size = 0.3f)))
             is TileKey.Text -> {
-                if (refs.subject != null) subject = SubjectSettings(maskRev = REF_REV)
+                subjectMask = mask(refs, "subject")
+                if (subjectMask != null) subject = SubjectSettings(maskRev = REF_REV)
                 val layer = TextLayer("tile", "LOOP", size = 0.2f, x = FOCUS_X, y = 0.42f, animation = key.animation, shadow = true, behindSubject = true)
                 val draw = texts.getOrPut(layer.renderKey()) { withContext(cpu) { TextDraw(layer, TextRasterizer.render(layer, TEXT_WIDTH)) } }
                 textDraws = listOf(TextDraw(layer, draw.rendered))
@@ -297,12 +306,12 @@ class TileRenderer @Inject constructor(
                 MotionArrow("f2", NPoint(0.05f, 0.75f), NPoint(0.35f, 0.8f)),
             )
             TileKey.Water -> {
-                val water = refs.water ?: return false
+                val water = mask(refs, "water") ?: return false
                 selections = listOf(SelectionLayer(water, SelectionMode.RIPPLE))
                 effects = EffectsSettings(ripple = RippleSettings(strength = 1f))
             }
             TileKey.Disperse -> {
-                val box = refs.subjectBox ?: return false
+                val box = subjectBox(refs) ?: return false
                 // A brush stroke down the middle of the person, as wide as they are.
                 val cx = (box[0] + box[2]) / 2
                 val stroke = MaskStroke(
@@ -314,7 +323,7 @@ class TileRenderer @Inject constructor(
                 effects = EffectsSettings(dispersion = DispersionSettings(strokes = listOf(stroke), angle = -20f, distance = 0.6f, amount = 0.7f))
             }
             TileKey.SubjectTint -> {
-                if (refs.subject == null) return false
+                subjectMask = mask(refs, "subject") ?: return false
                 subject = SubjectSettings(maskRev = REF_REV)
                 tint = true
             }
@@ -324,9 +333,9 @@ class TileRenderer @Inject constructor(
         g.setColor(adjustments, lut)
         g.setOverlay(overlay)
         g.setEffects(effects)
-        g.setSky(sky, refs.sky, null, replace = true)
-        g.setParallax(parallax, refs.depth)
-        g.setSubject(subject, refs.subject, background, null, tintOnly = tint, checker = true)
+        g.setSky(sky, skyMask, null, replace = true)
+        g.setParallax(parallax, depthMask)
+        g.setSubject(subject, subjectMask, background, null, tintOnly = tint, checker = true)
         g.setTexts(textDraws)
         return true
     }
@@ -334,10 +343,19 @@ class TileRenderer @Inject constructor(
     private fun ensureGraph(refs: References): LoopRenderGraph? {
         graph?.let { return it }
         val e = EglCore(EglCore.Kind.PBUFFER).also { egl = it }
-        e.makeCurrentPbuffer()
-        return LoopRenderGraph(context.assets).also {
-            it.setImage(refs.photo)
-            graph = it
+        return try {
+            e.makeCurrentPbuffer()
+            LoopRenderGraph(context.assets).also {
+                it.setImage(refs.photo)
+                graph = it
+            }
+        } catch (t: Exception) {
+            // Shaders or framebuffers this GPU refuses: give up on renders, keep the drawings.
+            Log.w(TAG, "Tile graph failed", t)
+            e.release()
+            egl = null
+            unavailable = true
+            null
         }
     }
 
@@ -369,16 +387,38 @@ class TileRenderer @Inject constructor(
             unavailable = true
             return null
         }
-        val sky = mask("sky") { segmenter.segmentSky(photo) }
-        val subject = mask("subject") { segmenter.segmentSubject(photo).takeIf { it.coverage() > 0.003f } }
-        val depth = mask("depth") { depthEstimator.estimate(photo) }
-        val water = mask("water") { segmenter.segmentAt(photo, WATER_X, WATER_Y) }
-        val box = subject?.let { withContext(cpu) { bounds(it) } }
-        return References(photo, sky, subject, depth, water, box).also { refs = it }
+        return References(photo).also { refs = it }
+    }
+
+    /** The reference mask [name], loaded or computed the first time a tile needs it. */
+    private suspend fun mask(refs: References, name: String): AlphaMask? {
+        if (refs.masks.containsKey(name)) return refs.masks[name]
+        val photo = refs.photo
+        val result = loadOrCompute(name) {
+            when (name) {
+                "sky" -> segmenter.segmentSky(photo)
+                // The photo is fixed and the person's spot is known: tap there, like a user would.
+                // Deterministic, offline, and never the lake (ML Kit's fallback taps the center).
+                "subject" -> segmenter.segmentAtAll(photo, listOf(PERSON_X to PERSON_TOP, PERSON_X to PERSON_BOTTOM))
+                "depth" -> depthEstimator.estimate(photo)
+                "water" -> segmenter.segmentAt(photo, WATER_X, WATER_Y)
+                else -> null
+            }
+        }
+        refs.masks[name] = result
+        return result
+    }
+
+    private suspend fun subjectBox(refs: References): FloatArray? {
+        if (!refs.subjectBoxDone) {
+            refs.subjectBox = mask(refs, "subject")?.let { withContext(cpu) { bounds(it) } }
+            refs.subjectBoxDone = true
+        }
+        return refs.subjectBox
     }
 
     /** A reference mask from app storage, or computed once by [compute] and stored. Null when it fails. */
-    private suspend fun mask(name: String, compute: suspend () -> AlphaMask?): AlphaMask? {
+    private suspend fun loadOrCompute(name: String, compute: suspend () -> AlphaMask?): AlphaMask? {
         val file = File(File(context.filesDir, "reference"), "${name}_v$MASK_VERSION.mask")
         withContext(io) {
             if (file.exists()) runCatching { file.inputStream().buffered().use(MaskCodec::read) }.getOrNull() else null
@@ -386,14 +426,19 @@ class TileRenderer @Inject constructor(
         val computed = try {
             withContext(cpu) { compute() }
         } catch (e: CancellationException) {
-            throw e
+            if (!currentCoroutineContext().isActive) throw e
+            Log.w(TAG, "Reference $name mask cancelled", e)
+            null
         } catch (e: Exception) {
             Log.w(TAG, "Reference $name mask failed", e)
             null
         } ?: return null
         withContext(io) {
-            file.parentFile?.mkdirs()
-            file.writeAtomically { out -> out.buffered().also { MaskCodec.write(computed, it) }.flush() }
+            // Not stored (disk full): still use it this session.
+            runCatching {
+                file.parentFile?.mkdirs()
+                file.writeAtomically { out -> out.buffered().also { MaskCodec.write(computed, it) }.flush() }
+            }
         }
         return computed
     }
@@ -424,8 +469,12 @@ class TileRenderer @Inject constructor(
 
     private fun cacheFile(r: TileRequest) = File(cacheRoot(), "${r.shape}_${r.key.id}.jpg")
 
-    // Per app version: a release with new shaders renders its cards again.
-    private fun cacheRoot() = File(File(context.cacheDir, "tiles"), "v${BuildConfig.VERSION_CODE}_$MASK_VERSION")
+    // Per installed build: every update (even with the same version code) renders its cards again.
+    private val buildStamp: Long by lazy {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime }.getOrDefault(0L)
+    }
+
+    private fun cacheRoot() = File(File(context.cacheDir, "tiles"), "b${buildStamp}_$MASK_VERSION")
 
     private suspend fun loadCached(r: TileRequest): Bitmap? = withContext(io) {
         val file = cacheFile(r)
@@ -450,7 +499,8 @@ class TileRenderer @Inject constructor(
         const val REFERENCE_ASSET = "reference/pier.jpg"
         const val PHOTO_EDGE = 768
         const val TEXT_WIDTH = 720
-        const val MASK_VERSION = 1
+        // 2: the subject is the tapped person, not ML Kit's guess.
+        const val MASK_VERSION = 2
 
         /** Any non-zero revision: the graph only checks that an area exists, the mask comes from here. */
         const val REF_REV = 1
@@ -463,6 +513,11 @@ class TileRenderer @Inject constructor(
         /** Where the person sits in the reference photo: square crops center there. */
         const val FOCUS_X = 0.66f
         const val FOCUS_Y = 0.45f
+
+        /** Two points on the person sitting on the pier (head and back), in photo coordinates. */
+        const val PERSON_X = 0.79f
+        const val PERSON_TOP = 0.42f
+        const val PERSON_BOTTOM = 0.53f
 
         /** A point on the open lake, for the water region. */
         const val WATER_X = 0.25f

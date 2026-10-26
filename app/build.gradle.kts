@@ -83,7 +83,7 @@ val downloadDemos = tasks.register<DownloadAssetsTask>("downloadDemos") {
     sha256.put("demos/falls_portrait.jpg", "71d26ae0e433400c296044db8b9d806c6e09763488f24bbecd21a47ef364802c")
     // The reference photo every effect card and Help picture is rendered from. CC0, Paola Chaaya.
     urls.put("reference/pier.jpg", "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Admiring_the_lake_from_a_pier_%28Unsplash%29.jpg/1280px-Admiring_the_lake_from_a_pier_%28Unsplash%29.jpg")
-    sha256.put("reference/pier.jpg", "")
+    sha256.put("reference/pier.jpg", "5c9debeeee1953044a132d1d528c4ae6fdbeb2301d6ea941742d1859e635e62a")
     outputDir.set(layout.buildDirectory.dir("generated/demos"))
 }
 
@@ -91,11 +91,11 @@ val downloadDemos = tasks.register<DownloadAssetsTask>("downloadDemos") {
 val downloadFonts = tasks.register<DownloadAssetsTask>("downloadFonts") {
     val base = "https://raw.githubusercontent.com/floriankarsten/space-grotesk/master/fonts/ttf/static"
     urls.put("font/space_grotesk_regular.ttf", "$base/SpaceGrotesk-Regular.ttf")
-    sha256.put("font/space_grotesk_regular.ttf", "")
+    sha256.put("font/space_grotesk_regular.ttf", "5ede28c4425f3fe4830c8f4754b39e9a87a93d0c3baa5e0a9924532aaa8a98bd")
     urls.put("font/space_grotesk_medium.ttf", "$base/SpaceGrotesk-Medium.ttf")
-    sha256.put("font/space_grotesk_medium.ttf", "")
+    sha256.put("font/space_grotesk_medium.ttf", "3183b7eb0b4241476360e2cd8e527868616cc16d3ce332c4376505989b772b44")
     urls.put("font/space_grotesk_bold.ttf", "$base/SpaceGrotesk-Bold.ttf")
-    sha256.put("font/space_grotesk_bold.ttf", "")
+    sha256.put("font/space_grotesk_bold.ttf", "7209bbb75fc0f5c546a5f5773b0db74ffc6abf04c2148c1105cace5765a96bdb")
     outputDir.set(layout.buildDirectory.dir("generated/fonts"))
 }
 

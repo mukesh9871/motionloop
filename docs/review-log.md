@@ -401,3 +401,17 @@ Verdict: NEEDS WORK (1 major, 11 minor). Compile, exhaustive whens, alpha ranges
 ## Effect tiles round 2 (f48a100)
 
 Verdict: CLEAN (0 blocker, 0 major, 3 minor). Items 1 to 11 verified. Indentation in the Cutout and Sky tiles fixed. Sky tile keeps showing the saved style while Replace is off: accepted, the switch sits right above the row.
+
+## Reference photo and futuristic UI round 1 (2d85aa6), two reviewers
+
+Verdicts: UI NEEDS WORK (1 blocker, 1 major, 8 minor), engine NEEDS WORK (2 major, 7 minor).
+
+| Side | Sev | Finding | Outcome |
+|---|---|---|---|
+| UI | blocker | `Font` not imported (the edit script took `font.FontWeight` as a match) | Fixed. Script helper now matches whole import lines, and the review skill lists the issue class. |
+| UI | major | A chosen tile's loop could be evicted while still on screen | Fixed: tiles retain their loop while shown, only unused loops are evicted, still keys never ask for loops. |
+| UI | minor | Haptic on every tap, three type slots lost M3 line heights, tab row clip hid the scroll bar ends, two size animations, tab row not a group, dangling KDoc | Fixed (haptic only on a new choice). |
+| UI | minor | Reduced motion | Accepted: Compose follows the system animator scale. |
+| Engine | major | Subject mask could become the lake when ML Kit was not ready, cached for good | Fixed: the person's known spot is tapped with the interactive model, mask version bumped. |
+| Engine | major | Card cache keyed on a version code that never changes | Fixed: keyed on the install time of each build. |
+| Engine | minor | All masks computed before the first card, EGL leak on a failed graph, job lost at the idle timeout, foreign cancellation ending the worker, failed mask write discarding the mask, unpinned downloads, Help loops for still pictures | Fixed. Pins taken from a local download, CI fails loudly on a mismatch. |
