@@ -57,10 +57,6 @@ private val Mint = Color(0xFF2EE6C5)
 private val Coral = Color(0xFFFF6B7A)
 private val Finger = Color(0xFFFFFFFF)
 
-/**
- * Small looping demo of a tool: a stylized photo plus the gesture that uses the tool.
- * Drawn in code, so it costs no asset and follows the help text exactly.
- */
 /** What each Help picture renders on the reference photo, the same photo every effect card uses. */
 fun Illus.tileKey(): TileKey = when (this) {
     Illus.PATH, Illus.SPEED -> TileKey.Flow
@@ -77,6 +73,10 @@ fun Illus.tileKey(): TileKey = when (this) {
     Illus.WATER -> TileKey.Water
 }
 
+/**
+ * Looping demo of a tool: the real effect rendered on the reference photo, with the gesture that
+ * uses the tool drawn over it. A drawn stand-in shows until the render is ready.
+ */
 @Composable
 fun HelpIllustration(kind: Illus, modifier: Modifier = Modifier) {
     // The real effect on the reference photo, playing. Drawn pictures stand in until it is ready.

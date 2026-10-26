@@ -1,6 +1,7 @@
 package com.motionloop.app.render.tiles
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -20,7 +21,13 @@ val LocalTileRenderer = staticCompositionLocalOf<TileRenderer?> { null }
 fun rememberTile(key: TileKey, shape: TileShape = TileShape.SQUARE, animated: Boolean = false): TileImage? {
     val renderer = LocalTileRenderer.current ?: return null
     val request = remember(key, shape) { TileRequest(key, shape) }
-    LaunchedEffect(request, animated) { renderer.request(request, animated) }
+    val loop = animated && key.moves
+    LaunchedEffect(request, loop) { renderer.request(request, loop) }
+    // While this tile plays the loop, its frames are not evicted for other tiles.
+    DisposableEffect(request, loop) {
+        if (loop) renderer.retain(request)
+        onDispose { if (loop) renderer.releaseLoop(request) }
+    }
     // Only this tile's entry: other tiles finishing do not recompose this one.
     val flow = remember(request) { renderer.images.map { it[request] }.distinctUntilChanged() }
     val image by flow.collectAsState(renderer.images.value[request])

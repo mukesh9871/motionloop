@@ -107,7 +107,8 @@ fun EffectTile(
             .width(TILE_WIDTH)
             .alpha(if (enabled) 1f else 0.4f)
             .selectable(selected = selected, enabled = enabled, role = role) {
-                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                // A light tick confirms a new choice. Re-tapping the chosen tile or an action tile stays silent.
+                if (role == Role.RadioButton && !selected) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onClick()
             }
             .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier),

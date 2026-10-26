@@ -14,6 +14,16 @@ import com.motionloop.app.domain.model.TextAnimation
 sealed interface TileKey {
     val id: String
 
+    /** False for effects that look the same at every moment: no loop is worth rendering for them. */
+    val moves: Boolean
+        get() = when (this) {
+            is Sky, is Camera, is Sticker, is Text, Flow, Water, Disperse -> true
+            is Particles -> type != ParticleType.NONE
+            is Leak -> leak != LightLeak.NONE
+            is Air -> atmosphere != Atmosphere.NONE
+            is Background, is Grade, is Adjust, Photo, SubjectTint -> false
+        }
+
     data class Sky(val style: SkyStyle) : TileKey { override val id get() = "sky_$style" }
     data class Background(val mode: BackgroundMode) : TileKey { override val id get() = "bg_$mode" }
     data class Camera(val path: CameraPath) : TileKey { override val id get() = "cam_$path" }

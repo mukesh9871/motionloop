@@ -1,5 +1,6 @@
 package com.motionloop.app.ui.theme
 
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import com.motionloop.app.R
 import androidx.compose.material3.LocalContentColor
@@ -141,16 +142,16 @@ private val typography = Typography(
     displayMedium = base.displayMedium.grotesk(),
     displaySmall = base.displaySmall.grotesk(),
     headlineLarge = base.headlineLarge.grotesk(),
-    headlineMedium = TextStyle(fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, fontSize = 28.sp, letterSpacing = (-0.5).sp),
+    headlineMedium = base.headlineMedium.copy(fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, fontSize = 28.sp, letterSpacing = (-0.5).sp),
     headlineSmall = base.headlineSmall.grotesk(),
     titleLarge = base.titleLarge.grotesk(),
-    titleMedium = TextStyle(fontFamily = SpaceGrotesk, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, letterSpacing = 0.1.sp),
+    titleMedium = base.titleMedium.copy(fontFamily = SpaceGrotesk, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, letterSpacing = 0.1.sp),
     titleSmall = base.titleSmall.grotesk(),
     bodyLarge = base.bodyLarge.grotesk(),
     bodyMedium = base.bodyMedium.grotesk(),
     bodySmall = base.bodySmall.grotesk(),
     labelLarge = base.labelLarge.grotesk(),
-    labelMedium = TextStyle(fontFamily = SpaceGrotesk, fontWeight = FontWeight.Medium, fontSize = 12.sp, letterSpacing = 0.3.sp),
+    labelMedium = base.labelMedium.copy(fontFamily = SpaceGrotesk, fontWeight = FontWeight.Medium, fontSize = 12.sp, letterSpacing = 0.3.sp),
     labelSmall = base.labelSmall.grotesk(),
 )
 

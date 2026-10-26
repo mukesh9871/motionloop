@@ -93,6 +93,9 @@ class TileRenderer @Inject constructor(
     private val queue = Channel<Job>(Channel.UNLIMITED)
     private val queued = ConcurrentHashMap.newKeySet<String>()
 
+    /** How many tiles on screen currently play each loop. Loops still in use are never evicted. */
+    private val inUse = ConcurrentHashMap<TileRequest, Int>()
+
     private val _images = MutableStateFlow<Map<TileRequest, TileImage>>(emptyMap())
     val images: StateFlow<Map<TileRequest, TileImage>> = _images.asStateFlow()
 
@@ -127,6 +130,16 @@ class TileRenderer @Inject constructor(
         val have = _images.value[request]
         if (have != null && (!animated || have.frames != null)) return
         if (queued.add(tag(request, animated))) queue.trySend(Job(request, animated))
+    }
+
+    /** A tile started playing [request]: its frames stay while it plays. */
+    fun retain(request: TileRequest) {
+        inUse.merge(request, 1, Int::plus)
+    }
+
+    /** The tile stopped playing [request] (deselected or left the screen). */
+    fun releaseLoop(request: TileRequest) {
+        inUse.computeIfPresent(request) { _, n -> if (n <= 1) null else n - 1 }
     }
 
     private fun tag(r: TileRequest, animated: Boolean) = "${r.shape}_${r.key.id}_$animated"
@@ -171,12 +184,16 @@ class TileRenderer @Inject constructor(
         }
     }
 
-    /** Loops take memory: only the most recent few keep their frames. */
+    /**
+     * Loops take memory: past [MAX_ANIMATED], the oldest loop no tile is playing gives up its frames.
+     * Loops still playing are kept even past the limit (they are on screen, so there are few).
+     */
     private fun keepFramesFor(r: TileRequest) {
         animatedOrder.remove(r)
         animatedOrder.addLast(r)
         while (animatedOrder.size > MAX_ANIMATED) {
-            val old = animatedOrder.removeFirst()
+            val old = animatedOrder.firstOrNull { (inUse[it] ?: 0) == 0 } ?: break
+            animatedOrder.remove(old)
             _images.update { map -> map[old]?.let { map + (old to TileImage(it.still)) } ?: map }
         }
     }

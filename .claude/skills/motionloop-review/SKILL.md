@@ -70,6 +70,7 @@ These came back in earlier rounds (see `docs/review-log.md`). There is no local 
 - Everything periodic in the loop phase uses whole frequencies; particle wrap margins scale with the aspect ratio and the largest particle size.
 - Messages the editor shows carry the panel they belong to, and model results carry the panel the model was started from.
 - *compile* Android framework getters are Java platform types: chaining `.x.y` on one that can return null (`encoderCapabilities`, `videoCapabilities`, `getInputBuffer`) fails type inference. Use `?.` and handle null.
+- *compile* Imports added by scripts: an "already imported?" check by substring takes `font.Font` as present when `font.FontWeight` is. For every new symbol, grep the file for its exact import line (or same-package definition).
 - Uniform names: every Kotlin `set*`/`bindTexture` name exists in the shader, and every uniform the shader reads is set.
 
 ## Output format of a review pass

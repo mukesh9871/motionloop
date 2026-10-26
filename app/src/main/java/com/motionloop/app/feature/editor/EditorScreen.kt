@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor
 
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.border
@@ -195,7 +197,6 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                     .clip(panelShape)
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
                     .border(1.dp, Brush.verticalGradient(listOf(MlColors.Violet.copy(alpha = 0.55f), Color.Transparent)), panelShape)
-                    .animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
                     .padding(horizontal = 14.dp, vertical = 12.dp),
             ) {
                 val project = state.project
@@ -217,7 +218,9 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                 AnimatedContent(
                     targetState = state.panel,
                     transitionSpec = {
-                        (fadeIn(tween(220)) + slideInVertically(tween(260)) { it / 8 }) togetherWith fadeOut(tween(120))
+                        // The size change is part of this transition: no second size animation outside.
+                        ((fadeIn(tween(220)) + slideInVertically(tween(260)) { it / 8 }) togetherWith fadeOut(tween(120)))
+                            .using(SizeTransform(clip = false))
                     },
                     label = "panel",
                 ) { panel ->
@@ -427,8 +430,10 @@ private fun PanelTabs(selected: EditorPanel, onSelect: (EditorPanel) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(50))
+            // A modest radius: a full pill would clip the scroll bar's ends.
+            .clip(RoundedCornerShape(16.dp))
             .background(MlColors.SurfaceHigh.copy(alpha = 0.7f))
+            .selectableGroup()
             .horizontalScrollWithBar(rememberScrollState()),
     ) {
         EditorPanel.entries.forEach { panel ->
