@@ -1,0 +1,189 @@
+Starting a Gradle Daemon (subsequent builds will be faster)
+> Task :buildSrc:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :buildSrc:compileKotlin FROM-CACHE
+> Task :buildSrc:compileJava NO-SOURCE
+> Task :buildSrc:compileGroovy NO-SOURCE
+> Task :buildSrc:pluginDescriptors
+> Task :buildSrc:processResources NO-SOURCE
+> Task :buildSrc:classes UP-TO-DATE
+
+> Task :buildSrc:jar
+:jar: No valid plugin descriptors were found in META-INF/gradle-plugins
+
+> Task :core:ml:preBuild UP-TO-DATE
+> Task :core:ml:preDebugBuild UP-TO-DATE
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :core:ml:processDebugNavigationResources FROM-CACHE
+> Task :app:generateDebugBuildConfig FROM-CACHE
+> Task :core:ml:generateDebugResources FROM-CACHE
+> Task :core:ml:packageDebugResources FROM-CACHE
+> Task :app:downloadFonts
+> Task :app:generateDebugResources FROM-CACHE
+> Task :app:packageDebugResources FROM-CACHE
+> Task :app:processDebugNavigationResources FROM-CACHE
+> Task :core:ml:parseDebugLocalResources FROM-CACHE
+> Task :core:ml:generateDebugRFile FROM-CACHE
+> Task :app:parseDebugLocalResources FROM-CACHE
+> Task :app:generateDebugRFile FROM-CACHE
+> Task :app:javaPreCompileDebug FROM-CACHE
+> Task :app:mapDebugSourceSetPaths
+> Task :app:compileDebugNavigationResources FROM-CACHE
+> Task :app:mergeDebugResources FROM-CACHE
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug FROM-CACHE
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileDebugUnitTest FROM-CACHE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:downloadDemos
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:generateDebugGlobalSynthetics FROM-CACHE
+> Task :app:desugarDebugFileDependencies FROM-CACHE
+> Task :app:checkDebugDuplicateClasses
+> Task :app:mergeDebugJniLibFolders
+> Task :core:ml:javaPreCompileDebug FROM-CACHE
+> Task :core:ml:extractDeepLinksDebug FROM-CACHE
+> Task :core:ml:processDebugManifest FROM-CACHE
+> Task :core:ml:mapDebugSourceSetPaths
+> Task :core:ml:compileDebugLibraryResources FROM-CACHE
+> Task :core:ml:preDebugUnitTestBuild UP-TO-DATE
+> Task :core:ml:writeDebugAarMetadata
+> Task :core:ml:generateDebugUnitTestStubRFile FROM-CACHE
+> Task :core:ml:javaPreCompileDebugUnitTest FROM-CACHE
+> Task :app:mergeExtDexDebug FROM-CACHE
+> Task :core:ml:downloadModels
+> Task :core:ml:generateDebugAssets UP-TO-DATE
+> Task :app:checkDebugAarMetadata
+> Task :core:ml:mergeDebugAssets
+> Task :core:ml:mergeDebugJniLibFolders
+> Task :core:ml:mergeDebugNativeLibs NO-SOURCE
+> Task :core:ml:copyDebugJniLibsProjectOnly
+> Task :app:processDebugMainManifest FROM-CACHE
+> Task :core:ml:stripDebugDebugSymbols NO-SOURCE
+> Task :core:ml:checkDebugAarMetadata
+> Task :app:processDebugManifest FROM-CACHE
+> Task :core:ml:copyDebugJniLibsProjectAndLocalJars
+> Task :app:processDebugManifestForPackage FROM-CACHE
+> Task :app:processDebugResources FROM-CACHE
+> Task :app:mergeDebugAssets
+> Task :app:compressDebugAssets FROM-CACHE
+> Task :core:ml:extractDebugAnnotations
+> Task :core:ml:extractDeepLinksForAarDebug FROM-CACHE
+> Task :core:ml:prepareDebugArtProfile
+> Task :core:ml:preReleaseBuild UP-TO-DATE
+> Task :core:ml:generateReleaseResources FROM-CACHE
+> Task :core:ml:packageReleaseResources FROM-CACHE
+> Task :core:ml:processReleaseNavigationResources FROM-CACHE
+> Task :core:ml:parseReleaseLocalResources FROM-CACHE
+> Task :core:ml:generateReleaseRFile FROM-CACHE
+> Task :core:ml:prepareLintJarForPublish
+> Task :app:mergeDebugNativeLibs
+> Task :core:ml:javaPreCompileRelease FROM-CACHE
+> Task :core:ml:prepareReleaseArtProfile
+> Task :core:ml:writeReleaseAarMetadata
+> Task :core:ml:extractDeepLinksRelease FROM-CACHE
+> Task :core:ml:processReleaseManifest FROM-CACHE
+> Task :core:ml:mapReleaseSourceSetPaths
+> Task :core:ml:compileReleaseLibraryResources FROM-CACHE
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:preReleaseBuild UP-TO-DATE
+> Task :app:checkReleaseDuplicateClasses
+
+> Task :app:stripDebugDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libmediapipe_tasks_jni.so, libtensorflowlite_jni.so. Run with --info option to learn more.
+
+> Task :app:generateReleaseBuildConfig FROM-CACHE
+> Task :app:mergeReleaseArtProfile
+> Task :app:generateReleaseResources FROM-CACHE
+> Task :app:packageReleaseResources FROM-CACHE
+> Task :app:processReleaseNavigationResources FROM-CACHE
+> Task :app:parseReleaseLocalResources FROM-CACHE
+> Task :app:generateReleaseRFile FROM-CACHE
+> Task :app:javaPreCompileRelease FROM-CACHE
+> Task :app:mapReleaseSourceSetPaths
+> Task :app:checkReleaseAarMetadata
+> Task :app:compileReleaseNavigationResources FROM-CACHE
+> Task :app:mergeReleaseResources FROM-CACHE
+> Task :app:createReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksRelease FROM-CACHE
+> Task :app:processReleaseMainManifest FROM-CACHE
+> Task :app:processReleaseManifest FROM-CACHE
+> Task :app:processReleaseManifestForPackage FROM-CACHE
+> Task :app:processReleaseResources FROM-CACHE
+> Task :app:extractProguardFiles
+> Task :app:mergeReleaseStartupProfile
+> Task :core:ml:compileReleaseKotlin
+> Task :core:ml:compileReleaseJavaWithJavac NO-SOURCE
+> Task :core:ml:mergeReleaseGeneratedProguardFiles
+> Task :core:ml:exportReleaseConsumerProguardFiles
+> Task :core:ml:processReleaseJavaRes
+> Task :core:ml:bundleLibRuntimeToJarRelease
+> Task :core:ml:bundleLibCompileToJarRelease
+> Task :core:ml:compileDebugKotlin
+> Task :core:ml:compileDebugJavaWithJavac NO-SOURCE
+> Task :core:ml:bundleLibCompileToJarDebug
+> Task :core:ml:bundleLibRuntimeToJarDebug
+> Task :core:ml:processDebugJavaRes
+> Task :core:ml:mergeDebugGeneratedProguardFiles
+> Task :core:ml:bundleLibRuntimeToDirDebug
+> Task :core:ml:mergeDebugConsumerProguardFiles
+> Task :core:ml:mergeDebugJavaResource
+> Task :core:ml:compileDebugUnitTestKotlin
+> Task :core:ml:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :core:ml:processDebugUnitTestJavaRes
+> Task :app:mergeLibDexDebug
+> Task :core:ml:testDebugUnitTest
+> Task :core:ml:syncDebugLibJars
+> Task :core:ml:bundleDebugAar
+> Task :core:ml:assembleDebug
+> Task :app:kspDebugKotlin
+> Task :app:kspReleaseKotlin
+
+> Task :app:compileDebugKotlin
+w: file:///home/runner/work/motionloop/motionloop/app/src/main/java/com/motionloop/app/render/LoopRenderGraph.kt:509:27 Unnecessary non-null assertion (!!) on a non-null receiver of type 'GlTexture'.
+
+> Task :app:compileReleaseKotlin
+w: file:///home/runner/work/motionloop/motionloop/app/src/main/java/com/motionloop/app/render/LoopRenderGraph.kt:509:27 Unnecessary non-null assertion (!!) on a non-null receiver of type 'GlTexture'.
+
+> Task :app:compileReleaseJavaWithJavac
+> Task :app:compileDebugJavaWithJavac
+> Task :app:hiltCollectClassesDebug
+> Task :app:hiltAggregateDepsDebug FROM-CACHE
+> Task :app:hiltJavaCompileDebug
+> Task :app:processDebugJavaRes
+> Task :app:bundleDebugClassesToCompileJar
+> Task :app:kspDebugUnitTestKotlin
+> Task :app:transformDebugClassesWithAsm
+> Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:mergeDebugJavaResource
+> Task :app:compileDebugUnitTestKotlin
+> Task :app:dexBuilderDebug
+> Task :app:processDebugUnitTestJavaRes
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:hiltCollectClassesDebugUnitTest
+> Task :app:hiltCollectClassesRelease
+> Task :app:hiltAggregateDepsRelease FROM-CACHE
+> Task :app:hiltAggregateDepsDebugUnitTest FROM-CACHE
+> Task :app:hiltJavaCompileDebugUnitTest NO-SOURCE
+> Task :app:transformDebugUnitTestClassesWithAsm
+> Task :app:mergeProjectDexDebug
+> Task :app:hiltJavaCompileRelease
+> Task :app:testDebugUnitTest
+> Task :app:processReleaseJavaRes
+> Task :app:mergeReleaseJavaResource
+> Task :app:transformReleaseClassesWithAsm
+> Task :app:mergeReleaseGeneratedProguardFiles
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+> Task :app:expandReleaseArtProfileWildcards
+> Task :app:minifyReleaseWithR8
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/build-1793428926146.json
+
+[Incubating] Problems report is available at: file:///home/runner/work/motionloop/motionloop/build/reports/problems/problems-report.html
+
+BUILD SUCCESSFUL in 2m 16s
+142 actionable tasks: 84 executed, 58 from cache
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.6.0/userguide/configuration_cache_enabling.html
