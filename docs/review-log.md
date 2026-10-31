@@ -518,3 +518,7 @@ Verdict: CLEAN (6 minor).
 | 4 | minor | Android 8 and 9: an export in the same second replaced the earlier file | Fixed: a numbered name when the target exists. |
 | 5 | minor | A failed PNG encode was published as a finished export | Fixed: throws, so the entry is discarded. |
 | 6 | minor | After the 30 s ML Kit timeout the pending task may outlive its bitmap and client | Accepted: existed before, the late task only fails. |
+
+## Memory, gallery export and storage sweep round 3 (151ee5a)
+
+Verdict: CLEAN (2 minor). The trim hook's broad catch now rethrows CancellationException (fixed). The gap between the free-name check and the rename on Android 8 and 9 is accepted: one export runs at a time.

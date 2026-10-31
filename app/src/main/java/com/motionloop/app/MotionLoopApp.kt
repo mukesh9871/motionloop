@@ -7,6 +7,7 @@ import android.util.Log
 import com.motionloop.ml.Segmenter
 import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -40,6 +41,8 @@ class MotionLoopApp : Application() {
             // Freeing memory must never crash the app.
             try {
                 segmenter.get().close()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Could not free the segmentation models", e)
             }
