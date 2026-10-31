@@ -432,3 +432,27 @@ Verdict: NEEDS WORK (1 major, 5 minor). All round 1 fixes verified, compile chec
 ## Reference photo and futuristic UI round 3 (9eed31c)
 
 Verdict: CLEAN. All round 2 fixes verified, select with onTimeout checked against the coroutines source.
+
+## Delayed saves and paced preview round 1 (uncommitted)
+
+Verdict: NEEDS WORK (1 major, 2 minor). Compile checks pass, SaveQueue has no lost or duplicated writes.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | major | Backup by rename left a moment without project.json, so Home could hide a project after a crash | Fixed: the backup is a hard link (copy fallback), and Home also lists a project from its backup. |
+| 2 | minor | Home sorted before the editor's last save landed | Fixed: Home flushes first. |
+| 3 | minor | Fired timers stayed in the map | Fixed: a timer removes its own entry. |
+
+## Delayed saves and paced preview round 2 (28635f9)
+
+Verdict: NEEDS WORK (1 blocker, 2 minor).
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | blocker | Queue on backgroundScope: advanceUntilIdle skips background work, two tests would fail | Fixed: the queue runs on the test scope. |
+| 2 | minor | Fixed 2 ms slack drifts into a skipped frame on a panel slightly above 60 Hz | Fixed: due times count from the vsync used, quarter vsync slack. |
+| 3 | minor | A project with both files unreadable is listed and then opens as not found | Accepted: rare, and the editor says so instead of crashing. |
+
+## Delayed saves and paced preview round 3 (11f5a49)
+
+Verdict: CLEAN. Every SaveQueue test traced step by step. Minor: 90 and 144 Hz panels pace at an even 45 or 48 fps, not 60. Accepted, KDoc updated in the next commit.
