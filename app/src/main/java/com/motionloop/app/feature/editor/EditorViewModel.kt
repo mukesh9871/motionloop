@@ -116,6 +116,9 @@ class EditorViewModel @Inject constructor(
     // person left must not start playing (and sounding) in the background.
     private var resumed = false
     private var autoplayPending = false
+    private var exportOpen = false
+    // Any explicit play, pause, tool or touch, even while loading: autoplay never overrides a choice.
+    private var userActed = false
 
     // Panel where the running model action started: its result message belongs there,
     // even if the user switched panels while it ran.
@@ -155,8 +158,9 @@ class EditorViewModel @Inject constructor(
                 )
             }
             // A project that already moves opens playing: the result first, the tools second.
-            if (preview != null && project.animates) {
-                if (resumed) _state.update { it.copy(playing = true) } else autoplayPending = true
+            if (preview != null && project.animates && !userActed) {
+                autoplayPending = true
+                tryAutoplay()
             }
             refreshLut()
             _state.update { it.copy(hasCustomLut = luts.hasCustom(projectId)) }
@@ -256,16 +260,31 @@ class EditorViewModel @Inject constructor(
     /** The screen is in front: a pending autoplay starts now. */
     fun onResume() {
         resumed = true
-        if (autoplayPending) {
-            autoplayPending = false
-            _state.update { it.copy(playing = true) }
-        }
+        tryAutoplay()
     }
 
-    /** The screen left the front: the preview and its sound stop. */
+    /**
+     * The export sheet opened or closed. It is a dialog and does not pause the screen, so the preview
+     * stops here: the GPU and the speaker stay free for the export. A sheet restored after process
+     * death holds the autoplay until it closes. Opening Export by hand is an explicit pause, so no
+     * autoplay follows it.
+     */
+    fun setExportOpen(open: Boolean) {
+        exportOpen = open
+        if (open) _state.update { it.copy(playing = false) } else tryAutoplay()
+    }
+
+    /** Starts the waiting autoplay once the screen is in front and nothing covers it. */
+    private fun tryAutoplay() {
+        if (!autoplayPending || !resumed || exportOpen) return
+        autoplayPending = false
+        _state.update { it.copy(playing = true) }
+    }
+
+    /** The screen left the front: the preview and its sound stop. A held autoplay waits for the next resume. */
     fun onPause() {
         resumed = false
-        setPlaying(false)
+        _state.update { it.copy(playing = false) }
     }
 
     /** The screen stopped (app in the background): write waiting saves now, the process may be killed. */
@@ -718,6 +737,8 @@ class EditorViewModel @Inject constructor(
     private fun runModel(label: String, block: suspend (preview: Bitmap) -> Unit) {
         val preview = _state.value.preview ?: return
         if (_state.value.busy != null) return
+        userActed = true
+        autoplayPending = false
         _state.update { it.copy(busy = label, playing = false) }
         val origin = _state.value.panel
         viewModelScope.launch {
@@ -857,11 +878,22 @@ class EditorViewModel @Inject constructor(
         _state.update { it.copy(tool = EditorTool.ARROW, playing = true) }
     }
 
-    fun setTool(tool: EditorTool) = _state.update { it.copy(tool = tool, playing = false) }
+    fun setTool(tool: EditorTool) {
+        userActed = true
+        autoplayPending = false
+        _state.update { it.copy(tool = tool, playing = false) }
+    }
     fun setBrushRadius(r: Float) = _state.update { it.copy(brushRadius = r) }
     fun setBrushHardness(h: Float) = _state.update { it.copy(brushHardness = h) }
-    fun togglePlay() = _state.update { it.copy(playing = !it.playing) }
+    fun togglePlay() {
+        userActed = true
+        autoplayPending = false
+        _state.update { it.copy(playing = !it.playing) }
+    }
+    /** An explicit choice also cancels a pending autoplay, so it cannot start later behind a sheet. */
     fun setPlaying(playing: Boolean) {
+        userActed = true
+        autoplayPending = false
         _state.update { it.copy(playing = playing) }
     }
 
@@ -882,6 +914,8 @@ class EditorViewModel @Inject constructor(
     fun pointerDown(p: NPoint) {
         val s = _state.value
         val project = s.project ?: return
+        userActed = true
+        autoplayPending = false
         _state.update { it.copy(playing = false) }
         when (s.tool) {
             EditorTool.ARROW ->

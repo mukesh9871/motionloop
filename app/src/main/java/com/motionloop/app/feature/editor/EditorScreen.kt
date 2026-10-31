@@ -1,5 +1,6 @@
 package com.motionloop.app.feature.editor
 
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -129,6 +130,8 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
         onDispose { view.keepScreenOn = false }
     }
     var showExport by rememberSaveable { mutableStateOf(false) }
+    // The sheet is a dialog and does not pause the screen: the ViewModel pauses and holds autoplay meanwhile.
+    LaunchedEffect(showExport) { vm.setExportOpen(showExport) }
     // .cube files have no registered MIME type, so accept any file and validate the contents.
     val pickCube = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(vm::importCube)

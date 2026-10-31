@@ -1,5 +1,7 @@
 package com.motionloop.app.feature.editor.components
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
@@ -238,10 +240,12 @@ fun PlaybackBar(
                 .pressBounce(source, pressedScale = 0.9f)
                 .clip(CircleShape)
                 .background(MlColors.Violet)
-                .clickable(interactionSource = source, indication = LocalIndication.current, onClickLabel = if (playing) "Pause" else "Play") {
+                .clickable(interactionSource = source, indication = LocalIndication.current) {
                     haptics.performHapticFeedback(if (playing) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
                     onTogglePlay()
-                },
+                }
+                // One name for the button: during the icon crossfade both icons exist for a moment.
+                .semantics { contentDescription = if (playing) "Pause" else "Play" },
             contentAlignment = Alignment.Center,
         ) {
             // The icon turns over with a small pop instead of swapping.
@@ -254,7 +258,7 @@ fun PlaybackBar(
             ) { isPlaying ->
                 Icon(
                     if (isPlaying) MlIcons.Pause else MlIcons.Play,
-                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(24.dp),
                 )
