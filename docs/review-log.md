@@ -505,3 +505,16 @@ Verdict: CLEAN (6 minor).
 | 4 | minor | Android 8 and 9: a throwing insert left the renamed file in the album | Fixed: the file is deleted on any failure. |
 | 5 | minor | The ML Kit subject call now holds the segmenter lock for up to 30 s | Accepted: first use only (Play services download), the editor runs one model at a time, only reference cards can wait. |
 | 6 | minor | A throwing release skipped closing the muxer's descriptor | Fixed: closed in an inner finally. |
+
+## Memory, gallery export and storage sweep round 2 (ef71119)
+
+Verdict: CLEAN (6 minor).
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | minor | Unqualified TRIM_MEMORY_BACKGROUND, the only such use in the repo | Fixed: ComponentCallbacks2.TRIM_MEMORY_BACKGROUND. |
+| 2 | minor | An exception while closing the segmenter in the background would crash | Fixed: caught and logged. |
+| 3 | minor | The gallery item handle was assigned after the NonCancellable block | Fixed: assigned inside it. |
+| 4 | minor | Android 8 and 9: an export in the same second replaced the earlier file | Fixed: a numbered name when the target exists. |
+| 5 | minor | A failed PNG encode was published as a finished export | Fixed: throws, so the entry is discarded. |
+| 6 | minor | After the 30 s ML Kit timeout the pending task may outlive its bitmap and client | Accepted: existed before, the late task only fails. |

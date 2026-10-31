@@ -23,6 +23,7 @@ import com.motionloop.app.render.LoopRenderGraph
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import javax.inject.Inject
@@ -99,7 +100,9 @@ class PngExporter @Inject constructor(
                 val pixels = compose(rgba, layers, w * h, 0.04f + 0.4f * feather)
                 val image = Bitmap.createBitmap(pixels, w, h, Bitmap.Config.ARGB_8888)
                 try {
-                    out.openStream().buffered().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                    val written = out.openStream().buffered().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                    // An empty file must not be published as a finished export.
+                    if (!written) throw IOException("PNG encoding failed")
                 } finally {
                     image.recycle()
                 }

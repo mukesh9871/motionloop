@@ -110,10 +110,15 @@ class MediaStoreSaver @Inject constructor(
         )
 
         override suspend fun publish(): Uri = withContext(io) {
-            val target = File(album, displayName)
+            // Two exports in the same second share a name: a rename would replace the earlier file.
+            var target = File(album, displayName)
+            var n = 1
+            while (target.exists()) {
+                target = File(album, "${displayName.substringBeforeLast('.')}_${n++}.${displayName.substringAfterLast('.')}")
+            }
             if (!partial.renameTo(target)) throw IOException("Cannot move the export into $album")
             val values = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
+                put(MediaStore.MediaColumns.DISPLAY_NAME, target.name)
                 put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
                 @Suppress("DEPRECATION")
                 put(MediaStore.MediaColumns.DATA, target.absolutePath)

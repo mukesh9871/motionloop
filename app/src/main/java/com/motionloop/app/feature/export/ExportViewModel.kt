@@ -173,7 +173,7 @@ class ExportViewModel @Inject constructor(
                 val project = projects.load(projectId) ?: error("Project not found")
                 // Written straight into the gallery entry, which stays hidden until it is complete.
                 // Not cancellable: a cancel landing after the insert would lose the entry's handle.
-                val out = withContext(NonCancellable) { media.createGalleryItem(mime, name) }.also { item = it }
+                val out = withContext(NonCancellable) { media.createGalleryItem(mime, name).also { item = it } }
                 val onProgress: (Float) -> Unit = { p -> _state.update { it.copy(progress = p) } }
                 when (settings.format) {
                     ExportFormat.MP4 -> videoExporter.export(project, settings, out, onProgress)
