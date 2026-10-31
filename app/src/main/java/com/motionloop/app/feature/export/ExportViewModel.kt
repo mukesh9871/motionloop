@@ -14,6 +14,7 @@ import com.motionloop.app.data.settings.AppSettings
 import com.motionloop.app.domain.pro.Entitlements
 import com.motionloop.app.domain.pro.ProFeature
 import com.motionloop.app.domain.pro.ProPolicy
+import com.motionloop.app.domain.repository.GalleryItem
 import com.motionloop.app.domain.repository.MediaRepository
 import com.motionloop.app.domain.repository.ProjectRepository
 import com.motionloop.app.export.gif.GifExporter
@@ -165,20 +166,20 @@ class ExportViewModel @Inject constructor(
                 ExportFormat.PNG -> "image/png" to ".png"
             }
             val name = "MotionLoop_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) + ext
-            val file = media.exportTempFile(name)
-            // A file left by an export interrupted by process death would sit there until the OS trims the cache.
-            media.pruneExports()
+            var item: GalleryItem? = null
             try {
                 // Wait for the editor's queued saves, then read the latest state from disk.
                 projects.flush()
                 val project = projects.load(projectId) ?: error("Project not found")
+                // Written straight into the gallery entry, which stays hidden until it is complete.
+                val out = media.createGalleryItem(mime, name).also { item = it }
                 val onProgress: (Float) -> Unit = { p -> _state.update { it.copy(progress = p) } }
                 when (settings.format) {
-                    ExportFormat.MP4 -> videoExporter.export(project, settings, file, onProgress)
-                    ExportFormat.GIF -> gifExporter.export(project, settings, file, onProgress)
-                    ExportFormat.PNG -> pngExporter.export(project, file, onProgress)
+                    ExportFormat.MP4 -> videoExporter.export(project, settings, out, onProgress)
+                    ExportFormat.GIF -> gifExporter.export(project, settings, out, onProgress)
+                    ExportFormat.PNG -> pngExporter.export(project, out, onProgress)
                 }
-                val uri = media.saveToGallery(file, mime, name)
+                val uri = out.publish()
                 _state.update { it.copy(running = false, progress = 1f, resultUri = uri, resultMime = mime) }
             } catch (e: CancellationException) {
                 _state.update { it.copy(running = false, progress = 0f) }
@@ -187,7 +188,8 @@ class ExportViewModel @Inject constructor(
                 Log.w(TAG, "Export failed", e)
                 _state.update { it.copy(running = false, error = "The export failed. Please try again.") }
             } finally {
-                withContext(NonCancellable + cpu) { file.delete() }
+                // A failed or cancelled export leaves nothing behind. A published one is kept.
+                item?.let { withContext(NonCancellable) { it.discard() } }
             }
         }
     }

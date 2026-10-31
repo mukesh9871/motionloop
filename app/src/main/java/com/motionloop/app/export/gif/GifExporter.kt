@@ -1,5 +1,6 @@
 package com.motionloop.app.export.gif
 
+import com.motionloop.app.domain.repository.GalleryItem
 import android.content.Context
 import android.opengl.GLES30
 import com.motionloop.app.core.common.DefaultDispatcher
@@ -27,7 +28,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import javax.inject.Inject
@@ -47,7 +47,7 @@ class GifExporter @Inject constructor(
     @DefaultDispatcher private val cpu: CoroutineDispatcher,
 ) {
 
-    suspend fun export(project: Project, settings: ExportSettings, out: File, onProgress: (Float) -> Unit) =
+    suspend fun export(project: Project, settings: ExportSettings, out: GalleryItem, onProgress: (Float) -> Unit) =
         OffscreenLoop.onGlThread("ml-gif-export") {
             val targetAspect = settings.aspect.widthOverHeight(project.aspect)
             val (cropW, cropH) = OffscreenLoop.cropSize(project.imageWidth, project.imageHeight, targetAspect)
@@ -78,9 +78,7 @@ class GifExporter @Inject constructor(
             var graph: LoopRenderGraph? = null
             var texts: List<TextDraw> = emptyList()
             var target: GlTexture? = null
-            var success = false
             try {
-                out.parentFile?.mkdirs()
                 // Assign before using it, so a failure in makeCurrentPbuffer still releases the context.
                 val e = EglCore(EglCore.Kind.PBUFFER).also { egl = it }
                 e.makeCurrentPbuffer()
@@ -126,7 +124,7 @@ class GifExporter @Inject constructor(
                 onProgress(0.1f)
 
                 // Pass 2: render, map and encode every frame.
-                out.outputStream().buffered().use { stream ->
+                out.openStream().buffered().use { stream ->
                     val encoder = GifEncoder(stream, w, h, quantizer.palette)
                     val indices = ByteArray(w * h)
                     for (i in 0 until frameCount) {
@@ -140,13 +138,11 @@ class GifExporter @Inject constructor(
                     }
                     encoder.finish()
                 }
-                success = true
             } finally {
                 target?.release()
                 graph?.release()
                 texts.forEach { it.rendered.recycle() }
                 egl?.release()
-                if (!success) out.delete()
             }
         }
 

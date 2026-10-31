@@ -5,15 +5,20 @@ import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.ParcelFileDescriptor
 import android.provider.MediaStore
+import androidx.annotation.RequiresApi
 import androidx.core.content.FileProvider
 import com.motionloop.app.core.common.IoDispatcher
+import com.motionloop.app.domain.repository.GalleryItem
 import com.motionloop.app.domain.repository.MediaRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
+import java.io.OutputStream
 import javax.inject.Inject
 
 class MediaStoreSaver @Inject constructor(
@@ -25,17 +30,10 @@ class MediaStoreSaver @Inject constructor(
         // Installs from an app bundle are split into several APKs. base.apk alone would not install.
         get() = context.applicationInfo.splitSourceDirs.isNullOrEmpty()
 
-    override suspend fun pruneCaptures() = withContext(io) { MediaIntents.pruneCaptures(context) }
-
-    override suspend fun pruneExports() = withContext(io) {
-        File(context.cacheDir, "exports").listFiles()?.forEach { it.delete() }
-        Unit
-    }
-
     override suspend fun shareableApk(): Uri = withContext(io) {
         if (!canShareApk) throw IOException("This install is split into several files and cannot be shared as one")
-        val dir = File(context.cacheDir, "share").apply {
-            // Only ever one shared copy.
+        val dir = File(context.cacheDir, SHARE_DIR).apply {
+            // Only ever one shared copy. StorageSweeper removes it once the receiving app had time to read it.
             deleteRecursively()
             mkdirs()
         }
@@ -44,56 +42,99 @@ class MediaStoreSaver @Inject constructor(
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", target)
     }
 
-    // No disk access here (called on main). Exporters create the folder on their own thread.
-    override fun exportTempFile(name: String): File = File(File(context.cacheDir, "exports"), name)
-
-    override suspend fun saveToGallery(file: File, mimeType: String, displayName: String): Uri = withContext(io) {
+    override suspend fun createGalleryItem(mimeType: String, displayName: String): GalleryItem = withContext(io) {
         val isVideo = mimeType.startsWith("video/")
-        val collection = if (isVideo) {
-            MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-        } else {
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-        }
-        val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
-            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
-        }
-
+        val collection = if (isVideo) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val folder = if (isVideo) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val dir = if (isVideo) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES
-            values.put(MediaStore.MediaColumns.RELATIVE_PATH, "$dir/$ALBUM")
-            values.put(MediaStore.MediaColumns.IS_PENDING, 1)
-            val resolver = context.contentResolver
-            val uri = resolver.insert(collection, values) ?: throw IOException("MediaStore insert failed")
-            try {
-                resolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } }
-                    ?: throw IOException("Cannot open $uri")
-                resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
-            } catch (t: Throwable) {
-                resolver.delete(uri, null, null)
-                throw t
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
+                put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, "$folder/$ALBUM")
+                // Hidden from galleries until published. One left by a killed export expires on its own.
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
-            uri
+            val uri = context.contentResolver.insert(collection, values) ?: throw IOException("MediaStore insert failed")
+            PendingItem(uri)
         } else {
             // Android 8 and 9: write the file ourselves (needs WRITE_EXTERNAL_STORAGE), then index it.
-            val publicDir = Environment.getExternalStoragePublicDirectory(
-                if (isVideo) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES,
-            )
-            val target = File(publicDir, ALBUM).apply { mkdirs() }.resolve(displayName)
-            try {
-                file.copyTo(target, overwrite = true)
-            } catch (t: Throwable) {
-                // No half-written file left for the gallery to index.
-                target.delete()
-                throw t
-            }
             @Suppress("DEPRECATION")
-            values.put(MediaStore.MediaColumns.DATA, target.absolutePath)
-            context.contentResolver.insert(collection, values) ?: throw IOException("MediaStore insert failed")
+            val album = File(Environment.getExternalStoragePublicDirectory(folder), ALBUM)
+            if (!album.isDirectory && !album.mkdirs()) throw IOException("Cannot create $album")
+            PublicFileItem(album, displayName, mimeType, collection)
         }
     }
 
-    private companion object {
-        const val ALBUM = "MotionLoop"
+    /** Android 10 and later: a pending MediaStore entry, written through the content resolver. */
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private inner class PendingItem(private val uri: Uri) : GalleryItem {
+        @Volatile private var published = false
+
+        override fun openStream(): OutputStream =
+            context.contentResolver.openOutputStream(uri, "w") ?: throw IOException("Cannot open $uri")
+
+        override fun openDescriptor(): ParcelFileDescriptor =
+            context.contentResolver.openFileDescriptor(uri, "rw") ?: throw IOException("Cannot open $uri")
+
+        override suspend fun publish(): Uri = withContext(io) {
+            val values = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
+            if (context.contentResolver.update(uri, values, null, null) == 0) throw IOException("Cannot publish $uri")
+            published = true
+            uri
+        }
+
+        override suspend fun discard() = withContext(io) {
+            if (!published) context.contentResolver.delete(uri, null, null)
+            Unit
+        }
+    }
+
+    /**
+     * Android 8 and 9: a hidden file next to its final name, renamed and indexed on publish, so a
+     * half-written export never shows in a gallery.
+     */
+    private inner class PublicFileItem(
+        private val album: File,
+        private val displayName: String,
+        private val mimeType: String,
+        private val collection: Uri,
+    ) : GalleryItem {
+        private val partial = File(album, ".$displayName.part")
+        @Volatile private var published = false
+
+        override fun openStream(): OutputStream = FileOutputStream(partial)
+
+        override fun openDescriptor(): ParcelFileDescriptor = ParcelFileDescriptor.open(
+            partial,
+            ParcelFileDescriptor.MODE_READ_WRITE or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE,
+        )
+
+        override suspend fun publish(): Uri = withContext(io) {
+            val target = File(album, displayName)
+            if (!partial.renameTo(target)) throw IOException("Cannot move the export into $album")
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
+                put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                @Suppress("DEPRECATION")
+                put(MediaStore.MediaColumns.DATA, target.absolutePath)
+            }
+            val uri = context.contentResolver.insert(collection, values)
+            if (uri == null) {
+                target.delete()
+                throw IOException("MediaStore insert failed")
+            }
+            published = true
+            uri
+        }
+
+        override suspend fun discard() = withContext(io) {
+            if (!published) partial.delete()
+            Unit
+        }
+    }
+
+    companion object {
+        const val SHARE_DIR = "share"
+        private const val ALBUM = "MotionLoop"
     }
 }

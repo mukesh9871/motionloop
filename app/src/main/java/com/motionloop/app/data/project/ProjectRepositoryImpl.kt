@@ -145,7 +145,7 @@ class ProjectRepositoryImpl @Inject constructor(
         private const val TAG = "ProjectRepository"
         private const val SAVE_DELAY_MS = 400L
         const val MAX_STORED_EDGE = 4096
-        private const val PROJECTS = "projects"
+        const val PROJECTS = "projects"
         private const val BACKUP = "project.json.bak"
 
         /** Folder holding everything for one project. Shared with other repositories (custom LUT file). */

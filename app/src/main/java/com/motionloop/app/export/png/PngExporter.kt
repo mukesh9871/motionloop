@@ -1,5 +1,6 @@
 package com.motionloop.app.export.png
 
+import com.motionloop.app.domain.repository.GalleryItem
 import android.content.Context
 import android.graphics.Bitmap
 import android.opengl.GLES30
@@ -22,7 +23,6 @@ import com.motionloop.app.render.LoopRenderGraph
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import javax.inject.Inject
@@ -43,7 +43,7 @@ class PngExporter @Inject constructor(
     @DefaultDispatcher private val cpu: CoroutineDispatcher,
 ) {
 
-    suspend fun export(project: Project, out: File, onProgress: (Float) -> Unit) = OffscreenLoop.onGlThread("ml-png-export") {
+    suspend fun export(project: Project, out: GalleryItem, onProgress: (Float) -> Unit) = OffscreenLoop.onGlThread("ml-png-export") {
         val (w, h) = OffscreenLoop.fit(
             project.aspect, MAX_EDGE, edgeIsShort = false,
             srcW = project.imageWidth, srcH = project.imageHeight, align = 2,
@@ -54,9 +54,7 @@ class PngExporter @Inject constructor(
         var texts: List<TextDraw> = emptyList()
         var color: GlTexture? = null
         var alpha: GlTexture? = null
-        var success = false
         try {
-            out.parentFile?.mkdirs()
             val e = EglCore(EglCore.Kind.PBUFFER).also { egl = it }
             e.makeCurrentPbuffer()
             val bitmap = projects.loadImage(project.id, minOf(max(w, h), GlUtil.maxTextureSize()))
@@ -101,20 +99,18 @@ class PngExporter @Inject constructor(
                 val pixels = compose(rgba, layers, w * h, 0.04f + 0.4f * feather)
                 val image = Bitmap.createBitmap(pixels, w, h, Bitmap.Config.ARGB_8888)
                 try {
-                    out.outputStream().buffered().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                    out.openStream().buffered().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
                 } finally {
                     image.recycle()
                 }
             }
             onProgress(1f)
-            success = true
         } finally {
             color?.release()
             alpha?.release()
             graph?.release()
             texts.forEach { it.rendered.recycle() }
             egl?.release()
-            if (!success) out.delete()
         }
     }
 

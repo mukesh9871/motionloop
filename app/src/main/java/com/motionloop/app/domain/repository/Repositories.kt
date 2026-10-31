@@ -2,12 +2,14 @@ package com.motionloop.app.domain.repository
 
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import com.motionloop.app.domain.model.Adjustments
 import com.motionloop.app.domain.model.LutData
 import com.motionloop.app.domain.model.MaskKind
 import com.motionloop.ml.AlphaMask
 import com.motionloop.app.domain.model.Project
 import java.io.File
+import java.io.OutputStream
 
 interface ProjectRepository {
     /** Copies the photo into app storage and creates a new project. */
@@ -77,21 +79,30 @@ interface LutRepository {
 }
 
 interface MediaRepository {
-    /** Scratch file for an export in progress. The caller deletes it. */
-    fun exportTempFile(name: String): File
-
     /** False for split installs (from an app bundle), where the APK cannot be shared as one file. */
     val canShareApk: Boolean
-
-    /** Removes camera captures from earlier sessions and makes the capture folder. */
-    suspend fun pruneCaptures()
-
-    /** Removes export files left by an interrupted export. */
-    suspend fun pruneExports()
 
     /** A content Uri to the installed app's APK, for "share the app" without a store. */
     suspend fun shareableApk(): Uri
 
-    /** Copies [file] into the shared gallery and returns its content Uri. */
-    suspend fun saveToGallery(file: File, mimeType: String, displayName: String): Uri
+    /** A new gallery entry an export writes into directly, so the file is written once. */
+    suspend fun createGalleryItem(mimeType: String, displayName: String): GalleryItem
+}
+
+/**
+ * A gallery entry being written, hidden until [publish]. Every open call hands out a new stream or
+ * descriptor that the caller closes. Open calls do disk work: not on the main thread.
+ */
+interface GalleryItem {
+    /** For files written front to back (GIF, PNG). */
+    fun openStream(): OutputStream
+
+    /** Readable and seekable, for MediaMuxer, which goes back to write the index. */
+    fun openDescriptor(): ParcelFileDescriptor
+
+    /** Shows the finished file in the gallery and returns its content Uri. */
+    suspend fun publish(): Uri
+
+    /** Deletes the entry. Does nothing once it is published. */
+    suspend fun discard()
 }

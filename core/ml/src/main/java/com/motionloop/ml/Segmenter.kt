@@ -10,6 +10,7 @@ import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.interactivesegmenter.InteractiveSegmenter
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
+import com.google.mlkit.vision.segmentation.subject.SubjectSegmenter
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -30,13 +31,9 @@ import kotlin.math.roundToInt
 class Segmenter(private val context: Context) {
 
     private val lock = Mutex()
+    // Both made on first use and again after close(). Only touched under the lock.
     private var interactive: InteractiveSegmenter? = null
-    private val subjectClientLazy = lazy {
-        SubjectSegmentation.getClient(
-            SubjectSegmenterOptions.Builder().enableForegroundConfidenceMask().build(),
-        )
-    }
-    private val subjectClient by subjectClientLazy
+    private var subject: SubjectSegmenter? = null
 
     /** Mask of the object under the normalized point ([x], [y]). Soft edges from model confidence. */
     suspend fun segmentAt(image: Bitmap, x: Float, y: Float): AlphaMask = lock.withLock {
@@ -86,15 +83,19 @@ class Segmenter(private val context: Context) {
     suspend fun segmentSubject(image: Bitmap): AlphaMask {
         val input = prepare(image)
         try {
-            // Play services may be downloading the model: do not keep the editor busy forever.
-            val result = withTimeoutOrNull(ML_KIT_TIMEOUT_MS) { subjectClient.process(InputImage.fromBitmap(input, 0)).await() }
-            val buffer = result?.foregroundConfidenceMask
-            if (buffer != null) {
-                val values = FloatArray(input.width * input.height)
-                buffer.rewind()
-                buffer.get(values)
-                return AlphaMask.fromFloats(input.width, input.height, values)
+            // Under the lock, so close() cannot free the client during the call. Released before the
+            // fallback, which takes the lock itself.
+            val mask = lock.withLock {
+                // Play services may be downloading the model: do not keep the editor busy forever.
+                val result = withTimeoutOrNull(ML_KIT_TIMEOUT_MS) { subjectClient().process(InputImage.fromBitmap(input, 0)).await() }
+                result?.foregroundConfidenceMask?.let { buffer ->
+                    val values = FloatArray(input.width * input.height)
+                    buffer.rewind()
+                    buffer.get(values)
+                    AlphaMask.fromFloats(input.width, input.height, values)
+                }
             }
+            if (mask != null) return mask
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -117,12 +118,20 @@ class Segmenter(private val context: Context) {
         return mask.takeIf { it.coverage() > 0.02f }
     }
 
-    /** Under the lock: freeing native memory under a running inference would crash. */
+    /**
+     * Frees the models' native memory. The next call loads them again. Under the lock: freeing
+     * native memory under a running inference would crash.
+     */
     suspend fun close() = lock.withLock {
         interactive?.close()
         interactive = null
-        if (subjectClientLazy.isInitialized()) subjectClient.close()
+        subject?.close()
+        subject = null
     }
+
+    private fun subjectClient(): SubjectSegmenter = subject ?: SubjectSegmentation.getClient(
+        SubjectSegmenterOptions.Builder().enableForegroundConfidenceMask().build(),
+    ).also { subject = it }
 
     private fun interactive(): InteractiveSegmenter = interactive ?: InteractiveSegmenter.createFromOptions(
         context,

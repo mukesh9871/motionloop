@@ -1,5 +1,7 @@
 package com.motionloop.app.export.video
 
+import com.motionloop.app.domain.repository.GalleryItem
+import android.os.ParcelFileDescriptor
 import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
@@ -37,7 +39,6 @@ import com.motionloop.app.export.OffscreenLoop
 import com.motionloop.app.render.LoopRenderGraph
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ensureActive
-import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.currentCoroutineContext
 import kotlin.math.max
@@ -54,7 +55,7 @@ class VideoExporter @Inject constructor(
     @DefaultDispatcher private val cpu: CoroutineDispatcher,
 ) {
 
-    suspend fun export(project: Project, settings: ExportSettings, out: File, onProgress: (Float) -> Unit) =
+    suspend fun export(project: Project, settings: ExportSettings, out: GalleryItem, onProgress: (Float) -> Unit) =
         OffscreenLoop.onGlThread("ml-video-export") {
             val encoderInfo = avcEncoder() ?: error("This device has no H.264 encoder")
             val targetAspect = settings.aspect.widthOverHeight(project.aspect)
@@ -96,12 +97,11 @@ class VideoExporter @Inject constructor(
             var codec: MediaCodec? = null
             var inputSurface: Surface? = null
             var muxer: MediaMuxer? = null
+            var descriptor: ParcelFileDescriptor? = null
             var egl: EglCore? = null
             var graph: LoopRenderGraph? = null
             var texts: List<TextDraw> = emptyList()
-            var success = false
             try {
-                out.parentFile?.mkdirs()
                 // Same codec that the size check used, so a "supported" size cannot fail in configure().
                 val c = MediaCodec.createByCodecName(encoderInfo.name).also { codec = it }
                 c.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
@@ -125,7 +125,8 @@ class VideoExporter @Inject constructor(
                 g.setTexts(texts)
                 bitmap.recycle() // uploaded to the GPU, the CPU copy is no longer needed
 
-                val m = MediaMuxer(out.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4).also { muxer = it }
+                val fd = out.openDescriptor().also { descriptor = it }
+                val m = MediaMuxer(fd.fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4).also { muxer = it }
                 val drainer = Drainer(c, m, encodedAudio)
                 for (i in 0 until frameCount) {
                     currentCoroutineContext().ensureActive()
@@ -150,7 +151,6 @@ class VideoExporter @Inject constructor(
                 m.stop()
                 m.release()
                 muxer = null
-                success = true
             } finally {
                 graph?.release()
                 texts.forEach { it.rendered.recycle() }
@@ -164,7 +164,8 @@ class VideoExporter @Inject constructor(
                     runCatching { it.stop() }
                     it.release()
                 }
-                if (!success) out.delete()
+                // After the muxer, which writes the index on stop. A failed file is discarded by the caller.
+                descriptor?.close()
             }
         }
 

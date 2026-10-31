@@ -13,14 +13,25 @@ import java.nio.channels.FileChannel
 /**
  * Monocular depth with MiDaS v2.1 small (LiteRT). Output is relative inverse depth,
  * normalized to 0..255 with 255 = nearest. Blocks on inference: call from a background dispatcher.
+ *
+ * The model is loaded for each run and closed right after. Depth runs once per photo and the result
+ * is stored, so keeping it would hold about 60 MB of native memory for the rest of the session.
  */
 class DepthEstimator(private val context: Context) {
 
+    // One run at a time: two loaded copies of the model would double the peak.
     private val lock = Mutex()
-    private var interpreter: Interpreter? = null
 
     suspend fun estimate(image: Bitmap): AlphaMask = lock.withLock {
-        val tflite = interpreter()
+        val tflite = load()
+        try {
+            infer(tflite, image)
+        } finally {
+            tflite.close()
+        }
+    }
+
+    private fun infer(tflite: Interpreter, image: Bitmap): AlphaMask {
         val inShape = tflite.getInputTensor(0).shape() // [1, H, W, 3]
         val inH = inShape[1]
         val inW = inShape[2]
@@ -45,22 +56,18 @@ class DepthEstimator(private val context: Context) {
         val values = FloatArray(outH * outW)
         output.asFloatBuffer().get(values)
         normalize(values)
-        AlphaMask.fromFloats(outW, outH, values)
+        return AlphaMask.fromFloats(outW, outH, values)
     }
 
-    fun close() {
-        interpreter?.close()
-        interpreter = null
-    }
-
-    private fun interpreter(): Interpreter = interpreter ?: run {
-        val fd = context.assets.openFd(MODEL)
-        val buffer = FileInputStream(fd.fileDescriptor).use { stream ->
-            stream.channel.map(FileChannel.MapMode.READ_ONLY, fd.startOffset, fd.declaredLength)
+    private fun load(): Interpreter {
+        // Memory mapped: the file pages are shared and dropped by the system, not copied to the heap.
+        val buffer = context.assets.openFd(MODEL).use { fd ->
+            FileInputStream(fd.fileDescriptor).use { stream ->
+                stream.channel.map(FileChannel.MapMode.READ_ONLY, fd.startOffset, fd.declaredLength)
+            }
         }
-        fd.close()
-        Interpreter(buffer, Interpreter.Options().setNumThreads(4))
-    }.also { interpreter = it }
+        return Interpreter(buffer, Interpreter.Options().setNumThreads(4))
+    }
 
     companion object {
         private const val MODEL = "midas_small.tflite"

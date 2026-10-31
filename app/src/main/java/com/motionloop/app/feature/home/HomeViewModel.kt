@@ -5,6 +5,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.motionloop.app.data.StorageSweeper
 import com.motionloop.app.domain.model.DemoPhoto
 import com.motionloop.app.domain.model.DemoPhotos
 import com.motionloop.app.domain.pro.Entitlements
@@ -43,6 +44,7 @@ sealed interface HomeEvent {
 class HomeViewModel @Inject constructor(
     private val projects: ProjectRepository,
     private val media: MediaRepository,
+    private val storage: StorageSweeper,
     entitlements: Entitlements,
 ) : ViewModel() {
 
@@ -64,7 +66,8 @@ class HomeViewModel @Inject constructor(
     private val thumbs = HashMap<String, Bitmap>()
 
     init {
-        viewModelScope.launch { media.pruneCaptures() }
+        // Home is the start screen: once per app start.
+        viewModelScope.launch { storage.sweep() }
         viewModelScope.launch {
             val demos = DemoPhotos.all.mapNotNull { photo ->
                 projects.loadAssetThumbnail(photo.assetPath, DEMO_THUMB_EDGE)?.let { DemoThumb(photo, it) }
