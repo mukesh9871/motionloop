@@ -132,8 +132,13 @@ data class EditorUiState(
         get() = tool == EditorTool.FREEZE || tool == EditorTool.UNFREEZE ||
             tool == EditorTool.SELECT_FREEZE || tool == EditorTool.SELECT_ANIMATE
 
+    // The project's own list while nothing is being drawn: the renderer and Compose skip work for
+    // a list they have already seen, which a fresh copy would defeat.
     val visibleArrows: List<MotionArrow>
-        get() = project?.arrows.orEmpty() + listOfNotNull(liveArrow)
+        get() {
+            val arrows = project?.arrows.orEmpty()
+            return liveArrow?.let { arrows + it } ?: arrows
+        }
 
     val scene: RenderScene
         get() {
@@ -142,7 +147,7 @@ data class EditorUiState(
                 image = preview,
                 arrows = visibleArrows,
                 anchors = p.anchors,
-                strokes = if (isSkyBrush || isSubjectBrush || isEffectBrush || isOverlayBrush) p.strokes else p.strokes + listOfNotNull(liveStroke),
+                strokes = if (liveStroke == null || isSkyBrush || isSubjectBrush || isEffectBrush || isOverlayBrush) p.strokes else p.strokes + liveStroke,
                 loop = p.loop,
                 playing = playing,
                 showMask = !playing && panel == EditorPanel.ANIMATE && (showsFreezeMask || liveStroke != null),

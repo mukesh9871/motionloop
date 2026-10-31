@@ -103,6 +103,7 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
     }
     // Leaving the screen (Home, screen off, pickers, other pages) stops the preview and its sound.
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { vm.setPlaying(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { vm.onStop() }
     val view = LocalView.current
     DisposableEffect(settings.keepScreenOn) {
         view.keepScreenOn = settings.keepScreenOn

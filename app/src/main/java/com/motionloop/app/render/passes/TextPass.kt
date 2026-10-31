@@ -11,8 +11,11 @@ import com.motionloop.app.domain.model.TextLayer
 import com.motionloop.app.domain.model.TextTiming
 import com.motionloop.app.render.text.RenderedText
 
-/** A text layer and its rasterized bitmaps, ready to draw. */
-class TextDraw(val layer: TextLayer, val rendered: RenderedText)
+/**
+ * A text layer and its rasterized bitmaps, ready to draw. Equal when the layer is equal and the
+ * bitmaps are the same objects, so two scenes with the same texts compare equal.
+ */
+data class TextDraw(val layer: TextLayer, val rendered: RenderedText)
 
 /**
  * Text layers over the frame (11e), in two calls so the graph can put the 3D camera in between:

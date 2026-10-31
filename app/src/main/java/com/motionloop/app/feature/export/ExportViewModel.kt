@@ -92,6 +92,8 @@ class ExportViewModel @Inject constructor(
     /** The project can change between two openings of the sheet (sound added, photo the same). */
     private fun refreshProject() {
         viewModelScope.launch {
+            // Editor saves wait a moment for more changes: write them before reading the file.
+            projects.flush()
             val project = projects.load(projectId) ?: return@launch
             photoAspect = project.aspect
             photoWidth = project.imageWidth

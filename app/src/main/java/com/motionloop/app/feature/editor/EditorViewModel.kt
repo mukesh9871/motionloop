@@ -238,7 +238,12 @@ class EditorViewModel @Inject constructor(
 
     override fun onCleared() {
         player.release()
+        // Saves wait a moment for more changes: start the last one now.
+        projects.writePending()
     }
+
+    /** The screen stopped (app in the background): write waiting saves now, the process may be killed. */
+    fun onStop() = projects.writePending()
 
     // endregion
 

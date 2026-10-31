@@ -13,14 +13,12 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import com.motionloop.app.data.writeAtomically
 import java.io.File
 import java.io.IOException
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
 /**
@@ -39,8 +37,16 @@ class ProjectRepositoryImpl @Inject constructor(
 
     // One writer at a time, in call order. Lives as long as the app, not the screen.
     private val serialIo = io.limitedParallelism(1)
-    private val saveScope = CoroutineScope(SupervisorJob() + serialIo)
-    private val pending = ConcurrentHashMap<String, Project>()
+
+    // A slider drag or typing saves on every change: wait for the burst to end, then write once.
+    private val saves = SaveQueue<Project>(CoroutineScope(SupervisorJob() + io), serialIo, SAVE_DELAY_MS) { project ->
+        try {
+            writeJson(project.copy(updatedAt = System.currentTimeMillis()))
+        } catch (e: Exception) {
+            // Never let a failed save crash the app from this scope. The previous file stays intact.
+            Log.e(TAG, "Saving project ${project.id} failed", e)
+        }
+    }
 
     private fun dir(id: String) = projectDir(context, id)
 
@@ -92,30 +98,23 @@ class ProjectRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun saveInBackground(project: Project) {
-        // Coalesce: a slider drag queues many saves, but each queued task writes the newest
-        // pending version and later tasks for the same id find nothing left to do.
-        pending[project.id] = project
-        saveScope.launch {
-            val latest = pending.remove(project.id) ?: return@launch
-            try {
-                writeJson(latest.copy(updatedAt = System.currentTimeMillis()))
-            } catch (e: Exception) {
-                // Never let a failed save crash the app from this scope. The previous file stays intact.
-                Log.e(TAG, "Saving project ${latest.id} failed", e)
-            }
-        }
-    }
+    override fun saveInBackground(project: Project) = saves.submit(project.id, project)
 
-    // The serial dispatcher runs queued blocks in order, so this returns after every earlier save.
-    override suspend fun flush() = withContext(serialIo) { }
+    override fun writePending() = saves.writePending()
 
-    override suspend fun recent(limit: Int): List<Project> = withContext(io) {
+    override suspend fun flush() = saves.flush()
+
+    override suspend fun recentIds(limit: Int): List<String> = withContext(io) {
+        // Newest first by file time: every save rewrites project.json, so nothing has to be parsed.
         File(context.filesDir, PROJECTS).listFiles().orEmpty()
-            .mapNotNull { d -> File(d, JSON).takeIf { it.exists() } }
-            .mapNotNull { runCatching { json.decodeFromString<Project>(it.readText()) }.getOrNull() }
-            .sortedByDescending { it.updatedAt }
+            .mapNotNull { d ->
+                // The backup too: a project whose last write was interrupted still opens from it.
+                val file = File(d, JSON).takeIf { it.isFile } ?: File(d, BACKUP).takeIf { it.isFile }
+                file?.let { d.name to it.lastModified() }
+            }
+            .sortedByDescending { it.second }
             .take(limit)
+            .map { it.first }
     }
 
     override suspend fun loadImage(id: String, maxEdge: Int): Bitmap = withContext(io) {
@@ -123,11 +122,14 @@ class ProjectRepositoryImpl @Inject constructor(
     }
 
     override suspend fun loadThumbnail(id: String): Bitmap? = withContext(io) {
-        BitmapFactory.decodeFile(File(dir(id), THUMB).path)
+        val path = File(dir(id), THUMB).path
+        // Only displayed, never read back: a hardware bitmap keeps the pixels out of the Java heap.
+        val hardware = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.HARDWARE }
+        BitmapFactory.decodeFile(path, hardware) ?: BitmapFactory.decodeFile(path)
     }
 
     override suspend fun delete(id: String) {
-        pending.remove(id)
+        saves.cancel(id)
         // On the serial writer: every earlier save finishes first, none can run after and recreate files.
         withContext(serialIo) { dir(id).deleteRecursively() }
     }
@@ -136,12 +138,12 @@ class ProjectRepositoryImpl @Inject constructor(
         val dir = dir(project.id)
         val target = File(dir, JSON)
         // The previous version stays as a backup for load() in case the new file is unreadable.
-        if (target.exists()) target.copyTo(File(dir, BACKUP), overwrite = true)
-        target.writeAtomically { it.write(json.encodeToString(Project.serializer(), project).toByteArray()) }
+        target.writeAtomically(backup = File(dir, BACKUP)) { it.write(json.encodeToString(Project.serializer(), project).toByteArray()) }
     }
 
     companion object {
         private const val TAG = "ProjectRepository"
+        private const val SAVE_DELAY_MS = 400L
         const val MAX_STORED_EDGE = 4096
         private const val PROJECTS = "projects"
         private const val BACKUP = "project.json.bak"

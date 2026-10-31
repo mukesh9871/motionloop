@@ -4,6 +4,11 @@ import android.content.Context
 import android.content.res.AssetManager
 import android.opengl.GLES30
 import android.opengl.GLSurfaceView
+import android.os.Build
+import android.os.PowerManager
+import android.view.Choreographer
+import android.view.Surface
+import android.view.SurfaceHolder
 import com.motionloop.app.domain.audio.BeatDetector
 import com.motionloop.app.domain.model.LoopSettings
 import com.motionloop.app.render.LoopRenderGraph
@@ -85,9 +90,23 @@ class EditorRenderer(private val assets: AssetManager) : GLSurfaceView.Renderer 
     }
 }
 
-/** GLSurfaceView sized by Compose to exactly the photo aspect, so no letterboxing math here. */
-class LoopSurfaceView(context: Context) : GLSurfaceView(context) {
+/**
+ * GLSurfaceView sized by Compose to exactly the photo aspect, so no letterboxing math here.
+ *
+ * Playback is paced here rather than with RENDERMODE_CONTINUOUSLY, which draws on every vsync:
+ * 120 times a second on many phones, for loops that are slow by nature. Frames are requested at
+ * about 60 fps (30 in battery saver), and a paused preview only draws when its scene changes.
+ */
+class LoopSurfaceView(context: Context) : GLSurfaceView(context), Choreographer.FrameCallback {
     private val renderer = EditorRenderer(context.assets)
+    private val power: PowerManager? = context.getSystemService(PowerManager::class.java)
+
+    // Main thread only.
+    private var attached = false
+    private var paused = false
+    private var ticking = false
+    private var interval = FRAME_INTERVAL_NANOS
+    private var nextFrameNanos = 0L
 
     init {
         setEGLContextClientVersion(3)
@@ -98,9 +117,76 @@ class LoopSurfaceView(context: Context) : GLSurfaceView(context) {
     }
 
     fun setScene(scene: RenderScene) {
+        val old = renderer.scene
         renderer.scene = scene
-        val mode = if (scene.playing) RENDERMODE_CONTINUOUSLY else RENDERMODE_WHEN_DIRTY
-        if (renderMode != mode) renderMode = mode
-        requestRender()
+        updateTicking()
+        // Chrome changes (busy badge, messages, brush size) recompose with an equal scene: no new frame.
+        if (scene != old) requestRender()
+    }
+
+    override fun doFrame(frameTimeNanos: Long) {
+        if (!ticking) return
+        // A little slack: on a 90 Hz panel a vsync lands just before the due time.
+        if (frameTimeNanos >= nextFrameNanos - SLACK_NANOS) {
+            nextFrameNanos += interval
+            // After a stall, start again from now instead of drawing a burst of late frames.
+            if (nextFrameNanos < frameTimeNanos) nextFrameNanos = frameTimeNanos + interval
+            requestRender()
+        }
+        Choreographer.getInstance().postFrameCallback(this)
+    }
+
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        super.surfaceCreated(holder)
+        // Only a hint: lets a high refresh panel run slower while this preview is what moves.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            runCatching { holder.surface.setFrameRate(TARGET_FPS, Surface.FRAME_RATE_COMPATIBILITY_DEFAULT) }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        paused = false
+        updateTicking()
+    }
+
+    override fun onPause() {
+        paused = true
+        updateTicking()
+        super.onPause()
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        attached = true
+        updateTicking()
+    }
+
+    override fun onDetachedFromWindow() {
+        attached = false
+        updateTicking()
+        super.onDetachedFromWindow()
+    }
+
+    private fun updateTicking() {
+        val should = attached && !paused && renderer.scene.playing
+        if (should == ticking) return
+        ticking = should
+        val choreographer = Choreographer.getInstance()
+        if (should) {
+            // Read once per start, not per frame: it is a call into the system.
+            interval = if (power?.isPowerSaveMode == true) SAVER_INTERVAL_NANOS else FRAME_INTERVAL_NANOS
+            nextFrameNanos = 0L
+            choreographer.postFrameCallback(this)
+        } else {
+            choreographer.removeFrameCallback(this)
+        }
+    }
+
+    private companion object {
+        const val TARGET_FPS = 60f
+        const val FRAME_INTERVAL_NANOS = 16_666_667L
+        const val SAVER_INTERVAL_NANOS = 33_333_333L
+        const val SLACK_NANOS = 2_000_000L
     }
 }

@@ -21,15 +21,20 @@ interface ProjectRepository {
     suspend fun load(id: String): Project?
 
     /**
-     * Queues a save. Saves run one at a time in call order on an app-wide scope,
-     * so they never interleave and still finish after the editor screen is closed.
+     * Queues a save. It waits a moment for a newer save of the same project (a slider drag writes once),
+     * then runs on an app-wide scope, one at a time in call order: saves never interleave and still
+     * finish after the editor screen is closed.
      */
     fun saveInBackground(project: Project)
 
-    /** Suspends until every queued save has been written. */
+    /** Starts every waiting save now without suspending, for example when the screen stops. */
+    fun writePending()
+
+    /** Writes every queued save now and suspends until all are written. Call before reading a project from disk. */
     suspend fun flush()
 
-    suspend fun recent(limit: Int = 12): List<Project>
+    /** Ids of the most recently saved projects, newest first. */
+    suspend fun recentIds(limit: Int = 12): List<String>
 
     /** Decodes the project photo with its long edge at most [maxEdge]. */
     suspend fun loadImage(id: String, maxEdge: Int): Bitmap

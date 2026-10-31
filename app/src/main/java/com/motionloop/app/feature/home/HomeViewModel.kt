@@ -59,6 +59,10 @@ class HomeViewModel @Inject constructor(
     // the delete finished must not bring them back. UUIDs, so the set stays tiny.
     private val deleting = mutableSetOf<String>()
 
+    // A thumbnail is written once, when its project is created, so a loaded one stays valid.
+    // Main thread only (viewModelScope).
+    private val thumbs = HashMap<String, Bitmap>()
+
     init {
         viewModelScope.launch { media.pruneCaptures() }
         viewModelScope.launch {
@@ -74,9 +78,13 @@ class HomeViewModel @Inject constructor(
     fun refresh() {
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
-            val list = projects.recent()
-                .filterNot { it.id in deleting }
-                .map { RecentProject(it.id, projects.loadThumbnail(it.id)) }
+            // Back from the editor, its last save may still be on its way: sort by the written files.
+            projects.flush()
+            val ids = projects.recentIds().filterNot { it in deleting }
+            val list = ids.map { id ->
+                RecentProject(id, thumbs[id] ?: projects.loadThumbnail(id)?.also { thumbs[id] = it })
+            }
+            thumbs.keys.retainAll(ids.toSet())
             _state.update { s -> s.copy(recent = list.filterNot { it.id in deleting }) }
         }
     }
@@ -126,6 +134,7 @@ class HomeViewModel @Inject constructor(
     fun delete(id: String) {
         // Optimistic: drop it from the grid now, then delete the files.
         deleting += id
+        thumbs.remove(id)
         _state.update { s -> s.copy(recent = s.recent.filterNot { it.id == id }) }
         viewModelScope.launch {
             try {
