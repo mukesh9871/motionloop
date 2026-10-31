@@ -492,3 +492,16 @@ Verdict: CLEAN. Minor: autoplay could start behind a restored export sheet, and 
 ## Editor UX follow-up rounds 4 to 6 (uncommitted)
 
 Round 4: NEEDS WORK (1 major: a sheet restored after process death paused before the load, so the load still autoplayed behind it). Fixed with exportOpen in the ViewModel. Round 5: CLEAN with 3 minor (onPause cancelled a held autoplay, a tool pick during the load did not count). Fixed with userActed. Opening Export by hand stays an explicit pause, documented. Round 6: CLEAN, no findings.
+
+## Memory, gallery export and storage sweep round 1 (f858f92)
+
+Verdict: CLEAN (6 minor).
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | minor | discard() in the export's finally could throw out of the coroutine | Fixed: caught and logged. |
+| 2 | minor | A cancel at the end of publish or create lost the result or the entry's handle | Fixed: both run NonCancellable, with the result state update. |
+| 3 | minor | Android 8 and 9: hidden .part files of a killed export stayed in the public album | Fixed: the sweep removes old ones when the storage permission is granted. |
+| 4 | minor | Android 8 and 9: a throwing insert left the renamed file in the album | Fixed: the file is deleted on any failure. |
+| 5 | minor | The ML Kit subject call now holds the segmenter lock for up to 30 s | Accepted: first use only (Play services download), the editor runs one model at a time, only reference cards can wait. |
+| 6 | minor | A throwing release skipped closing the muxer's descriptor | Fixed: closed in an inner finally. |

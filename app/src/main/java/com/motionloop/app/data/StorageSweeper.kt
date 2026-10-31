@@ -1,6 +1,11 @@
 package com.motionloop.app.data
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Environment
+import androidx.core.content.ContextCompat
 import com.motionloop.app.core.common.IoDispatcher
 import com.motionloop.app.data.media.MediaIntents
 import com.motionloop.app.data.media.MediaStoreSaver
@@ -35,7 +40,24 @@ class StorageSweeper @Inject constructor(
             .forEach { it.delete() }
         // Exports were staged here before they were written straight into the gallery.
         File(context.cacheDir, "exports").deleteRecursively()
-        Unit
+        sweepUnfinishedExports(cutoff)
+    }
+
+    /**
+     * Android 8 and 9: a killed export leaves its hidden file in the public album, where it would
+     * outlive the app. Android 10 and later expire unfinished gallery entries on their own.
+     */
+    private fun sweepUnfinishedExports(cutoff: Long) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) return
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        if (granted != PackageManager.PERMISSION_GRANTED) return
+        for (folder in listOf(Environment.DIRECTORY_MOVIES, Environment.DIRECTORY_PICTURES)) {
+            @Suppress("DEPRECATION")
+            val album = File(Environment.getExternalStoragePublicDirectory(folder), MediaStoreSaver.ALBUM)
+            album.listFiles().orEmpty()
+                .filter { it.name.startsWith(".") && it.name.endsWith(MediaStoreSaver.PART_SUFFIX) && it.lastModified() < cutoff }
+                .forEach { it.delete() }
+        }
     }
 
     internal companion object {

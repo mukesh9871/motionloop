@@ -172,15 +172,20 @@ class ExportViewModel @Inject constructor(
                 projects.flush()
                 val project = projects.load(projectId) ?: error("Project not found")
                 // Written straight into the gallery entry, which stays hidden until it is complete.
-                val out = media.createGalleryItem(mime, name).also { item = it }
+                // Not cancellable: a cancel landing after the insert would lose the entry's handle.
+                val out = withContext(NonCancellable) { media.createGalleryItem(mime, name) }.also { item = it }
                 val onProgress: (Float) -> Unit = { p -> _state.update { it.copy(progress = p) } }
                 when (settings.format) {
                     ExportFormat.MP4 -> videoExporter.export(project, settings, out, onProgress)
                     ExportFormat.GIF -> gifExporter.export(project, settings, out, onProgress)
                     ExportFormat.PNG -> pngExporter.export(project, out, onProgress)
                 }
-                val uri = out.publish()
-                _state.update { it.copy(running = false, progress = 1f, resultUri = uri, resultMime = mime) }
+                // Not cancellable: a cancel tapped at the very end must not hide a file that is
+                // already in the gallery (and invite a second export of it).
+                withContext(NonCancellable) {
+                    val uri = out.publish()
+                    _state.update { it.copy(running = false, progress = 1f, resultUri = uri, resultMime = mime) }
+                }
             } catch (e: CancellationException) {
                 _state.update { it.copy(running = false, progress = 0f) }
                 throw e
@@ -189,7 +194,16 @@ class ExportViewModel @Inject constructor(
                 _state.update { it.copy(running = false, error = "The export failed. Please try again.") }
             } finally {
                 // A failed or cancelled export leaves nothing behind. A published one is kept.
-                item?.let { withContext(NonCancellable) { it.discard() } }
+                item?.let { pending ->
+                    withContext(NonCancellable) {
+                        // A provider error here must not crash the app or hide the export's own error.
+                        try {
+                            pending.discard()
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Could not remove the unfinished export", e)
+                        }
+                    }
+                }
             }
         }
     }

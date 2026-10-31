@@ -152,20 +152,24 @@ class VideoExporter @Inject constructor(
                 m.release()
                 muxer = null
             } finally {
-                graph?.release()
-                texts.forEach { it.rendered.recycle() }
-                egl?.release()
-                codec?.let {
-                    runCatching { it.stop() }
-                    it.release()
+                try {
+                    graph?.release()
+                    texts.forEach { it.rendered.recycle() }
+                    egl?.release()
+                    codec?.let {
+                        runCatching { it.stop() }
+                        it.release()
+                    }
+                    inputSurface?.release()
+                    muxer?.let {
+                        runCatching { it.stop() }
+                        it.release()
+                    }
+                } finally {
+                    // After the muxer, which writes the index on stop, and also when a release throws.
+                    // A failed file is discarded by the caller.
+                    descriptor?.close()
                 }
-                inputSurface?.release()
-                muxer?.let {
-                    runCatching { it.stop() }
-                    it.release()
-                }
-                // After the muxer, which writes the index on stop. A failed file is discarded by the caller.
-                descriptor?.close()
             }
         }
 

@@ -99,7 +99,7 @@ class MediaStoreSaver @Inject constructor(
         private val mimeType: String,
         private val collection: Uri,
     ) : GalleryItem {
-        private val partial = File(album, ".$displayName.part")
+        private val partial = File(album, ".$displayName$PART_SUFFIX")
         @Volatile private var published = false
 
         override fun openStream(): OutputStream = FileOutputStream(partial)
@@ -118,13 +118,15 @@ class MediaStoreSaver @Inject constructor(
                 @Suppress("DEPRECATION")
                 put(MediaStore.MediaColumns.DATA, target.absolutePath)
             }
-            val uri = context.contentResolver.insert(collection, values)
-            if (uri == null) {
+            try {
+                val uri = context.contentResolver.insert(collection, values) ?: throw IOException("MediaStore insert failed")
+                published = true
+                uri
+            } catch (e: Exception) {
+                // The export reports a failure: no finished file may stay behind for the scanner to show.
                 target.delete()
-                throw IOException("MediaStore insert failed")
+                throw e
             }
-            published = true
-            uri
         }
 
         override suspend fun discard() = withContext(io) {
@@ -135,6 +137,9 @@ class MediaStoreSaver @Inject constructor(
 
     companion object {
         const val SHARE_DIR = "share"
-        private const val ALBUM = "MotionLoop"
+        const val ALBUM = "MotionLoop"
+
+        /** Suffix of the hidden file an export writes on Android 8 and 9 before it is published. */
+        const val PART_SUFFIX = ".part"
     }
 }
