@@ -1,5 +1,6 @@
 package com.motionloop.app.feature.editor.components
 
+import com.motionloop.app.domain.model.DispersionSettings
 import com.motionloop.app.render.tiles.rememberTile
 import com.motionloop.app.render.tiles.TileKey
 import androidx.compose.ui.semantics.Role
@@ -83,7 +84,7 @@ fun EffectsPanel(
                 Sticker.MIN_SIZE..Sticker.MAX_SIZE,
                 { v -> onChangeSticker { it.copy(size = v) } },
             )
-            LabeledSlider("Rotate", selected.rotation, -180f..180f, { v -> onChangeSticker { it.copy(rotation = v) } })
+            LabeledSlider("Rotate", selected.rotation, -180f..180f, { v -> onChangeSticker { it.copy(rotation = v) } }, format = ::degreeText)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Spacer(Modifier.weight(1f))
                 TextAction("Delete sticker", onClick = onDeleteSticker)
@@ -104,7 +105,14 @@ fun EffectsPanel(
         } else {
             LabeledSlider("Amount", dispersion.amount, 0f..1f, { v -> onChange { it.copy(dispersion = it.dispersion.copy(amount = v)) } })
             LabeledSlider("Distance", dispersion.distance, 0f..1f, { v -> onChange { it.copy(dispersion = it.dispersion.copy(distance = v)) } })
-            LabeledSlider("Direction", dispersion.angle, -180f..180f, { v -> onChange { it.copy(dispersion = it.dispersion.copy(angle = v)) } })
+            LabeledSlider(
+                "Direction",
+                dispersion.angle,
+                -180f..180f,
+                { v -> onChange { it.copy(dispersion = it.dispersion.copy(angle = v)) } },
+                default = DispersionSettings().angle,
+                format = ::degreeText,
+            )
         }
 
         Label("Water")

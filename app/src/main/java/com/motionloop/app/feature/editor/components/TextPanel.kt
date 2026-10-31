@@ -123,7 +123,7 @@ fun TextPanel(
         Label("Color")
         Swatches(selected.color) { c -> onChange { it.copy(color = c) } }
         LabeledSlider("Size", selected.size, TextLayer.MIN_SIZE..TextLayer.MAX_SIZE, { v -> onChange { it.copy(size = v) } })
-        LabeledSlider("Rotate", selected.rotation, -180f..180f, { v -> onChange { it.copy(rotation = v) } })
+        LabeledSlider("Rotate", selected.rotation, -180f..180f, { v -> onChange { it.copy(rotation = v) } }, format = ::degreeText)
         LabeledSlider("Spacing", selected.letterSpacing, -0.05f..0.5f, { v -> onChange { it.copy(letterSpacing = v) } })
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Pill("Shadow", active = selected.shadow) { onChange { it.copy(shadow = !it.shadow) } }

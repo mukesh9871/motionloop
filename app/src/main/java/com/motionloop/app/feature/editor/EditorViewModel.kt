@@ -22,6 +22,8 @@ import com.motionloop.app.domain.model.MotionArrow
 import com.motionloop.app.domain.model.Sticker
 import com.motionloop.app.domain.model.StickerKind
 import com.motionloop.app.domain.model.MotionPaths
+import com.motionloop.app.domain.model.MotionPreset
+import com.motionloop.app.domain.model.MotionPresets
 import com.motionloop.app.domain.model.NPoint
 import com.motionloop.app.domain.model.OverlaySettings
 import com.motionloop.app.domain.model.Project
@@ -110,6 +112,11 @@ class EditorViewModel @Inject constructor(
     private val undoStack = ArrayDeque<Geometry>()
     private val redoStack = ArrayDeque<Geometry>()
 
+    // Main thread only. Autoplay waits for the screen: a project that finishes loading after the
+    // person left must not start playing (and sounding) in the background.
+    private var resumed = false
+    private var autoplayPending = false
+
     // Panel where the running model action started: its result message belongs there,
     // even if the user switched panels while it ran.
     private var modelOrigin: EditorPanel? = null
@@ -146,6 +153,10 @@ class EditorViewModel @Inject constructor(
                     preview = preview,
                     error = if (preview == null) "Could not load the photo" else null,
                 )
+            }
+            // A project that already moves opens playing: the result first, the tools second.
+            if (preview != null && project.animates) {
+                if (resumed) _state.update { it.copy(playing = true) } else autoplayPending = true
             }
             refreshLut()
             _state.update { it.copy(hasCustomLut = luts.hasCustom(projectId)) }
@@ -240,6 +251,21 @@ class EditorViewModel @Inject constructor(
         player.release()
         // Saves wait a moment for more changes: start the last one now.
         projects.writePending()
+    }
+
+    /** The screen is in front: a pending autoplay starts now. */
+    fun onResume() {
+        resumed = true
+        if (autoplayPending) {
+            autoplayPending = false
+            _state.update { it.copy(playing = true) }
+        }
+    }
+
+    /** The screen left the front: the preview and its sound stop. */
+    fun onPause() {
+        resumed = false
+        setPlaying(false)
     }
 
     /** The screen stopped (app in the background): write waiting saves now, the process may be killed. */
@@ -815,6 +841,22 @@ class EditorViewModel @Inject constructor(
 
     // region tools and playback
 
+    /** Holding the compare button: the preview shows the photo as imported. */
+    fun setComparing(on: Boolean) = _state.update { it.copy(comparing = on) }
+
+    /** Adds a ready-made set of arrows (undoable) and plays it, a one-tap start for a new photo. */
+    fun applyPreset(preset: MotionPreset) {
+        val project = _state.value.project ?: return
+        val arrows = MotionPresets.arrows(preset, project.aspect) { UUID.randomUUID().toString() }
+        val budget = FlowFieldPass.MAX_SEGMENTS - MotionPaths.segmentCount(project.arrows)
+        if (MotionPaths.segmentCount(arrows) > budget) {
+            _state.update { it.copy(messagePanel = EditorPanel.ANIMATE, message = "That is as many motion paths as fit. Erase one to add more.") }
+            return
+        }
+        commit(current(project).let { it.copy(arrows = it.arrows + arrows) })
+        _state.update { it.copy(tool = EditorTool.ARROW, playing = true) }
+    }
+
     fun setTool(tool: EditorTool) = _state.update { it.copy(tool = tool, playing = false) }
     fun setBrushRadius(r: Float) = _state.update { it.copy(brushRadius = r) }
     fun setBrushHardness(h: Float) = _state.update { it.copy(brushHardness = h) }
@@ -933,7 +975,11 @@ class EditorViewModel @Inject constructor(
                 len < MIN_ARROW_LENGTH -> Unit
                 arrow.points.size - 1 > budget ->
                     _state.update { it.copy(messagePanel = EditorPanel.ANIMATE, message = "That is as many motion paths as fit. Erase one to draw more.") }
-                else -> commit(current(project).let { it.copy(arrows = it.arrows + arrow) })
+                else -> {
+                    commit(current(project).let { it.copy(arrows = it.arrows + arrow) })
+                    // Show the motion right away: the next touch pauses it again for drawing.
+                    _state.update { it.copy(playing = true) }
+                }
             }
         }
         s.liveStroke?.let { stroke ->
@@ -1026,7 +1072,13 @@ class EditorViewModel @Inject constructor(
         loadSubjectMask(g.subjectMaskRev)
         loadSelections(g.selections)
         _state.update {
-            it.copy(project = updated, canUndo = undoStack.isNotEmpty(), canRedo = redoStack.isNotEmpty())
+            it.copy(
+                project = updated,
+                canUndo = undoStack.isNotEmpty(),
+                canRedo = redoStack.isNotEmpty(),
+                // Undoing the last arrow leaves nothing to play: stop, so the photo and the hint show again.
+                playing = it.playing && updated.animates,
+            )
         }
         pruneSelectionMasks(updated)
         persist(updated)

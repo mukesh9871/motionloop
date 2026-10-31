@@ -60,6 +60,13 @@ class EditorRenderer(private val assets: AssetManager) : GLSurfaceView.Renderer 
         g.setSubject(s.subject, s.subjectMask, s.background, s.backgroundPhoto, s.subjectTintOnly, checker = true)
         g.setTexts(s.texts)
 
+        if (s.showOriginal) {
+            // Before and after: the photo alone. The loop holds still meanwhile and resumes without a jump.
+            lastFrameNanos = 0L
+            g.drawOriginal(0, 0, 0, width, height, flipY = true)
+            return
+        }
+
         // Advance phase by elapsed time so speed changes never make the loop jump.
         val now = System.nanoTime()
         if (s.playing && lastFrameNanos != 0L) {
@@ -94,8 +101,9 @@ class EditorRenderer(private val assets: AssetManager) : GLSurfaceView.Renderer 
  * GLSurfaceView sized by Compose to exactly the photo aspect, so no letterboxing math here.
  *
  * Playback is paced here rather than with RENDERMODE_CONTINUOUSLY, which draws on every vsync:
- * 120 times a second on many phones, for loops that are slow by nature. Frames are requested at
- * about 60 fps (30 in battery saver), and a paused preview only draws when its scene changes.
+ * 120 times a second on many phones, for loops that are slow by nature. Frames are requested every
+ * whole number of vsyncs, at most 60 fps (30 in battery saver): 60 on 60 and 120 Hz panels, an even
+ * 45 on 90 Hz. A paused preview only draws when its scene changes.
  */
 class LoopSurfaceView(context: Context) : GLSurfaceView(context), Choreographer.FrameCallback {
     private val renderer = EditorRenderer(context.assets)

@@ -1,5 +1,13 @@
 package com.motionloop.app.feature.editor.tools
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.State
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -42,6 +50,8 @@ fun EditorCanvas(
     enabled: Boolean,
     /** Ring drawn around a selected item: center, radius in widths. */
     highlight: Pair<NPoint, Float>? = null,
+    /** An empty photo: a ghost arrow draws itself to show what to do. */
+    showHint: Boolean = false,
     onDown: (NPoint) -> Unit,
     onMove: (NPoint) -> Unit,
     onUp: () -> Unit,
@@ -50,6 +60,17 @@ fun EditorCanvas(
     var cursor by remember { mutableStateOf<Offset?>(null) }
     val enabledState = rememberUpdatedState(enabled)
     val enabledNow = { enabledState.value }
+    // Read only in the draw block below, so the hint redraws without recomposing anything.
+    val hint: State<Float>? = if (showHint) {
+        rememberInfiniteTransition(label = "hint").animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(HINT_MS, easing = LinearEasing), RepeatMode.Restart),
+            label = "hintT",
+        )
+    } else {
+        null
+    }
 
     Canvas(
         // enabled is read inside, not a key: keying on it restarts the handler when busy flips mid-tap.
@@ -81,6 +102,7 @@ fun EditorCanvas(
             anchors.forEach { drawAnchor(it) }
             arrows.forEach { drawArrow(it) }
         }
+        hint?.let { drawHint(it.value) }
         val c = cursor
         val brush = tool == EditorTool.FREEZE || tool == EditorTool.UNFREEZE ||
             tool == EditorTool.SKY_PAINT || tool == EditorTool.SKY_ERASE ||
@@ -126,6 +148,38 @@ private fun DrawScope.drawArrow(a: MotionArrow) {
         close()
     }
     drawPath(path, MlColors.Arrow)
+}
+
+private const val HINT_MS = 2400
+
+/** A dashed arrow that grows from left to right under a fingertip, holds, then fades: the gesture to make. */
+private fun DrawScope.drawHint(t: Float) {
+    val grow = (t / 0.55f).coerceAtMost(1f)
+    // Ease out, like a finger slowing down at the end of a swipe.
+    val p = 1f - (1f - grow) * (1f - grow)
+    val alpha = if (t < 0.7f) 1f else (1f - (t - 0.7f) / 0.3f).coerceIn(0f, 1f)
+    val a = Offset(size.width * 0.28f, size.height * 0.62f)
+    val b = Offset(size.width * 0.72f, size.height * 0.44f)
+    val tip = a + (b - a) * p
+    val stroke = 3.5f * density
+    val dash = PathEffect.dashPathEffect(floatArrayOf(10f * density, 8f * density))
+    drawLine(Color.Black.copy(alpha = 0.3f * alpha), a, tip, strokeWidth = stroke + 3f, cap = StrokeCap.Round, pathEffect = dash)
+    drawLine(MlColors.Arrow.copy(alpha = alpha), a, tip, strokeWidth = stroke, cap = StrokeCap.Round, pathEffect = dash)
+    if (grow < 1f) {
+        // The fingertip.
+        drawCircle(Color.White.copy(alpha = 0.25f * alpha), radius = 18f * density, center = tip)
+        drawCircle(Color.White.copy(alpha = 0.9f * alpha), radius = 18f * density, center = tip, style = Stroke(width = 2f * density))
+    } else {
+        val angle = atan2(b.y - a.y, b.x - a.x)
+        val head = 14f * density
+        val path = Path().apply {
+            moveTo(b.x, b.y)
+            lineTo(b.x - head * cos(angle - 0.45f), b.y - head * sin(angle - 0.45f))
+            lineTo(b.x - head * cos(angle + 0.45f), b.y - head * sin(angle + 0.45f))
+            close()
+        }
+        drawPath(path, MlColors.Arrow.copy(alpha = alpha))
+    }
 }
 
 private fun DrawScope.drawAnchor(a: Anchor) {

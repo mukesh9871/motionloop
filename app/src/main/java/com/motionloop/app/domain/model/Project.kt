@@ -80,4 +80,15 @@ data class Project(
     val effects: EffectsSettings = EffectsSettings(),
 ) {
     val aspect: Float get() = imageWidth.toFloat() / imageHeight
+
+    /**
+     * Something changes over the loop. False for a photo with only color, cutout or still text:
+     * one frame shows all of it. Errs on the side of true (an active sky or overlay always counts).
+     */
+    val animates: Boolean
+        get() = arrows.isNotEmpty() ||
+            (effects.ripple.strength > 0f && selections.any { it.mode == SelectionMode.RIPPLE }) ||
+            overlay.isActive || sky.isActive || parallax.isActive ||
+            effects.stickers.isNotEmpty() || effects.dispersion.isActive ||
+            texts.any { it.animation != TextAnimation.NONE }
 }

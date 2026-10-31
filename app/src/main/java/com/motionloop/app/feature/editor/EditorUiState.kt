@@ -114,6 +114,8 @@ data class EditorUiState(
     /** Beat envelope of the preview loop, null without sound or beat sync. */
     val beatEnvelope: FloatArray? = null,
     val audioClock: AudioClock? = null,
+    /** The compare button is held: the preview shows the photo as imported. */
+    val comparing: Boolean = false,
 ) {
     val selectedText: TextLayer? get() = project?.texts?.firstOrNull { it.id == selectedTextId }
 
@@ -186,6 +188,7 @@ data class EditorUiState(
                 beatEnvelope = beatEnvelope.takeIf { p.audio.beatSync },
                 beatAmount = p.audio.beatAmount,
                 audioClock = audioClock,
+                showOriginal = comparing,
                 texts = p.texts.mapNotNull { t ->
                     renderedTexts[t.id]?.let { TextDraw(if (playing) t else t.copy(animation = TextAnimation.NONE), it) }
                 },

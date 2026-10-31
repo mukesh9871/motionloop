@@ -1,5 +1,23 @@
 package com.motionloop.app.feature.editor
 
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.motionloop.app.domain.model.MotionPreset
+import com.motionloop.app.feature.editor.components.ToolModeRow
+import com.motionloop.app.ui.components.MlMotion
+import com.motionloop.app.ui.components.Pill
+import com.motionloop.app.ui.components.pressBounce
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
@@ -102,7 +120,8 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
         }
     }
     // Leaving the screen (Home, screen off, pickers, other pages) stops the preview and its sound.
-    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { vm.setPlaying(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.onResume() }
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { vm.onPause() }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { vm.onStop() }
     val view = LocalView.current
     DisposableEffect(settings.keepScreenOn) {
@@ -170,18 +189,29 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                             tool = state.tool,
                             arrows = state.visibleArrows,
                             anchors = project.anchors,
-                            showGuides = !state.playing && state.panel == EditorPanel.ANIMATE,
+                            showGuides = !state.playing && !state.comparing && state.panel == EditorPanel.ANIMATE,
                             enabled = touchPanel && state.busy == null,
                             brushRadius = state.brushRadius,
                             highlight = state.selectedSticker
-                                ?.takeIf { state.panel == EditorPanel.EFFECTS && !state.playing }
+                                ?.takeIf { state.panel == EditorPanel.EFFECTS && !state.playing && !state.comparing }
                                 ?.let { NPoint(it.x, it.y) to it.size / 2f },
+                            showHint = state.panel == EditorPanel.ANIMATE && state.tool == EditorTool.ARROW &&
+                                project.arrows.isEmpty() && state.liveArrow == null && !state.playing &&
+                                !state.comparing && state.busy == null,
                             onDown = vm::pointerDown,
                             onMove = vm::pointerMove,
                             onUp = vm::pointerUp,
                             modifier = Modifier.fillMaxSize(),
                         )
                         state.busy?.let { label -> BusyBadge(label, Modifier.align(Alignment.BottomCenter)) }
+                        // On the photo itself: the before and after is about the picture, and the top bar is full.
+                        if (state.preview != null) {
+                            CompareButton(
+                                comparing = state.comparing,
+                                onCompare = vm::setComparing,
+                                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -217,8 +247,8 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                     targetState = state.panel,
                     transitionSpec = {
                         // The size change is part of this transition: no second size animation outside.
-                        ((fadeIn(tween(220)) + slideInVertically(tween(260)) { it / 8 }) togetherWith fadeOut(tween(120)))
-                            .using(SizeTransform(clip = false))
+                        ((fadeIn(MlMotion.gentle()) + slideInVertically(MlMotion.gentle()) { it / 8 }) togetherWith fadeOut(tween(120)))
+                            .using(SizeTransform(clip = false) { _, _ -> MlMotion.gentle() })
                     },
                     label = "panel",
                 ) { panel ->
@@ -368,8 +398,10 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                                 )
                             }
                         } else if (state.isBrush) {
+                            ToolModeRow(state.tool, vm::setTool)
                             BrushControls(state, vm)
                         } else {
+                            ToolModeRow(state.tool, vm::setTool)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     hintFor(state.tool),
@@ -389,6 +421,10 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
                                             .padding(horizontal = 10.dp, vertical = 6.dp),
                                     )
                                 }
+                            }
+                            // A new photo: one tap gives a moving result to refine, instead of a blank start.
+                            if (state.tool == EditorTool.ARROW && project?.arrows?.isEmpty() == true) {
+                                QuickStart(onPick = vm::applyPreset)
                             }
                         }
                     }
@@ -424,6 +460,7 @@ fun EditorScreen(onBack: () -> Unit, onOpenPro: () -> Unit, vm: EditorViewModel 
 
 @Composable
 private fun PanelTabs(selected: EditorPanel, onSelect: (EditorPanel) -> Unit) {
+    val haptics = LocalHapticFeedback.current
     // Eight panels do not fit narrow phones at a readable size: the row scrolls, and its bar shows there is more.
     Row(
         Modifier
@@ -437,8 +474,8 @@ private fun PanelTabs(selected: EditorPanel, onSelect: (EditorPanel) -> Unit) {
         EditorPanel.entries.forEach { panel ->
             val active = panel == selected
             // The highlight glides between tabs instead of jumping.
-            val fill by animateColorAsState(if (active) MlColors.Violet else Color.Transparent, tween(220), label = "tabFill")
-            val ink by animateColorAsState(if (active) Color.White else MlColors.TextSecondary, tween(220), label = "tabInk")
+            val fill by animateColorAsState(if (active) MlColors.Violet else Color.Transparent, MlMotion.colorSpring(), label = "tabFill")
+            val ink by animateColorAsState(if (active) Color.White else MlColors.TextSecondary, MlMotion.colorSpring(), label = "tabInk")
             Text(
                 panel.label,
                 style = MaterialTheme.typography.labelMedium,
@@ -447,7 +484,10 @@ private fun PanelTabs(selected: EditorPanel, onSelect: (EditorPanel) -> Unit) {
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
                     .background(fill)
-                    .selectable(selected = active, role = Role.Tab) { onSelect(panel) }
+                    .selectable(selected = active, role = Role.Tab) {
+                        if (!active) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                        onSelect(panel)
+                    }
                     .heightIn(min = 44.dp)
                     .wrapContentHeight()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -469,6 +509,26 @@ private fun BusyBadge(label: String, modifier: Modifier = Modifier) {
         CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MlColors.Mint)
         Spacer(Modifier.width(8.dp))
         Text(label, style = MaterialTheme.typography.labelMedium, color = MlColors.TextPrimary)
+    }
+}
+
+/** One-tap motion presets for a photo with no motion yet. */
+@Composable
+private fun QuickStart(onPick: (MotionPreset) -> Unit) {
+    Text(
+        "Or start with",
+        style = MaterialTheme.typography.labelMedium,
+        color = MlColors.TextSecondary,
+        modifier = Modifier.padding(top = 2.dp, bottom = 2.dp),
+    )
+    Row(
+        Modifier.fillMaxWidth().horizontalScrollWithBar(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        MotionPreset.entries.forEach { preset ->
+            // The chip gives its own tick.
+            Pill(preset.label, active = false) { onPick(preset) }
+        }
     }
 }
 
@@ -525,6 +585,52 @@ private fun TopBar(
             Text("Export", color = ink, style = MaterialTheme.typography.titleMedium)
         }
         Spacer(Modifier.width(8.dp))
+    }
+}
+
+/**
+ * Hold to see the photo as imported, let go to see the result again. Accessibility services get a
+ * tap action that switches between the two instead, since they cannot hold.
+ */
+@Composable
+private fun CompareButton(comparing: Boolean, onCompare: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    val haptics = LocalHapticFeedback.current
+    val source = remember { MutableInteractionSource() }
+    val latest by rememberUpdatedState(onCompare)
+    Box(
+        modifier
+            .minimumInteractiveComponentSize()
+            .size(40.dp)
+            .pressBounce(source, pressedScale = 0.88f)
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = 0.45f))
+            .semantics {
+                contentDescription = if (comparing) "Showing the original photo" else "Hold to see the original photo"
+                onClick(label = if (comparing) "Show the result" else "Show the original") {
+                    latest(!comparing)
+                    true
+                }
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = { offset ->
+                        val press = PressInteraction.Press(offset)
+                        source.emit(press)
+                        haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                        latest(true)
+                        // finally: a cancelled gesture (the button leaving the screen) must not stick on the original.
+                        val released = try {
+                            tryAwaitRelease()
+                        } finally {
+                            latest(false)
+                        }
+                        source.emit(if (released) PressInteraction.Release(press) else PressInteraction.Cancel(press))
+                    },
+                )
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(MlIcons.Eye, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
     }
 }
 

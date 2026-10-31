@@ -57,6 +57,8 @@ data class RenderScene(
     val beatAmount: Float = 0f,
     /** Where the audible preview sound is (seconds into its loop), read on the render thread. */
     val audioClock: AudioClock? = null,
+    /** Show the photo as imported, for the before and after compare. */
+    val showOriginal: Boolean = false,
 )
 
 /** Position of the audible preview sound, null while nothing plays. */

@@ -59,14 +59,14 @@ private val groups = listOf(
     Group(
         "Animate",
         listOf(
-            Topic("motion", MlIcons.Motion, "Motion", "Draw the path things should follow, straight or curved. Pixels flow along it. A longer path moves faster. Motion fades out away from your paths.", Illus.PATH),
+            Topic("motion", MlIcons.Motion, "Motion", "Draw the path things should follow, straight or curved. Pixels flow along it. A longer path moves faster. Motion fades out away from your paths. On a new photo, the Waterfall, River, Clouds and Rise buttons give you a starting point in one tap.", Illus.PATH),
             Topic("anchor", MlIcons.Anchor, "Anchor", "Tap to pin points that must stay still, such as rocks next to a waterfall or the edge of a building.", Illus.ANCHOR),
             Topic("freeze", MlIcons.Freeze, "Freeze", "Paint over areas that must not move at all, like people or trees. Adjust the brush size and softness below the photo.", Illus.FREEZE),
-            Topic("unfreeze", MlIcons.Unfreeze, "Unfreeze", "Paint over a frozen area to let it move again.", Illus.UNFREEZE),
+            Topic("unfreeze", MlIcons.Unfreeze, "Unfreeze", "In Freeze, switch to Unfreeze and paint over a frozen area to let it move again.", Illus.UNFREEZE),
             Topic("erase", MlIcons.Delete, "Erase", "Tap a motion path or an anchor to remove it.", Illus.ERASE),
-            Topic("hold", MlIcons.Select, "Hold", "Tap an object, such as a person or a boat. The app finds its outline and keeps it still.", Illus.HOLD),
-            Topic("only_this", MlIcons.Focus, "Only this", "Tap an object: only it moves, everything else holds still.", Illus.ONLY_THIS),
-            Topic("speed", MlIcons.Loop, "Speed, loop and bounce", "The slider sets the speed. Loop flows endlessly in one direction. Bounce plays forward and back, good for hair or flags. Undo and Redo sit at the top.", Illus.SPEED),
+            Topic("hold", MlIcons.Select, "Hold still", "Pick Select, then Hold still, and tap an object such as a person or a boat. The app finds its outline and keeps it still.", Illus.HOLD),
+            Topic("only_this", MlIcons.Focus, "Only this moves", "Pick Select, then Only this moves, and tap an object: only it moves, everything else holds still.", Illus.ONLY_THIS),
+            Topic("speed", MlIcons.Loop, "Speed, loop and bounce", "The slider sets the speed, tap its label to go back to normal speed. Loop flows endlessly in one direction. Bounce plays forward and back, good for hair or flags. Undo and Redo sit at the top. Hold the eye button in the corner of the photo to see your original photo.", Illus.SPEED),
         ),
     ),
     Group(

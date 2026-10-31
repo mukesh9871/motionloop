@@ -1,5 +1,22 @@
 package com.motionloop.app.feature.export
 
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.motionloop.app.ui.components.MlMotion
+import com.motionloop.app.ui.icons.MlIcons
+import kotlin.math.roundToInt
 import android.Manifest
 import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
@@ -70,6 +87,24 @@ fun ExportSheet(onDismiss: () -> Unit, onOpenPro: () -> Unit, vm: ExportViewMode
         if (granted) vm.start() else vm.onStoragePermissionDenied()
     }
     LaunchedEffect(Unit) { vm.reset() }
+    val haptics = LocalHapticFeedback.current
+    // A finished export is a moment worth feeling: only when one ran in this sheet, not for a result
+    // left over from an earlier opening.
+    var exportRan by remember { mutableStateOf(false) }
+    LaunchedEffect(state.running, state.resultUri) {
+        if (state.running) {
+            exportRan = true
+        } else if (exportRan && state.resultUri != null) {
+            exportRan = false
+            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+        }
+    }
+    // Progress arrives in steps: the bar glides between them, and jumps back to empty for a new export.
+    val shownProgress by animateFloatAsState(
+        state.progress,
+        if (state.progress == 0f) snap() else MlMotion.gentle(),
+        label = "exportProgress",
+    )
     val startExport = {
         if (needsPermission &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
@@ -165,8 +200,14 @@ fun ExportSheet(onDismiss: () -> Unit, onOpenPro: () -> Unit, vm: ExportViewMode
             Spacer(Modifier.height(20.dp))
             when {
                 state.running -> {
+                    Text(
+                        "Rendering ${(state.progress * 100f).roundToInt()}%",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MlColors.TextSecondary,
+                    )
+                    Spacer(Modifier.height(8.dp))
                     LinearProgressIndicator(
-                        progress = { state.progress },
+                        progress = { shownProgress },
                         modifier = Modifier.fillMaxWidth(),
                         color = MlColors.Mint,
                     )
@@ -174,7 +215,16 @@ fun ExportSheet(onDismiss: () -> Unit, onOpenPro: () -> Unit, vm: ExportViewMode
                     OutlinedButton(onClick = vm::cancel, modifier = Modifier.fillMaxWidth()) { Text("Cancel") }
                 }
                 state.resultUri != null -> {
-                    Text("Saved to your gallery.", color = MlColors.Mint)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // The check pops in, so the result reads as done at a glance.
+                        var shown by remember { mutableStateOf(false) }
+                        LaunchedEffect(Unit) { shown = true }
+                        AnimatedVisibility(visible = shown, enter = scaleIn(MlMotion.bouncy(), initialScale = 0.3f) + fadeIn()) {
+                            Icon(MlIcons.Check, contentDescription = null, tint = MlColors.Mint, modifier = Modifier.size(22.dp))
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text("Saved to your gallery.", color = MlColors.Mint)
+                    }
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Button(

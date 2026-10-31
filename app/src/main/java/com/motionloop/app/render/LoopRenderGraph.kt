@@ -60,6 +60,8 @@ class LoopRenderGraph(assets: AssetManager) {
     private val subjectMaskPass = MaskPass(assets, quad)
     private val blurPass = BlurPass(assets, quad)
     private val maskCopy = GlProgram.fromAssets(assets, "fullscreen.vert", "mask_layer.frag")
+    // Compiled on first use (on this GL thread): only the editor's compare view needs it.
+    private val photoCopy = lazy { GlProgram.fromAssets(assets, "fullscreen.vert", "copy.frag") }
     private val sourcePass = SourcePass(assets, quad)
     private val warpPass = LoopWarpPass(assets, quad)
     private val colorPass = ColorPass(assets, quad)
@@ -341,6 +343,18 @@ class LoopRenderGraph(assets: AssetManager) {
         if (texts.isNotEmpty()) textPass.drawLayers(texts, subjectMaskTextureId != 0, behind, phase, aspect)
     }
 
+    /** Draws the photo as imported, with no motion or effects, for the editor's before and after compare. */
+    fun drawOriginal(fbo: Int, x: Int, y: Int, width: Int, height: Int, flipY: Boolean) {
+        val src = photo ?: return
+        bindTarget(fbo, x, y, width, height)
+        GLES30.glDisable(GLES30.GL_BLEND)
+        val program = photoCopy.value
+        program.use()
+        program.set1f("uFlipY", if (flipY) 1f else 0f)
+        program.bindTexture("uSrc", 0, src.id)
+        quad.draw()
+    }
+
     /** Texts are not drawn into frames while this is false (PNG cutouts draw them separately). */
     var drawTextsInFrame = true
 
@@ -564,6 +578,7 @@ class LoopRenderGraph(assets: AssetManager) {
         subjectMaskPass.release()
         blurPass.release()
         maskCopy.release()
+        if (photoCopy.isInitialized()) photoCopy.value.release()
         sourcePass.release()
         warpPass.release()
         colorPass.release()

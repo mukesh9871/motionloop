@@ -1,5 +1,18 @@
 package com.motionloop.app.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.InteractionSource
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -29,16 +42,30 @@ import kotlin.math.max
 
 /**
  * Rounded option chip used by every panel. Active: violet with white text. Read by TalkBack as a
- * selectable button with its state, and padded out to a 48 dp touch target.
+ * selectable button with its state, and padded out to a 48 dp touch target. It dips a little
+ * while pressed and gives a light tick when it becomes the choice.
  */
 @Composable
 fun Pill(label: String, active: Boolean, enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    val haptics = LocalHapticFeedback.current
+    val fill by animateColorAsState(if (active) MlColors.Violet else MlColors.SurfaceHigh, MlMotion.colorSpring(), label = "pillFill")
     Box(
         modifier
             .minimumInteractiveComponentSize()
+            .pressBounce(source)
             .clip(RoundedCornerShape(50))
-            .background(if (active) MlColors.Violet else MlColors.SurfaceHigh)
-            .selectable(selected = active, enabled = enabled, role = Role.Button, onClick = onClick)
+            .background(fill)
+            .selectable(
+                selected = active,
+                interactionSource = source,
+                indication = LocalIndication.current,
+                enabled = enabled,
+                role = Role.Button,
+            ) {
+                if (!active) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                onClick()
+            }
             .padding(horizontal = 14.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -51,6 +78,32 @@ fun Pill(label: String, active: Boolean, enabled: Boolean = true, modifier: Modi
                 else -> MlColors.TextPrimary
             },
         )
+    }
+}
+
+/** Springs shared by the controls, so every press and highlight moves with the same feel. */
+object MlMotion {
+    /** Presses and pops: quick, with a small overshoot. */
+    fun <T> bouncy() = spring<T>(dampingRatio = 0.55f, stiffness = Spring.StiffnessMedium)
+
+    /** Highlights and fills: settles without overshoot (colors must not overshoot). */
+    fun <T> colorSpring() = spring<T>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
+
+    /** Panels and sheets: soft, barely bouncy. */
+    fun <T> gentle() = spring<T>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+}
+
+/**
+ * A small springy dip while [source] is pressed, so taps feel physical. The scale is read in the
+ * layer block: pressing redraws the layer and never recomposes the content.
+ */
+@Composable
+fun Modifier.pressBounce(source: InteractionSource, pressedScale: Float = 0.94f): Modifier {
+    val pressed by source.collectIsPressedAsState()
+    val scale = animateFloatAsState(if (pressed) pressedScale else 1f, MlMotion.bouncy(), label = "press")
+    return graphicsLayer {
+        scaleX = scale.value
+        scaleY = scale.value
     }
 }
 
