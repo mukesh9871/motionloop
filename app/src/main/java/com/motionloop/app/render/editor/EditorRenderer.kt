@@ -106,6 +106,7 @@ class LoopSurfaceView(context: Context) : GLSurfaceView(context), Choreographer.
     private var paused = false
     private var ticking = false
     private var interval = FRAME_INTERVAL_NANOS
+    private var slack = 0L
     private var nextFrameNanos = 0L
 
     init {
@@ -126,11 +127,10 @@ class LoopSurfaceView(context: Context) : GLSurfaceView(context), Choreographer.
 
     override fun doFrame(frameTimeNanos: Long) {
         if (!ticking) return
-        // A little slack: on a 90 Hz panel a vsync lands just before the due time.
-        if (frameTimeNanos >= nextFrameNanos - SLACK_NANOS) {
-            nextFrameNanos += interval
-            // After a stall, start again from now instead of drawing a burst of late frames.
-            if (nextFrameNanos < frameTimeNanos) nextFrameNanos = frameTimeNanos + interval
+        // Due times count from the vsync actually used, never from the previous due time, so a panel
+        // slightly faster than 60 Hz cannot drift into a skipped frame, and a stall never causes a burst.
+        if (frameTimeNanos >= nextFrameNanos) {
+            nextFrameNanos = frameTimeNanos + interval - slack
             requestRender()
         }
         Choreographer.getInstance().postFrameCallback(this)
@@ -176,6 +176,9 @@ class LoopSurfaceView(context: Context) : GLSurfaceView(context), Choreographer.
         if (should) {
             // Read once per start, not per frame: it is a call into the system.
             interval = if (power?.isPowerSaveMode == true) SAVER_INTERVAL_NANOS else FRAME_INTERVAL_NANOS
+            // A quarter vsync of slack: a vsync landing just before the due time still counts.
+            val refresh = display?.refreshRate?.takeIf { it > 1f } ?: 60f
+            slack = (1_000_000_000f / refresh / 4f).toLong()
             nextFrameNanos = 0L
             choreographer.postFrameCallback(this)
         } else {
@@ -187,6 +190,5 @@ class LoopSurfaceView(context: Context) : GLSurfaceView(context), Choreographer.
         const val TARGET_FPS = 60f
         const val FRAME_INTERVAL_NANOS = 16_666_667L
         const val SAVER_INTERVAL_NANOS = 33_333_333L
-        const val SLACK_NANOS = 2_000_000L
     }
 }

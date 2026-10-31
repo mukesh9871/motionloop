@@ -15,8 +15,10 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SaveQueueTest {
 
+    // The test scope itself, not backgroundScope: advanceUntilIdle skips work that is only in the background.
+    // Every timer ends or is cancelled, so runTest never waits on a leftover child.
     private fun TestScope.queue(written: MutableList<String>) =
-        SaveQueue<String>(backgroundScope, StandardTestDispatcher(testScheduler), DELAY) { written += it }
+        SaveQueue<String>(this, StandardTestDispatcher(testScheduler), DELAY) { written += it }
 
     @Test
     fun burstOfSavesWritesOnceWithTheNewestValue() = runTest {
