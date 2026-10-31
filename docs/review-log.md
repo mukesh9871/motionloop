@@ -456,3 +456,39 @@ Verdict: NEEDS WORK (1 blocker, 2 minor).
 ## Delayed saves and paced preview round 3 (11f5a49)
 
 Verdict: CLEAN. Every SaveQueue test traced step by step. Minor: 90 and 144 Hz panels pace at an even 45 or 48 fps, not 60. Accepted, KDoc updated in the next commit.
+
+## Editor UX round 1 (uncommitted)
+
+Verdict: NEEDS WORK (2 major, 7 minor). Compile checks pass.
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | major | Compare button overflowed the top bar on 360 to 392 dp phones | Fixed: the button sits on the photo, top end. |
+| 2 | major | Value column left the speed slider about 33 dp of track | Fixed: compact slider, value under the label. |
+| 3 | minor | Sub pages slid in from the right when coming back to them | Fixed: popEnterTransition falls back to the fade. |
+| 4 | minor | Autoplay could start after leaving the screen during the load | Fixed: waits for ON_RESUME. |
+| 5 | minor | Degree sliders read as percent, Direction reset to 0 instead of -30 | Fixed: degreeText, real default. |
+| 6 | minor | Compare button under 48 dp and without an accessibility action | Fixed. |
+| 7 | minor | Motion guides drawn over the original while comparing | Fixed. |
+| 8 | minor | Unreachable hint | Removed. |
+| 9 | minor | Labels cut mid word at large font sizes | Fixed: ellipsis. |
+
+## Editor UX round 2 (uncommitted)
+
+Verdict: NEEDS WORK (1 major, 4 minor).
+
+| # | Sev | Finding | Outcome |
+|---|---|---|---|
+| 1 | major | Snap band made values near each default unreachable | Fixed: a detent that stops on the default when crossed, 1 percent stickiness. |
+| 2 | minor | Confirm haptic on reopening the export sheet | Fixed: only after an export ran in this sheet. |
+| 3 | minor | Progress bar sprang back from full | Fixed: snaps to zero. |
+| 4 | minor | Undoing the last arrow kept playing | Fixed: plays only while the project animates. |
+| 5 | minor | Help pointed to the eye in the top bar | Fixed. |
+
+## Editor UX round 3 (72402ee)
+
+Verdict: CLEAN. Minor: autoplay could start behind a restored export sheet, and the play button had two names during the crossfade. Both fixed in the follow-up.
+
+## Editor UX follow-up rounds 4 to 6 (uncommitted)
+
+Round 4: NEEDS WORK (1 major: a sheet restored after process death paused before the load, so the load still autoplayed behind it). Fixed with exportOpen in the ViewModel. Round 5: CLEAN with 3 minor (onPause cancelled a held autoplay, a tool pick during the load did not count). Fixed with userActed. Opening Export by hand stays an explicit pause, documented. Round 6: CLEAN, no findings.
